@@ -53,6 +53,4 @@ Sokker++ es una herramienta complementaria increíble, pero **no sustituye a la 
 
 Nota final: Llegado el momento Sokker++ estará disponible en la tienda de extensiones de Chrome y Edge. Ya pague la Chrome Store pero hay que llenar muchas cosas para que esté disponible para todos los usuarios.
 
-```markdown
 [by manuel.team](https://manuel.team)
-```
