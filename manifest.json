@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Sokker++",
+  "version": "0.1.0",
+  "description": "Tracks skill improvements and estimates player talent on Sokker.org",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://sokker.org/*",
+    "*://api.sokker.org/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://sokker.org/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "Sokker++"
+  }
+}
