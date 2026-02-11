@@ -13,8 +13,17 @@ Aquí te explicamos por qué Sokker++ destaca sobre cualquier otra alternativa:
 *   **Cero Configuración:** No necesitas introducir tu usuario ni contraseña en ningún sitio extraño. Sokker++ utiliza tu sesión activa de forma segura y transparente.
 *   **Visualización Inteligente:**
     *   Las gráficas de evolución aparecen integradas en la propia tabla de jugadores con solo pasar el ratón.
+    
+    ![Vista General](sokkerAlain.png)
+
     *   ¿Quieres ver el detalle? Al hacer click en una habilidad, se abre un gráfico ampliado y preciso.
+    
+    ![Gráfico Detallado](sokkerAlainSkillGraft.png)
+
     *   Las flechas de mejora (▲/▼) se dibujan junto a los valores reales para que veas el progreso de un vistazo.
+    
+    ![Tooltip de Habilidad](sokkerAlainSkill.png)
+
 *   **Diseño Nativo:** La estética respeta al 100% el estilo de Sokker. **No sentirás que es un plugin, sentirás que el juego ha evolucionado.**
 
 ---

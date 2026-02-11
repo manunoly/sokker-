@@ -13,8 +13,17 @@ Here's why Sokker++ stands out from any other alternative:
 *   **Zero Configuration:** you don't need to enter your username or password on any strange site. Sokker++ uses your active session securely and transparently.
 *   **Smart Visualization:**
     *   Evolution charts appear integrated into the player table itself just by hovering your mouse.
+    
+    ![General View](sokkerAlain.png)
+
     *   Want details? Clicking on a skill opens an enlarged and precise chart.
+    
+    ![Detailed Chart](sokkerAlainSkillGraft.png)
+
     *   Improvement arrows (▲/▼) are drawn next to the real values so you can see progress at a glance.
+    
+    ![Skill Tooltip](sokkerAlainSkill.png)
+
 *   **Native Design:** The aesthetics respect the Sokker style 100%. **You won't feel like it's a plugin; you'll feel like the game has evolved.**
 
 ---
