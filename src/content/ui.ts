@@ -158,11 +158,41 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
 
         // Attach data for tooltip to the label (descEl)
         (descEl as HTMLElement).dataset.skillName = skillKey;
+        // Do NOT mark label as clickable to avoid interfering with native functionality
 
-        // Try to find value element, but it's optional now
-        const valueEl = item.querySelector<HTMLElement>('.skill-list__value');
+        // Try to find value element (Number)
+        let valueEl = item.querySelector<HTMLElement>('.skill-list__value');
+
+        // Also try to find the text description element (e.g. "(Good)")
+        // It's often a sibling span or div without a specific class in some views, 
+        // or .skill-list__level-desc, or just inside the item text.
+        // We'll look for elements containing parenthesis that aren't the label or value.
+        const allChildren = Array.from(item.children) as HTMLElement[];
+        let textDescEl: HTMLElement | null = null;
+
+        for (const child of allChildren) {
+            if (child === descEl || child === valueEl) continue;
+
+            // Check if it has parenthesis
+            if (child.textContent && child.textContent.includes('(') && child.textContent.includes(')')) {
+                textDescEl = child;
+                break;
+            }
+        }
+
+        // If not found via parenthesis, try common classes
+        if (!textDescEl) {
+            textDescEl = item.querySelector('.skill-list__level-desc');
+        }
+
         if (valueEl) {
             valueEl.dataset.skillName = skillKey;
+            valueEl.dataset.clickable = 'true'; // Mark as clickable
+        }
+
+        if (textDescEl) {
+            textDescEl.dataset.skillName = skillKey;
+            textDescEl.dataset.clickable = 'true'; // Mark as clickable
         }
 
 
@@ -248,12 +278,15 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
             scheduleHide();
         });
 
-        // Click to open Zoom Modal directly
-        val.style.cursor = 'pointer';
-        val.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent bubbling if needed
-            e.preventDefault();  // Prevent default link action if any
-            openZoomChart(playerId, val.dataset.skillName!);
-        });
+        // Click to open Zoom Modal directly - ONLY if marked as clickable
+        // The user wants to avoid overwriting native functionality on the label.
+        if (val.dataset.clickable === 'true') {
+            val.style.cursor = 'pointer';
+            val.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent bubbling if needed
+                e.preventDefault();  // Prevent default link action if any
+                openZoomChart(playerId, val.dataset.skillName!);
+            });
+        }
     });
 }
