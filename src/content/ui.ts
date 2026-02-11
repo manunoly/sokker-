@@ -1,5 +1,5 @@
 import { getPlayerHistory } from '../core/repository';
-import { showTooltip, hideTooltip, updatePosition } from './tooltip';
+import { showTooltip, hideTooltip, updatePosition, scheduleHide, openZoomChart } from './tooltip';
 import { PlayerData, Skills } from '../types/index';
 import { mapSkillLabelToKey } from './i18n';
 
@@ -242,12 +242,18 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
             showTooltip(e.pageX, e.pageY, playerId, val.dataset.skillName!);
         });
 
-        val.addEventListener('mousemove', (e) => {
-            updatePosition(e.pageX, e.pageY);
-        });
+
 
         val.addEventListener('mouseleave', () => {
-            hideTooltip();
+            scheduleHide();
+        });
+
+        // Click to open Zoom Modal directly
+        val.style.cursor = 'pointer';
+        val.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent bubbling if needed
+            e.preventDefault();  // Prevent default link action if any
+            openZoomChart(playerId, val.dataset.skillName!);
         });
     });
 }

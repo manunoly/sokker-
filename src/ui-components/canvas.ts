@@ -1,3 +1,9 @@
+export interface ChartOptions {
+    forceYRange?: [number, number];
+    showAllXLabels?: boolean;
+    showGrid?: boolean;
+}
+
 /**
  * Draws a progression chart on the given canvas context.
  * Pure function.
@@ -5,15 +11,16 @@
  * @param {Array<{week: number, value: number}>} dataPoints 
  * @param {number} width 
  * @param {number} height 
+ * @param {ChartOptions} [options]
  */
-export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: Array<{ week: number, value: number }>, width: number, height: number): void {
+export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: Array<{ week: number, value: number }>, width: number, height: number, options?: ChartOptions): void {
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
     if (!dataPoints || dataPoints.length === 0) return;
 
     // Config
-    const padding = 20;
+    const padding = 30; // Increased padding for labels
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
 
@@ -27,21 +34,34 @@ export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: Array<{ wee
     let weekRange = maxWeek - minWeek;
 
     // Add buffer to X axis so points don't sit on the edge
-    let effectiveMinWeek = minWeek - 1;
-    let effectiveMaxWeek = maxWeek + 1;
+    let effectiveMinWeek = minWeek;
+    let effectiveMaxWeek = maxWeek;
+
+    if (!options?.showAllXLabels) {
+        // Default buffer for small chart
+        effectiveMinWeek = minWeek - 1;
+        effectiveMaxWeek = maxWeek + 1;
+    }
+
     weekRange = effectiveMaxWeek - effectiveMinWeek;
+    if (weekRange === 0) weekRange = 1;
 
-    // Handle single point (weekRange would be 2 from buffer, which is fine)
-    // If original range was 0, new range is 2.
-    // If original range was 1 (e.g. 100, 101), new range is 3 (99 to 102).
-
-    // Y axis: Skill usually 0-20, or adapt to data
+    // Y axis: Skill usually 0-18 (Sokker scale)
     const values = sortedData.map(d => d.value);
-    const minVal = Math.min(...values);
-    const maxVal = Math.max(...values);
-    // Add some buffer
-    const yMin = Math.max(0, minVal - 1);
-    const yMax = maxVal + 1;
+    let yMin = 0;
+    let yMax = 0;
+
+    if (options?.forceYRange) {
+        yMin = options.forceYRange[0];
+        yMax = options.forceYRange[1];
+    } else {
+        const minVal = Math.min(...values);
+        const maxVal = Math.max(...values);
+        // Add some buffer
+        yMin = Math.max(0, minVal - 1);
+        yMax = maxVal + 1;
+    }
+
     const valRange = yMax - yMin || 1;
 
     // Helper to map coordinates
@@ -55,13 +75,30 @@ export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: Array<{ wee
     ctx.strokeStyle = '#444';
     ctx.lineWidth = 1;
     ctx.beginPath();
+
     // Horizontal grid lines
-    for (let i = Math.floor(yMin); i <= Math.ceil(yMax); i++) {
+    // If range is fixed 0-18, draw line for every integer
+    const step = 1;
+    for (let i = Math.floor(yMin); i <= Math.ceil(yMax); i += step) {
         const y = getY(i);
-        ctx.moveTo(padding, y);
-        ctx.lineTo(width - padding, y);
+        if (y >= padding && y <= height - padding) { // Clip
+            ctx.moveTo(padding, y);
+            ctx.lineTo(width - padding, y);
+        }
     }
     ctx.stroke();
+
+    // Vertical grid lines (Weeks)
+    if (options?.showAllXLabels) {
+        ctx.strokeStyle = '#333';
+        ctx.beginPath();
+        for (let w = effectiveMinWeek; w <= effectiveMaxWeek; w++) {
+            const x = getX(w);
+            ctx.moveTo(x, padding);
+            ctx.lineTo(x, height - padding);
+        }
+        ctx.stroke();
+    }
 
     // Draw Line
     ctx.strokeStyle = '#00ff00'; // Neon green
@@ -86,17 +123,37 @@ export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: Array<{ wee
         ctx.fill();
     });
 
-    // Draw Labels (Simple)
+    // Draw Labels
     ctx.fillStyle = '#aaa';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
 
-    // X Axis Labels (Start and End)
-    ctx.fillText(effectiveMinWeek.toString(), padding, height - 5);
-    ctx.fillText(effectiveMaxWeek.toString(), width - padding, height - 5);
+    // X Axis Labels
+    if (options?.showAllXLabels) {
+        for (let w = effectiveMinWeek; w <= effectiveMaxWeek; w++) {
+            // Only draw if we have space? For now draw all.
+            // Maybe skip if too crowded
+            if (weekRange > 20 && w % 2 !== 0) continue;
+            ctx.fillText(w.toString(), getX(w), height - 5);
+        }
+    } else {
+        // Start and End
+        ctx.fillText(effectiveMinWeek.toString(), padding, height - 5);
+        ctx.fillText(effectiveMaxWeek.toString(), width - padding, height - 5);
+    }
 
-    // Y Axis Labels (Min and Max)
+    // Y Axis Labels
     ctx.textAlign = 'right';
-    ctx.fillText(yMin.toString(), padding - 5, getY(yMin));
-    ctx.fillText(yMax.toString(), padding - 5, getY(yMax));
+    if (options?.forceYRange) {
+        // Draw 0, 5, 10, 15, 18? Or all?
+        // 0-18 is not too many.
+        for (let i = yMin; i <= yMax; i++) {
+            if (i % 2 === 0) { // Every 2 levels to avoid crowding?
+                ctx.fillText(i.toString(), padding - 5, getY(i) + 3);
+            }
+        }
+    } else {
+        ctx.fillText(yMin.toString(), padding - 5, getY(yMin));
+        ctx.fillText(yMax.toString(), padding - 5, getY(yMax));
+    }
 }
