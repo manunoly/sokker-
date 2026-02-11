@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import copy from 'rollup-plugin-copy';
 
 export default defineConfig({
     build: {
@@ -16,6 +17,14 @@ export default defineConfig({
                 chunkFileNames: '[name].js',
                 assetFileNames: '[name].[ext]',
             },
+            plugins: [
+                copy({
+                    targets: [
+                        { src: 'assets', dest: 'dist' }
+                    ],
+                    hook: 'writeBundle' // Copy after bundle is written
+                })
+            ]
         },
         outDir: 'dist',
         emptyOutDir: true,
