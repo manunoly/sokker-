@@ -89,9 +89,10 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
             // Strict Data Extraction
             // Fix: Do NOT fallback to entry.player.skills (current) if report.skills is missing.
             // This prevents backfilling history with current values for old weeks.
+            // Fix 2: Ignore players marked as "missing" (kind code 3), as they were not in the team/did not train.
             const report = entry.report;
-            if (!report || !report.skills) {
-                // No training data for this week, skip.
+            if (!report || !report.skills || (report.kind && (report.kind.name === 'missing' || report.kind.code === 3))) {
+                // No training data for this week, or player missing (sold/not bought yet).
                 return;
             }
 
@@ -121,7 +122,7 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
                     // Append new week
                     record.history.push(weekStats);
                 }
-                
+
                 // Sort by week ascending
                 record.history.sort((a, b) => a.week - b.week);
 

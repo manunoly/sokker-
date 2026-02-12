@@ -73,6 +73,10 @@ export interface SokkerResponse {
             skills: { [key: string]: number }; // Raw skills
             playerValue: { value: number };
             age: number;
+            kind?: {
+                code: number;
+                name: string;
+            };
         }
     }>;
 }

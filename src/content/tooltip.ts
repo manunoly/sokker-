@@ -62,19 +62,17 @@ function createTooltip(): void {
  * @param {string} skillName 
  */
 /**
- * Fetches and processes chart data for a player and skill.
- * @param {number} playerId 
+ * Pure function to process player history into chart data points.
+ * @param {any[]} history 
  * @param {string} skillName 
- * @returns {Promise<Array<{week: number, value: number}> | null>}
+ * @returns {Array<{ week: number, value: number, date: Date }>}
  */
-async function fetchChartData(playerId: number, skillName: string): Promise<Array<{ week: number, value: number }> | null> {
-    const playerHistory = await getPlayerHistory(playerId);
-
-    if (!playerHistory || !playerHistory.history) return null;
+export function prepareChartData(history: any[], skillName: string): Array<{ week: number, value: number, date: Date }> {
+    const historyToUse = filterHistoryData(history);
 
     // Prepare and validate data points
     // Fix: Adjust week based on training day (Thursday) to avoid "extra week" effect for pre-training data.
-    const rawPoints = playerHistory.history.map(entry => {
+    const rawPoints = historyToUse.map((entry: any) => {
         const date = new Date(entry.date);
         const day = date.getDay(); // 0=Sun, 1=Mon, ..., 4=Thu, 5=Fri, 6=Sat
 
@@ -120,7 +118,7 @@ async function fetchChartData(playerId: number, skillName: string): Promise<Arra
     // 1. Date Clustering Check:
     // If a historical entry (week < latest - 1) has a date very close to the latest entry (same "sync batch"),
     // but the API failed to provide a real historical date, it's likely a "current data" echo saved into history.
-    if (sortedPoints.length > 2) {
+    if (sortedPoints.length > 1) {
         const latestPoint = sortedPoints[sortedPoints.length - 1];
         const latestDate = new Date(latestPoint.date).getTime();
         const oneDayMs = 24 * 60 * 60 * 1000;
@@ -132,10 +130,6 @@ async function fetchChartData(playerId: number, skillName: string): Promise<Arra
             const pDate = new Date(p.date).getTime();
             const timeDiff = Math.abs(latestDate - pDate);
 
-            // If the data claims to be from >1 week ago, but the timestamp is from "today" (close to latest),
-            // AND the value is exactly the same as latest (flatline check - optional but safer)
-            // Then it's garbage.
-            // Actually, trusting the date check is usually enough if we assume proper history has proper dates.
             if (timeDiff < oneDayMs) {
                 // Suspicious: Historical week with Today's date.
                 // It's a bad backfill.
@@ -175,6 +169,20 @@ async function fetchChartData(playerId: number, skillName: string): Promise<Arra
     }
 
     return sortedPoints;
+}
+
+/**
+ * Fetches and processes chart data for a player and skill.
+ * @param {number} playerId 
+ * @param {string} skillName 
+ * @returns {Promise<Array<{ week: number, value: number }> | null>}
+ */
+async function fetchChartData(playerId: number, skillName: string): Promise<Array<{ week: number, value: number }> | null> {
+    const playerHistory = await getPlayerHistory(playerId);
+
+    if (!playerHistory || !playerHistory.history) return null;
+
+    return prepareChartData(playerHistory.history, skillName);
 }
 
 /**
@@ -274,14 +282,21 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
 
     const playerHistory = await getPlayerHistory(playerId);
 
-    if (!playerHistory || !playerHistory.history || playerHistory.history.length === 0) {
+    if (!playerHistory || !playerHistory.history) {
+        tableContainer.innerHTML = '<div style="padding:10px;">No history available.</div>';
+        return;
+    }
+
+    const filteredHistory = filterHistoryData(playerHistory.history);
+
+    if (filteredHistory.length === 0) {
         tableContainer.innerHTML = '<div style="padding:10px;">No history available.</div>';
         return;
     }
 
     // Process history for table
     // Sort by week DESC
-    const history = [...playerHistory.history].sort((a, b) => {
+    const history = [...filteredHistory].sort((a, b) => {
         if (a.week !== b.week) return b.week - a.week;
         return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
@@ -348,12 +363,16 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
         // Compare with NEXT row (which is chronologically previous because sorted DESC)
         const prevRow = rows[index + 1];
 
-        html += `<tr style="border-bottom: 1px solid #444;">`;
-        html += `<td style="padding: 6px 4px; color: #aaa;">${row.week}</td>`;
+        // Apply base background color to override any site-specific styles (like Player Page blue theme)
+        // If improvement/regression, use that color, otherwise use dark gray.
+        const rowBgColor = '#333';
+
+        html += `<tr style="border-bottom: 1px solid #444; background-color: ${rowBgColor};">`;
+        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${row.week}</td>`;
 
         skillsOrder.forEach(skill => {
             const val = row.skills[skill.key];
-            let bgColor = 'transparent';
+            let bgColor = rowBgColor; // Default to row background
             let color = '#fff'; // Always white text
 
             if (prevRow) {
@@ -546,4 +565,24 @@ function createZoomModal(dataPoints: Array<{ week: number, value: number }>, ski
             showGrid: true
         });
     }
+}
+
+
+/**
+ * Filter history to remove "Naive Backfills" based on static Form.
+ * @param {Array<any>} history 
+ * @returns {Array<any>}
+ */
+function filterHistoryData(history: any[]): any[] {
+    // Heuristic: If 'form' is identical for > 3 weeks, it's fake history.
+    if (history.length > 3) {
+        const latestForm = history[history.length - 1].skills.form;
+        const isFormStatic = history.every((h: any) => h.skills.form === latestForm);
+
+        if (isFormStatic) {
+            // Detected backfill! Truncate to just the latest entry.
+            return [history[history.length - 1]];
+        }
+    }
+    return history;
 }

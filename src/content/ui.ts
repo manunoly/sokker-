@@ -245,7 +245,7 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
             showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
         });
         nameLink.addEventListener('mouseleave', () => {
-            import('./tooltip').then(m => m.scheduleHide());
+            scheduleHide();
         });
     }
 
@@ -287,5 +287,171 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
                 openZoomChart(playerId, val.dataset.skillName!);
             });
         }
+    });
+}
+
+/**
+ * Processes the Player Detail Page.
+ * @param {HTMLElement} container
+ */
+export async function processPlayerPage(container: HTMLElement): Promise<void> {
+    // console.log('Processing Player Page...');
+
+    const pid = extractPlayerIdFromUrl();
+    if (!pid) {
+        console.warn('[Sokker++] Could not extract player ID from URL');
+        return;
+    }
+
+    // console.log(`[Sokker++] Processing player page for ${pid}`);
+
+    const historyData = await getPlayerHistory(pid);
+    const history = historyData?.history || [];
+    const currentData = history.length > 0 ? history[history.length - 1] : null;
+    let previousData = null;
+
+    if (currentData && history.length >= 2) {
+        previousData = history[history.length - 2];
+    }
+
+    // Process skills in the table-skills
+    const skillTable = container.querySelector('.table-skills');
+    if (skillTable) {
+        processPlayerPageTable(skillTable as HTMLElement, pid, currentData?.skills, previousData?.skills);
+    }
+
+    // Attach History Tooltip to Player Name Headers
+    // 1. Panel Header (Primary) - be specific to avoid matching other icons (like briefcase)
+    const panelNameLink = container.querySelector<HTMLElement>('.h5.title-block-1 a[href*="player/PID/"]');
+    // 2. Navbar Brand (Secondary/Fallback) - note: might be outside container if container is inner
+    // If container is .l-main__inner, navbar might be outside. 
+    // But let's try document.querySelector for navbar as fallback if not found in container?
+    // Actually, let's stick to container first.
+
+    const attachHistory = (el: HTMLElement) => {
+        if (!el.dataset.historyAttached) {
+            el.dataset.historyAttached = 'true';
+            el.style.cursor = 'help';
+            el.addEventListener('mouseenter', (e) => {
+                showHistoryTooltip(e.pageX, e.pageY, pid, el);
+            });
+            el.addEventListener('mouseleave', () => {
+                scheduleHide();
+            });
+            // console.log('[Sokker++] Attached history to', el);
+        }
+    };
+
+    if (panelNameLink) attachHistory(panelNameLink);
+
+    // Also try global navbar if not found in container (since container might be just the inner content)
+    const navNameLabel = document.querySelector<HTMLElement>('.navbar-brand');
+    if (navNameLabel) attachHistory(navNameLabel);
+}
+
+function extractPlayerIdFromUrl(): number | null {
+    const match = window.location.href.match(/\/player\/(?:PID|ID_player)\/(\d+)/);
+    if (match) return parseInt(match[1], 10);
+    return null;
+}
+
+/**
+ * Processes skills in the player page table.
+ */
+function processPlayerPageTable(table: HTMLElement, playerId: number, currentSkills?: Skills, previousSkills?: Skills | null): void {
+    const cells = table.querySelectorAll('td');
+
+    cells.forEach(td => {
+        // Skill Name is usually the text content of the TD, ignoring the strong/span
+        // Structure: <td><strong class="">Level <span class="skillNameNumber">[N]</span></strong> Skill Name</td>
+
+        // Extract Skill Name from text nodes
+        const clone = td.cloneNode(true) as HTMLElement;
+        const strong = clone.querySelector('strong');
+        if (strong) strong.remove();
+        const skillLabel = clone.textContent?.trim() || '';
+        const skillKey = mapSkillLabelToKey(skillLabel);
+
+        if (!skillKey) return;
+
+        // The value element is inside the strong tag
+        const valEl = td.querySelector('.skillNameNumber') as HTMLElement;
+        // The text description "Level" is inside strong but outside span
+        const levelDescEl = td.querySelector('strong');
+
+        // Tag elements for tooltips
+        td.dataset.skillName = skillKey;
+        if (valEl) valEl.dataset.skillName = skillKey;
+        if (levelDescEl) levelDescEl.dataset.skillName = skillKey;
+
+        // Make clickable
+        td.style.cursor = 'pointer';
+        td.addEventListener('click', (e) => {
+            // Avoid double trigger if clicking inner elements
+            if (e.target !== valEl && e.target !== levelDescEl) {
+                openZoomChart(playerId, skillKey);
+            }
+        });
+
+        if (valEl) {
+            valEl.dataset.clickable = 'true';
+            valEl.style.cursor = 'pointer';
+            valEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openZoomChart(playerId, skillKey);
+            });
+        }
+
+        if (levelDescEl) {
+            levelDescEl.dataset.clickable = 'true';
+            levelDescEl.style.cursor = 'pointer';
+            levelDescEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openZoomChart(playerId, skillKey);
+            });
+        }
+
+        // Highlight changes
+        if (currentSkills && previousSkills) {
+            const curr = currentSkills[skillKey] as number;
+            const prev = previousSkills[skillKey] as number;
+
+            if (curr !== undefined && prev !== undefined && curr !== prev) {
+                const isImprovement = curr > prev;
+
+                // Colorize value
+                if (valEl) {
+                    valEl.style.color = isImprovement ? '#28a745' : '#dc3545';
+                    valEl.style.fontWeight = 'bold';
+                    valEl.title = `Previous: ${prev}`;
+                }
+
+                // Add arrow
+                // For this layout, append arrow after the strong element
+                const arrow = document.createElement('span');
+                arrow.className = 'skill-arrow';
+                arrow.innerText = isImprovement ? '▲' : '▼';
+                arrow.style.color = isImprovement ? '#28a745' : '#dc3545';
+                arrow.style.marginLeft = '5px';
+                arrow.title = `Previous: ${prev}`;
+
+                if (levelDescEl) {
+                    // Remove existing arrows to prevent duplication (robust)
+                    const existing = levelDescEl.querySelectorAll('.skill-arrow');
+                    existing.forEach(el => el.remove());
+                    levelDescEl.appendChild(arrow);
+                } else {
+                    // Remove existing arrows to prevent duplication (robust)
+                    const existing = td.querySelectorAll('.skill-arrow');
+                    existing.forEach(el => el.remove());
+                    td.appendChild(arrow);
+                }
+            }
+        }
+
+        // Hover events for tooltip are attached via class selector on container usually, 
+        // but here we can attach directly
+        td.addEventListener('mouseenter', (e) => showTooltip(e.pageX, e.pageY, playerId, skillKey));
+        td.addEventListener('mouseleave', () => scheduleHide());
     });
 }
