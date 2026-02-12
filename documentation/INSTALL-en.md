@@ -1,12 +1,12 @@
 # Installation Guide: Sokker++
 
-Follow these steps to install the **Sokker++** extension on your Chrome, Edge, or Brave browser. This guide is designed for manually installing the extension from the downloaded [sokker-plus-plus.zip](sokker-plus-plus.zip) file.
+Follow these steps to install the **Sokker++** extension on your Chrome, Edge, or Brave browser. This guide is designed for manually installing the extension from the downloaded [sokker-plus-plus.zip](sokker-plus-plus.zip?raw=true) file.
 
 ---
 
 ## 🚀 Step 1: Prepare the File
 
-1.  **Download** the [sokker-plus-plus.zip](sokker-plus-plus.zip) file (usually saved in your *Downloads* folder).
+1.  **Download** the [sokker-plus-plus.zip](sokker-plus-plus.zip?raw=true) file (usually saved in your *Downloads* folder).
 2.  **Unzip** the file:
     *   Right-click on `sokker-plus-plus.zip`.
     *   Select **"Extract All..."** or **"Extract Here"**.
