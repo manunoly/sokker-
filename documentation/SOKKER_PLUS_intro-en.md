@@ -24,6 +24,12 @@ Here's why Sokker++ stands out from any other alternative:
     
     ![Skill Tooltip](sokkerAlainSkill.png)
 
+    *   **NEW: Skills History (General Skills):**
+    *   Hover over the **player's name** to see a full table with the weekly evolution of all skills.
+    *   Changes are automatically highlighted: **Green** for improvements, **Red** for drops.
+    
+    ![Full History](AllSkills.jpeg)
+
 *   **Native Design:** The aesthetics respect the Sokker style 100%. **You won't feel like it's a plugin; you'll feel like the game has evolved.**
 
 ---

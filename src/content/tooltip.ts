@@ -164,6 +164,15 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
     updatePosition(x, y);
     if (tooltip) tooltip.style.display = 'block';
 
+    // Reset visibility for Graph Mode
+    if (canvas) canvas.style.display = 'block';
+
+    // Hide history table if present
+    const tableContainer = tooltip?.querySelector('#sokker-plus-history-table') as HTMLElement;
+    if (tableContainer) {
+        tableContainer.style.display = 'none';
+    }
+
     const dataPoints = await fetchChartData(playerId, skillName);
 
     if (canvas && dataPoints && dataPoints.length > 0) {
@@ -190,6 +199,180 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
             ctx.fillText('No history data', 10, 50);
         }
         if (zoomBtn) zoomBtn.style.display = 'none';
+    }
+}
+
+
+
+/**
+ * Shows the full history tooltip (HTML Table) for a player.
+ * @param {number} x - pageX
+ * @param {number} y - pageY
+ * @param {number} playerId 
+ * @param {HTMLElement} targetEl - The element that triggered the tooltip
+ */
+export async function showHistoryTooltip(x: number, y: number, playerId: number, targetEl: HTMLElement): Promise<void> {
+    if (!tooltip) createTooltip();
+
+    // Cancel any pending hide
+    cancelHide();
+
+    // Initial position
+    updatePosition(x, y);
+    if (tooltip) {
+        tooltip.style.display = 'block';
+        // Ensure tooltip doesn't overflow screen
+        const rect = tooltip.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            tooltip.style.left = (window.innerWidth - rect.width - 20) + 'px';
+        }
+    }
+
+    // Clear previous content
+    if (canvas) canvas.style.display = 'none';
+    if (zoomBtn) zoomBtn.style.display = 'none';
+
+    // Check if table already exists, if not create container
+    let tableContainer = tooltip?.querySelector('#sokker-plus-history-table') as HTMLElement;
+    if (!tableContainer) {
+        tableContainer = document.createElement('div');
+        tableContainer.id = 'sokker-plus-history-table';
+        tooltip?.appendChild(tableContainer);
+    }
+    tableContainer.style.display = 'block';
+    tableContainer.innerHTML = '<div style="padding:10px;">Loading history...</div>';
+
+    const playerHistory = await getPlayerHistory(playerId);
+
+    if (!playerHistory || !playerHistory.history || playerHistory.history.length === 0) {
+        tableContainer.innerHTML = '<div style="padding:10px;">No history available.</div>';
+        return;
+    }
+
+    // Process history for table
+    // Sort by week DESC
+    const history = [...playerHistory.history].sort((a, b) => {
+        if (a.week !== b.week) return b.week - a.week;
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+
+    // Deduplicate nicely for the table (one entry per week, prefer latest)
+    const weeklyData = new Map<number, any>();
+    history.forEach(entry => {
+        // Similar adjustment logic as chart? 
+        // For the table, maybe raw week is better, or aligned.
+        // Let's use the same adjustment to match charts.
+        const date = new Date(entry.date);
+        const day = date.getDay();
+        let adjustedWeek = Number(entry.week);
+        if (day !== 4 && day !== 5) {
+            // adjustedWeek = adjustedWeek - 1; // Actually for table listing, using raw week + date might be confusing if we adjust.
+            // But for consistency with chart "current state", let's keep it raw but maybe group by real training week?
+            // User wants to see evolution. Let's just list the rows as they are recorded but filtered.
+        }
+
+        // Simple dedupe: if we have multiple for same week, take latest.
+        if (!weeklyData.has(entry.week)) {
+            weeklyData.set(entry.week, entry);
+        } else {
+            const existing = weeklyData.get(entry.week);
+            if (new Date(entry.date) > new Date(existing.date)) {
+                weeklyData.set(entry.week, entry);
+            }
+        }
+    });
+
+    const rows = Array.from(weeklyData.values()).sort((a, b) => b.week - a.week);
+
+    // Build Table HTML
+    // Columns: Week, Sta, Pc, Tec, Pas, Kp, Def, Plm, Str, Form
+    const skillsOrder = [
+        { key: 'stamina', label: 'Sta' },
+        { key: 'pace', label: 'Pc' },
+        { key: 'technique', label: 'Tec' },
+        { key: 'passing', label: 'Pas' },
+        { key: 'keeper', label: 'Kp' },
+        { key: 'defending', label: 'Def' },
+        { key: 'playmaking', label: 'Plm' },
+        { key: 'striker', label: 'Str' },
+        // Form is usually not in 'skills' object but separate or part of it? 
+        // Looking at interface, it IS in Skills.
+        { key: 'form', label: 'Form' },
+    ];
+
+    let html = `
+        <h3 style="margin: 0 0 10px 0; font-size: 14px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 5px; color: #fff;">
+            General Skills
+        </h3>
+        <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 350px;">
+            <thead>
+                <tr style="border-bottom: 1px solid #555;">
+                    <th style="padding: 6px 4px;">Week</th>
+                    ${skillsOrder.map(s => `<th style="padding: 6px 4px;">${s.label}</th>`).join('')}
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    rows.forEach((row, index) => {
+        // Compare with NEXT row (which is chronologically previous because sorted DESC)
+        const prevRow = rows[index + 1];
+
+        html += `<tr style="border-bottom: 1px solid #444;">`;
+        html += `<td style="padding: 6px 4px; color: #aaa;">${row.week}</td>`;
+
+        skillsOrder.forEach(skill => {
+            const val = row.skills[skill.key];
+            let bgColor = 'transparent';
+            let color = '#fff'; // Always white text
+
+            if (prevRow) {
+                const prevVal = prevRow.skills[skill.key];
+                if (val > prevVal) {
+                    bgColor = '#2e5e32'; // Dark Green Background
+                } else if (val < prevVal) {
+                    bgColor = '#6e2a2a'; // Dark Red Background
+                }
+            }
+
+            html += `<td style="padding: 6px 4px; background-color: ${bgColor}; color: ${color};">${val !== undefined ? val : '-'}</td>`;
+        });
+
+        html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+
+    // Add Copy/Export button
+    html += `
+        <div style="margin-top: 10px; text-align: right;">
+            <button id="sokker-plus-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
+        </div>
+    `;
+
+    tableContainer.innerHTML = html;
+
+    // Attach export event
+    const exportBtn = tableContainer.querySelector('#sokker-plus-export-csv');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // prevent click propagation
+            // Generate CSV
+            let csv = 'Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
+            rows.forEach(r => {
+                csv += `${r.week},` + skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
+            });
+
+            // Download
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `player_${playerId}_history.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
     }
 }
 

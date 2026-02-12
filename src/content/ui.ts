@@ -1,5 +1,5 @@
 import { getPlayerHistory } from '../core/repository';
-import { showTooltip, hideTooltip, updatePosition, scheduleHide, openZoomChart } from './tooltip';
+import { showTooltip, hideTooltip, updatePosition, scheduleHide, openZoomChart, showHistoryTooltip } from './tooltip';
 import { PlayerData, Skills } from '../types/index';
 import { mapSkillLabelToKey } from './i18n';
 
@@ -158,6 +158,15 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
 
         // Attach data for tooltip to the label (descEl)
         (descEl as HTMLElement).dataset.skillName = skillKey;
+
+        // Loop continues...
+
+
+
+
+        // Do NOT mark label as clickable to avoid interfering with native functionality
+        // ... rest of the code for values ...
+
         // Do NOT mark label as clickable to avoid interfering with native functionality
 
         // Try to find value element (Number)
@@ -248,8 +257,18 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         }
     });
 
-    // Attach events to the whole box to delegate? 
-    // Or specific values. The user requested "tooltips se muestren sobre las habilidades".
+    // Attach History Tooltip to Player Name
+    const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
+    if (nameLink && !nameLink.dataset.historyAttached) {
+        nameLink.dataset.historyAttached = 'true';
+        nameLink.addEventListener('mouseenter', (e) => {
+            showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
+        });
+        nameLink.addEventListener('mouseleave', () => {
+            import('./tooltip').then(m => m.scheduleHide());
+        });
+    }
+
     attachTooltipEventsToSkills(box, playerId);
 }
 

@@ -24,6 +24,12 @@ Aquí te explicamos por qué Sokker++ destaca sobre cualquier otra alternativa:
     
     ![Tooltip de Habilidad](sokkerAlainSkill.png)
 
+    *   **NUEVO: Historial de Habilidades (General Skills):**
+    *   Pasa el ratón sobre el **nombre del jugador** para ver una tabla completa con la evolución semanal de todas las habilidades.
+    *   Los cambios se resaltan automáticamente: **Verde** para mejoras, **Rojo** para bajadas.
+    
+    ![Historial Completo](AllSkills.jpeg)
+
 *   **Diseño Nativo:** La estética respeta al 100% el estilo de Sokker. **No sentirás que es un plugin, sentirás que el juego ha evolucionado.**
 
 ---
