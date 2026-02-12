@@ -55,37 +55,17 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
         let previousData = null;
 
         if (currentData) {
-            // Smart History Lookup:
-            // 1. Try to find the EARLIEST entry of the previous week (Week - 1)
-            //    This is ideal because it captures the state at the START of the week (pre-training).
-            // 2. If not found or if it equals current (meaning no change detected yet), try Week - 2 or older.
+            // Simplified History Lookup:
+            // Since sync.ts and repository.ts now guarantee that:
+            // 1. We always have the latest data for the current week (overwritten if needed).
+            // 2. We always have the latest data for the previous stored week (refreshed if needed).
+            // 3. We overwrite gaps to avoid stale comparisons.
+            //
+            // We can simply compare currentData (Last item) with the immediate predecessor (Second to last item).
 
-            // Get all candidate entries from previous weeks
-            const pastEntries = history.filter(h => h.week < currentData.week).sort((a, b) => b.week - a.week); // Sort descending by week
-
-            if (pastEntries.length > 0) {
-                // First candidate: The most recent past week (Week - 1)
-                const lastWeekEntries = history.filter(h => h.week === currentData.week - 1).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-                // If we have entries for Week-1, try to use the EARLIEST one (Saturday/Sunday scan)
-                if (lastWeekEntries.length > 0) {
-                    previousData = lastWeekEntries[0];
-                }
-
-                // Fallback: If we didn't find Week-1 or we want to double check against Week-2
-                // The user specifically asked to compare against 2 weeks to cover the training gap.
-                // So if previousData is from Week-1, let's also see if we have Week-2 data which might be more reliable for "change since 2 weeks ago".
-                // Actually, let's use the USER's suggestion: Compare against 2 weeks to cover the training gap.
-
-                // Revised Implementation based on request:
-                // Prioritize finding an entry from Week - 2.
-                const weekMinus2 = pastEntries.find(h => h.week <= currentData.week - 2);
-                if (weekMinus2) {
-                    previousData = weekMinus2;
-                } else if (!previousData && lastWeekEntries.length > 0) {
-                    // If no Week-2, use Week-1 (Earliest)
-                    previousData = lastWeekEntries[0];
-                }
+            if (history.length >= 2) {
+                // Get the entry immediately before the current one
+                previousData = history[history.length - 2];
             }
         }
 

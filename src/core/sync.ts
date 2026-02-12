@@ -28,17 +28,32 @@ export async function syncData(): Promise<SyncResult> {
         // 2. We do NOT want to overwrite or re-fetch weeks we already have (isWeekSynced).
         // 3. We do NOT want to fetch older than (currentWeek - MAX_WEEKS_TO_FETCH).
 
+        // 1. Refresh Last Stored Week (if it exists and is < currentWeek)
+        // This ensures the baseline is up-to-date (e.g., Thursday update for previous week)
+        if (lastSyncWeek && lastSyncWeek < currentWeek) {
+            // console.log(`Refreshing baseline week: ${lastSyncWeek}`);
+            const baselineData = await fetchTrainingData(lastSyncWeek);
+            if (baselineData && baselineData.length > 0) {
+                await saveWeekData(lastSyncWeek, baselineData);
+                // console.log(`Refreshed baseline week ${lastSyncWeek}`);
+            }
+        }
+
+        // 2. Determine range to sync (fill gaps)
         let startWeek = currentWeek - MAX_WEEKS_TO_FETCH + 1;
         if (startWeek < 1) startWeek = 1;
 
-        // If we have a lastSyncWeek that is recent, we might want to start from there + 1.
-        // But the requirement effectively says: ensure last 5 weeks are Present.
-        // Whether we have gap before that doesn't matter for this specific "development mode limit".
-
         const weeksToSync: number[] = [];
 
+        // Always check current week, even if synced (to update intra-week)
         for (let w = startWeek; w <= currentWeek; w++) {
-            // Check if we already have it
+            // If it's the current week, we ALWAYS want to sync it to capture latest changes.
+            if (w === currentWeek) {
+                weeksToSync.push(w);
+                continue;
+            }
+
+            // For past weeks, only sync if missing
             const alreadySynced = await isWeekSynced(w);
             if (!alreadySynced) {
                 weeksToSync.push(w);
@@ -46,18 +61,15 @@ export async function syncData(): Promise<SyncResult> {
         }
 
         if (weeksToSync.length === 0) {
-            // console.log('All recent weeks are already synced.');
             return { status: 'up-to-date', week: currentWeek, weeks: 0, lastWeek: currentWeek };
         }
-
-        // console.log(`Syncing missing weeks: ${weeksToSync.join(', ')}`);
 
         // Fetch and save sequentially
         for (const week of weeksToSync) {
             const playersData = await fetchTrainingData(week);
             if (playersData && playersData.length > 0) {
                 await saveWeekData(week, playersData);
-                console.log(`Synced week ${week}: ${playersData.length} players`);
+                // console.log(`Synced week ${week}: ${playersData.length} players`);
             } else {
                 console.warn(`No data found for week ${week}`);
             }

@@ -111,19 +111,26 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
                     history: []
                 };
 
-                // Avoid duplicates for the same week
-                if (!record.history.find(h => h.week === week)) {
+                // Check if we already have this week
+                const existingIndex = record.history.findIndex(h => h.week === week);
+
+                if (existingIndex !== -1) {
+                    // Overwrite existing week
+                    record.history[existingIndex] = weekStats;
+                } else {
+                    // Append new week
                     record.history.push(weekStats);
-                    // Sort by week ascending just in case
-                    record.history.sort((a, b) => a.week - b.week);
-
-                    // Update latest
-                    if (weekStats.week >= (record.latest?.week || 0)) {
-                        record.latest = weekStats;
-                    }
-
-                    playerStore.put(record);
                 }
+                
+                // Sort by week ascending
+                record.history.sort((a, b) => a.week - b.week);
+
+                // Update latest
+                if (weekStats.week >= (record.latest?.week || 0)) {
+                    record.latest = weekStats;
+                }
+
+                playerStore.put(record);
             };
         });
     });

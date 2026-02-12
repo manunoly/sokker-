@@ -114,13 +114,43 @@ async function fetchChartData(playerId: number, skillName: string): Promise<Arra
 
     let sortedPoints = Array.from(bestPointsMap.values())
         .sort((a, b) => a.week - b.week)
-        .map(p => ({ week: p.week, value: p.value }));
+        .map(p => ({ week: p.week, value: p.value, date: p.date }));
 
     // Fix: Detect "Bad Backfill" data.
+    // 1. Date Clustering Check:
+    // If a historical entry (week < latest - 1) has a date very close to the latest entry (same "sync batch"),
+    // but the API failed to provide a real historical date, it's likely a "current data" echo saved into history.
+    if (sortedPoints.length > 2) {
+        const latestPoint = sortedPoints[sortedPoints.length - 1];
+        const latestDate = new Date(latestPoint.date).getTime();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+
+        sortedPoints = sortedPoints.filter(p => {
+            // Keep the latest ones always
+            if (p.week >= latestPoint.week - 1) return true;
+
+            const pDate = new Date(p.date).getTime();
+            const timeDiff = Math.abs(latestDate - pDate);
+
+            // If the data claims to be from >1 week ago, but the timestamp is from "today" (close to latest),
+            // AND the value is exactly the same as latest (flatline check - optional but safer)
+            // Then it's garbage.
+            // Actually, trusting the date check is usually enough if we assume proper history has proper dates.
+            if (timeDiff < oneDayMs) {
+                // Suspicious: Historical week with Today's date.
+                // It's a bad backfill.
+                return false;
+            }
+            return true;
+        });
+    }
+
     const fluctuatingSkills = ['form', 'stamina', 'teamwork', 'tacticalDiscipline'];
     const isFluctuating = fluctuatingSkills.some(s => skillName.toLowerCase().includes(s));
 
-    if (!isFluctuating && sortedPoints.length > 2) {
+    // 2. Flatline Check (existing logic, refactored)
+    // Only apply if we still have points and it's not a fluctuating skill
+    if (sortedPoints.length > 2 && !isFluctuating) {
         const latestVal = sortedPoints[sortedPoints.length - 1].value;
         let firstValidIndex = 0;
         let potentialBadSequence = true;
