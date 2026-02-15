@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusDiv = document.getElementById('status') as HTMLElement;
 
     function isValidBackupPayload(data: unknown): data is { players?: unknown[]; metadata?: unknown[]; weeks?: unknown[] } {
-        if (!data || typeof data !== 'object') return false;
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
         const payload = data as { players?: unknown; metadata?: unknown; weeks?: unknown };
         if (payload.players !== undefined && !Array.isArray(payload.players)) return false;
         if (payload.metadata !== undefined && !Array.isArray(payload.metadata)) return false;

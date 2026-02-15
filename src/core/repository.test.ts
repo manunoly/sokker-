@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { upsertPlayerWeekRecord } from './repository';
+import { isValidBackupData, upsertPlayerWeekRecord } from './repository';
 import { PlayerData, PlayerHistoryEntry } from '../types/index';
 
 function makeWeekStats(week: number, playmaking: number): PlayerHistoryEntry {
@@ -74,5 +74,41 @@ describe('upsertPlayerWeekRecord', () => {
 
         expect(updated.history.map(h => h.week)).toEqual([10, 11, 12]);
         expect(updated.latest.week).toBe(12);
+    });
+
+    it('does not mutate existing record/history input', () => {
+        const existing: PlayerData = {
+            id: 123,
+            name: 'Player One',
+            latest: makeWeekStats(12, 7),
+            history: [
+                makeWeekStats(10, 5),
+                makeWeekStats(12, 7)
+            ]
+        };
+
+        const originalHistoryWeeks = existing.history.map(h => h.week);
+        const originalRef = existing.history;
+
+        const updated = upsertPlayerWeekRecord(existing, 123, 'Player One', makeWeekStats(11, 6));
+
+        expect(existing.history.map(h => h.week)).toEqual(originalHistoryWeeks);
+        expect(existing.history).toBe(originalRef);
+        expect(updated.history).not.toBe(existing.history);
+        expect(updated.history.map(h => h.week)).toEqual([10, 11, 12]);
+    });
+});
+
+describe('isValidBackupData', () => {
+    it('rejects non-object and array payloads', () => {
+        expect(isValidBackupData(null)).toBe(false);
+        expect(isValidBackupData([])).toBe(false);
+        expect(isValidBackupData('bad')).toBe(false);
+    });
+
+    it('accepts object payloads with optional array sections', () => {
+        expect(isValidBackupData({})).toBe(true);
+        expect(isValidBackupData({ players: [], metadata: [], weeks: [] })).toBe(true);
+        expect(isValidBackupData({ players: {} })).toBe(false);
     });
 });

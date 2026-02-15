@@ -63,10 +63,6 @@ export async function syncData(): Promise<SyncResult> {
         // Current week must always sync to capture intra-week updates.
         weeksToSync.push(currentWeek);
 
-        if (weeksToSync.length === 0) {
-            return { status: 'up-to-date', week: currentWeek, weeks: 0, lastWeek: currentWeek };
-        }
-
         // Fetch and save sequentially
         for (const week of weeksToSync) {
             const playersData = await fetchTrainingData(week);
