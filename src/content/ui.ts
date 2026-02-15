@@ -29,6 +29,33 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+interface HistoryEntryWithSkills {
+    skills: Skills;
+}
+
+function selectComparisonEntries<T extends HistoryEntryWithSkills>(history: T[], usePreviousWeek: boolean): { targetCurrent: T | null, targetPrevious: T | null } {
+    if (history.length === 0) {
+        return { targetCurrent: null, targetPrevious: null };
+    }
+
+    if (usePreviousWeek) {
+        // Pre-training period: show last completed jump (X-1 vs X-2).
+        if (history.length >= 2) {
+            return {
+                targetCurrent: history[history.length - 2],
+                targetPrevious: history.length >= 3 ? history[history.length - 3] : null
+            };
+        }
+        return { targetCurrent: history[history.length - 1], targetPrevious: null };
+    }
+
+    // Post-training period: show current jump (X vs X-1).
+    return {
+        targetCurrent: history[history.length - 1],
+        targetPrevious: history.length >= 2 ? history[history.length - 2] : null
+    };
+}
+
 /**
  * Processes the Squad View (Cards layout) to inject analytics.
  * @param {HTMLElement} container 
@@ -88,7 +115,6 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
             // This determines the ARROWS. 
             // The actual displayed text (values) in the HTML is whatever Sokker rendered (current week).
             processPlayerSkills(box as HTMLElement, playerId, targetCurrent.skills, targetPrevious?.skills);
-            attachTooltipEventsToSkills(box as HTMLElement, playerId);
         }
     }
 }
@@ -277,6 +303,8 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
 
     targets.forEach(val => {
         if (!val.dataset.skillName) return;
+        if (val.dataset.sokkerPlusEventsBound === 'true') return;
+        val.dataset.sokkerPlusEventsBound = 'true';
 
         val.addEventListener('mouseenter', (e) => {
             // Show tooltip
@@ -318,6 +346,15 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     }
 
     // console.log(`[Sokker++] Processing player page for ${pid}`);
+
+    let todayInfo;
+    try {
+        todayInfo = await fetchTodayInfo();
+    } catch (e) {
+        console.error('[Sokker++] Failed to fetch today info on player page, defaulting to standard comparison', e);
+    }
+
+    const usePreviousWeek = !!todayInfo && todayInfo.day < 5;
 
     const historyData = await getPlayerHistory(pid);
     const history = historyData?.history || [];
