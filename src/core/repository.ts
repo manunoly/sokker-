@@ -53,7 +53,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function isValidBackupData(data: unknown): data is { players?: any[]; metadata?: any[]; weeks?: any[] } {
+export function isValidBackupData(data: unknown): data is { players?: unknown[]; metadata?: unknown[]; weeks?: unknown[] } {
     if (!isObject(data)) return false;
     if (data.players !== undefined && !Array.isArray(data.players)) return false;
     if (data.metadata !== undefined && !Array.isArray(data.metadata)) return false;
