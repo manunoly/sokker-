@@ -79,9 +79,9 @@ describe('prepareChartData', () => {
     });
 
     it('should detect bad backfills based on date clustering', () => {
-        const now = new Date();
-        const oneHourAgo = new Date(now.getTime() - 1000 * 60 * 60).toISOString();
-        const twoHoursAgo = new Date(now.getTime() - 1000 * 60 * 60 * 2).toISOString();
+        // Use fixed Friday timestamps so week-adjust logic is stable in any execution day.
+        const oneHourAgo = '2023-10-27T11:00:00';
+        const twoHoursAgo = '2023-10-27T10:00:00';
 
         // Scenario: Week 50 and Week 100 both synchronized "today"
         // Week 50 is a ghost entry with "today's" date

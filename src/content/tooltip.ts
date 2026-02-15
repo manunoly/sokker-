@@ -4,6 +4,7 @@ import { getPlayerHistory } from '../core/repository';
 let tooltip: HTMLElement | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let zoomBtn: HTMLElement | null = null;
+let activeTooltipLoadId = 0;
 
 /**
  * creates the tooltip element in the DOM if not exists.
@@ -139,8 +140,9 @@ export function prepareChartData(history: any[], skillName: string): Array<{ wee
         });
     }
 
-    const fluctuatingSkills = ['form', 'stamina', 'teamwork', 'tacticalDiscipline'];
-    const isFluctuating = fluctuatingSkills.some(s => skillName.toLowerCase().includes(s));
+    const fluctuatingSkills = new Set(['form', 'stamina', 'teamwork', 'tacticaldiscipline']);
+    const normalizedSkillName = skillName.replace(/\s+/g, '').toLowerCase();
+    const isFluctuating = fluctuatingSkills.has(normalizedSkillName);
 
     // 2. Flatline Check (existing logic, refactored)
     // Only apply if we still have points and it's not a fluctuating skill
@@ -193,6 +195,8 @@ async function fetchChartData(playerId: number, skillName: string): Promise<Arra
  * @param {string} skillName 
  */
 export async function showTooltip(x: number, y: number, playerId: number, skillName: string): Promise<void> {
+    const loadId = ++activeTooltipLoadId;
+
     if (!tooltip) createTooltip();
 
     // Cancel any pending hide
@@ -212,6 +216,7 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
     }
 
     const dataPoints = await fetchChartData(playerId, skillName);
+    if (loadId !== activeTooltipLoadId) return;
 
     if (canvas && dataPoints && dataPoints.length > 0) {
         const ctx = canvas.getContext('2d');
@@ -250,6 +255,8 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
  * @param {HTMLElement} targetEl - The element that triggered the tooltip
  */
 export async function showHistoryTooltip(x: number, y: number, playerId: number, targetEl: HTMLElement): Promise<void> {
+    const loadId = ++activeTooltipLoadId;
+
     if (!tooltip) createTooltip();
 
     // Cancel any pending hide
@@ -281,6 +288,7 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
     tableContainer.innerHTML = '<div style="padding:10px;">Loading history...</div>';
 
     const playerHistory = await getPlayerHistory(playerId);
+    if (loadId !== activeTooltipLoadId) return;
 
     if (!playerHistory || !playerHistory.history) {
         tableContainer.innerHTML = '<div style="padding:10px;">No history available.</div>';
@@ -457,6 +465,7 @@ export function updatePosition(x: number, y: number): void {
  * Hides the tooltip immediately.
  */
 export function hideTooltip(): void {
+    activeTooltipLoadId++;
     if (tooltip) {
         tooltip.style.display = 'none';
 

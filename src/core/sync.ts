@@ -43,22 +43,25 @@ export async function syncData(): Promise<SyncResult> {
         let startWeek = currentWeek - MAX_WEEKS_TO_FETCH + 1;
         if (startWeek < 1) startWeek = 1;
 
-        const weeksToSync: number[] = [];
-
-        // Always check current week, even if synced (to update intra-week)
-        for (let w = startWeek; w <= currentWeek; w++) {
-            // If it's the current week, we ALWAYS want to sync it to capture latest changes.
-            if (w === currentWeek) {
-                weeksToSync.push(w);
-                continue;
-            }
-
-            // For past weeks, only sync if missing
-            const alreadySynced = await isWeekSynced(w);
-            if (!alreadySynced) {
-                weeksToSync.push(w);
-            }
+        const candidatePastWeeks: number[] = [];
+        for (let w = startWeek; w < currentWeek; w++) {
+            candidatePastWeeks.push(w);
         }
+
+        // For past weeks, only sync missing ones. Check in parallel to reduce latency.
+        const pastWeekStates = await Promise.all(
+            candidatePastWeeks.map(async (week) => ({
+                week,
+                alreadySynced: await isWeekSynced(week)
+            }))
+        );
+
+        const weeksToSync: number[] = pastWeekStates
+            .filter((state) => !state.alreadySynced)
+            .map((state) => state.week);
+
+        // Current week must always sync to capture intra-week updates.
+        weeksToSync.push(currentWeek);
 
         if (weeksToSync.length === 0) {
             return { status: 'up-to-date', week: currentWeek, weeks: 0, lastWeek: currentWeek };

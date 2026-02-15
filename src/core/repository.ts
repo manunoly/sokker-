@@ -14,6 +14,51 @@ const STORE_WEEKS = 'weeks'; // New store
 let db: IDBDatabase | null = null;
 
 /**
+ * Pure helper that merges one week's stats into a player record.
+ */
+export const upsertPlayerWeekRecord = (
+    existingRecord: PlayerData | undefined,
+    playerId: number,
+    playerName: string,
+    weekStats: PlayerHistoryEntry
+): PlayerData => {
+    const record: PlayerData = existingRecord || {
+        id: playerId,
+        name: playerName,
+        latest: weekStats,
+        history: []
+    };
+
+    const existingIndex = record.history.findIndex(h => h.week === weekStats.week);
+    if (existingIndex !== -1) {
+        // Overwrite existing week (baseline refresh / corrections)
+        record.history[existingIndex] = weekStats;
+    } else {
+        record.history.push(weekStats);
+    }
+
+    record.history.sort((a, b) => a.week - b.week);
+
+    if (!record.latest || weekStats.week >= record.latest.week) {
+        record.latest = weekStats;
+    }
+
+    return record;
+};
+
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+export function isValidBackupData(data: unknown): data is { players?: any[]; metadata?: any[]; weeks?: any[] } {
+    if (!isObject(data)) return false;
+    if (data.players !== undefined && !Array.isArray(data.players)) return false;
+    if (data.metadata !== undefined && !Array.isArray(data.metadata)) return false;
+    if (data.weeks !== undefined && !Array.isArray(data.weeks)) return false;
+    return true;
+}
+
+/**
  * Initializes the IndexedDB connection.
  * @returns {Promise<IDBDatabase>}
  */
@@ -105,31 +150,12 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
 
             const getRequest = playerStore.get(playerId);
             getRequest.onsuccess = () => {
-                const record: PlayerData = getRequest.result || {
-                    id: playerId,
-                    name: entry.player.name.full,
-                    latest: weekStats,
-                    history: []
-                };
-
-                // Check if we already have this week
-                const existingIndex = record.history.findIndex(h => h.week === week);
-
-                if (existingIndex !== -1) {
-                    // Overwrite existing week
-                    record.history[existingIndex] = weekStats;
-                } else {
-                    // Append new week
-                    record.history.push(weekStats);
-                }
-
-                // Sort by week ascending
-                record.history.sort((a, b) => a.week - b.week);
-
-                // Update latest
-                if (weekStats.week >= (record.latest?.week || 0)) {
-                    record.latest = weekStats;
-                }
+                const record = upsertPlayerWeekRecord(
+                    getRequest.result as PlayerData | undefined,
+                    playerId,
+                    entry.player.name.full,
+                    weekStats
+                );
 
                 playerStore.put(record);
             };
@@ -233,10 +259,11 @@ export const getAllData = async (): Promise<any> => {
  * Imports data from backup.
  * @param {Object} data 
  */
-export const restoreData = async (data: any): Promise<void> => {
+export const restoreData = async (data: unknown): Promise<void> => {
     if (!db) await initDB();
     return new Promise((resolve, reject) => {
         if (!db) return reject('DB not initialized');
+        if (!isValidBackupData(data)) return reject(new Error('Invalid backup format'));
         const transaction = db.transaction([STORE_PLAYERS, STORE_META, STORE_WEEKS], 'readwrite');
 
         const playerStore = transaction.objectStore(STORE_PLAYERS);
@@ -280,4 +307,3 @@ export const clearDatabase = async (): Promise<void> => {
         transaction.onerror = (e) => reject((e.target as IDBTransaction).error);
     });
 };
-
