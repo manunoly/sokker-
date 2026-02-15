@@ -1,4 +1,5 @@
 import { getPlayerHistory } from '../core/repository';
+import { fetchTodayInfo } from '../core/api';
 import { showTooltip, hideTooltip, updatePosition, scheduleHide, openZoomChart, showHistoryTooltip } from './tooltip';
 import { PlayerData, Skills } from '../types/index';
 import { mapSkillLabelToKey } from './i18n';
@@ -39,41 +40,72 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
     const playerBoxes = container.querySelectorAll('.player-box, .player-box--sm');
     // console.log(`[Sokker++] Found ${playerBoxes.length} player boxes.`);
 
+    // Get current time info to decide which weeks to compare
+    let todayInfo;
+    try {
+        todayInfo = await fetchTodayInfo();
+    } catch (e) {
+        console.error('[Sokker++] Failed to fetch today info, defaulting to standard comparison', e);
+    }
+
+    // Rule: If day < 5 (Sun-Thu), training hasn't happened for the current week yet.
+    // So currentData (Week X) is identical to Week X-1. 
+    // We should show the change from the PREVIOUS training: Week X-1 vs Week X-2.
+    const usePreviousWeek = todayInfo && todayInfo.day < 5;
+    // console.log(`[Sokker++] Day: ${todayInfo?.day}, Using previous week for comparison: ${usePreviousWeek}`);
+
     for (const box of playerBoxes) {
         const playerId = extractPlayerId(box as HTMLElement);
         if (!playerId) {
             console.warn('[Sokker++] Could not extract player ID from box', box);
             continue;
         }
-        // console.log(`[Sokker++] Processing player ${playerId}`);
 
         // Fetch history
         const historyData = await getPlayerHistory(playerId);
-
         const history = historyData?.history || [];
-        const currentData = history.length > 0 ? history[history.length - 1] : null;
-        let previousData = null;
 
-        if (currentData) {
-            // Simplified History Lookup:
-            // Since sync.ts and repository.ts now guarantee that:
-            // 1. We always have the latest data for the current week (overwritten if needed).
-            // 2. We always have the latest data for the previous stored week (refreshed if needed).
-            // 3. We overwrite gaps to avoid stale comparisons.
-            //
-            // We can simply compare currentData (Last item) with the immediate predecessor (Second to last item).
+        if (history.length === 0) continue;
 
+        // Current Data is always the latest available (sync guarantees this)
+        const currentData = history[history.length - 1];
+
+        let targetCurrent = currentData;
+        let targetPrevious = null;
+
+        if (usePreviousWeek) {
+            // Compare Week X-1 vs Week X-2
             if (history.length >= 2) {
-                // Get the entry immediately before the current one
-                previousData = history[history.length - 2];
+                targetCurrent = history[history.length - 1]; // This is effectively "current state"
+                // But we want to show Arrows for the *previous* jump.
+                // Actually, if we are in Week X (Day 1), history might have Week X and Week X-1.
+                // If training hasn't happened, Week X skills == Week X-1 skills.
+                // So checking Week X vs Week X-1 gives no arrows.
+                // We want to visualize the change that happened LAST week.
+                // So we should compare Week X-1 vs Week X-2.
+
+                // However, visually we are showing the *values* of the current week (which are same as X-1).
+                // So we attach arrows based on (X-1 vs X-2) difference.
+
+                targetCurrent = history[history.length - 2];
+                if (history.length >= 3) {
+                    targetPrevious = history[history.length - 3];
+                }
+            }
+        } else {
+            // Standard: Week X vs Week X-1
+            targetCurrent = history[history.length - 1];
+            if (history.length >= 2) {
+                targetPrevious = history[history.length - 2];
             }
         }
 
-        // console.log(`[Sokker++] Player ${playerId} history length: ${history.length} | Current Week: ${currentData?.week} | Previous Comparator Week: ${previousData?.week || 'None'}`);
-
-        if (currentData && currentData.skills) {
+        if (targetCurrent && targetCurrent.skills) {
             // Highlight changes and attach tooltips
-            processPlayerSkills(box as HTMLElement, playerId, currentData.skills, previousData?.skills);
+            // Note: We are passing targetCurrent.skills as "current" and targetPrevious.skills as "previous"
+            // This determines the ARROWS. 
+            // The actual displayed text (values) in the HTML is whatever Sokker rendered (current week).
+            processPlayerSkills(box as HTMLElement, playerId, targetCurrent.skills, targetPrevious?.skills);
             attachTooltipEventsToSkills(box as HTMLElement, playerId);
         }
     }
@@ -245,7 +277,7 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
             showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
         });
         nameLink.addEventListener('mouseleave', () => {
-            import('./tooltip').then(m => m.scheduleHide());
+            scheduleHide();
         });
     }
 
@@ -287,5 +319,184 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
                 openZoomChart(playerId, val.dataset.skillName!);
             });
         }
+    });
+}
+
+/**
+ * Processes the Player Detail Page.
+ * @param {HTMLElement} container
+ */
+export async function processPlayerPage(container: HTMLElement): Promise<void> {
+    // console.log('Processing Player Page...');
+
+    const pid = extractPlayerIdFromUrl();
+    if (!pid) {
+        console.warn('[Sokker++] Could not extract player ID from URL');
+        return;
+    }
+
+    // console.log(`[Sokker++] Processing player page for ${pid}`);
+
+    const historyData = await getPlayerHistory(pid);
+    const history = historyData?.history || [];
+    const currentData = history.length > 0 ? history[history.length - 1] : null;
+    let previousData = null;
+
+    if (currentData && history.length >= 2) {
+        previousData = history[history.length - 2];
+    }
+
+    // Process skills in the table-skills
+    const skillTable = container.querySelector('.table-skills');
+    if (skillTable) {
+        processPlayerPageTable(skillTable as HTMLElement, pid, currentData?.skills, previousData?.skills);
+    }
+
+    // Attach History Tooltip to Player Name Headers
+    // 1. Panel Header (Primary) - be specific to avoid matching other icons (like briefcase)
+    const panelNameLink = container.querySelector<HTMLElement>('.h5.title-block-1 a[href*="player/PID/"]');
+    // 2. Navbar Brand (Secondary/Fallback) - note: might be outside container if container is inner
+    // If container is .l-main__inner, navbar might be outside. 
+    // But let's try document.querySelector for navbar as fallback if not found in container?
+    // Actually, let's stick to container first.
+
+    const attachHistory = (el: HTMLElement) => {
+        if (!el.dataset.historyAttached) {
+            el.dataset.historyAttached = 'true';
+            el.style.cursor = 'help';
+            el.addEventListener('mouseenter', (e) => {
+                showHistoryTooltip(e.pageX, e.pageY, pid, el);
+            });
+            el.addEventListener('mouseleave', () => {
+                scheduleHide();
+            });
+            // console.log('[Sokker++] Attached history to', el);
+        }
+    };
+
+    if (panelNameLink) attachHistory(panelNameLink);
+
+    // Also try global navbar if not found in container (since container might be just the inner content)
+    const navNameLabel = document.querySelector<HTMLElement>('.navbar-brand');
+    if (navNameLabel) attachHistory(navNameLabel);
+}
+
+function extractPlayerIdFromUrl(): number | null {
+    const match = window.location.href.match(/\/player\/(?:PID|ID_player)\/(\d+)/);
+    if (match) return parseInt(match[1], 10);
+    return null;
+}
+
+/**
+ * Processes skills in the player page table.
+ */
+function processPlayerPageTable(table: HTMLElement, playerId: number, currentSkills?: Skills, previousSkills?: Skills | null): void {
+    const cells = table.querySelectorAll('td');
+
+    cells.forEach(td => {
+        // Skill Name is usually the text content of the TD, ignoring the strong/span
+        // Structure: <td><strong class="">Level <span class="skillNameNumber">[N]</span></strong> Skill Name</td>
+
+        // Extract Skill Name from text nodes
+        const clone = td.cloneNode(true) as HTMLElement;
+        // Clean up clone to extract text
+        const strong = clone.querySelector('strong, .strong');
+        if (strong) strong.remove();
+
+        let skillLabel = '';
+        const link = clone.querySelector('a');
+        if (link) {
+            skillLabel = link.textContent?.trim() || '';
+        } else {
+            skillLabel = clone.textContent?.trim() || '';
+        }
+
+        // console.log(`[Sokker++] Extracted label: "${skillLabel}"`);
+        const skillKey = mapSkillLabelToKey(skillLabel);
+
+        if (!skillKey) return;
+
+        // The value element is inside the strong tag
+        const valEl = td.querySelector('.skillNameNumber') as HTMLElement;
+        // The text description "Level" is inside strong but outside span
+        // Support both <strong> tag and <span class="strong">
+        const levelDescEl = td.querySelector('strong, .strong') as HTMLElement;
+
+        // Tag elements for tooltips
+        td.dataset.skillName = skillKey;
+        if (valEl) valEl.dataset.skillName = skillKey;
+        if (levelDescEl) levelDescEl.dataset.skillName = skillKey;
+
+        // Make clickable
+        td.style.cursor = 'pointer';
+        td.addEventListener('click', (e) => {
+            // Avoid double trigger if clicking inner elements
+            if (e.target !== valEl && e.target !== levelDescEl) {
+                openZoomChart(playerId, skillKey);
+            }
+        });
+
+        if (valEl) {
+            valEl.dataset.clickable = 'true';
+            valEl.style.cursor = 'pointer';
+            valEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openZoomChart(playerId, skillKey);
+            });
+        }
+
+        if (levelDescEl) {
+            levelDescEl.dataset.clickable = 'true';
+            levelDescEl.style.cursor = 'pointer';
+            levelDescEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openZoomChart(playerId, skillKey);
+            });
+        }
+
+        // Highlight changes
+        if (currentSkills && previousSkills) {
+            const curr = currentSkills[skillKey] as number;
+            const prev = previousSkills[skillKey] as number;
+
+            if (curr !== undefined && prev !== undefined && curr !== prev) {
+                const isImprovement = curr > prev;
+
+                // Colorize value
+                if (valEl) {
+                    valEl.style.color = isImprovement ? '#28a745' : '#dc3545';
+                    valEl.style.fontWeight = 'bold';
+                    valEl.title = `Previous: ${prev}`;
+                }
+
+                // Add arrow
+                const arrow = document.createElement('span');
+                arrow.className = 'skill-arrow';
+                arrow.innerText = isImprovement ? '▲' : '▼';
+                arrow.style.color = isImprovement ? '#28a745' : '#dc3545';
+                arrow.style.marginLeft = '5px';
+                arrow.title = `Previous: ${prev}`;
+
+                // TARGETED PLACEMENT
+                const existing = td.querySelectorAll('.skill-arrow');
+                existing.forEach(el => el.remove());
+
+                // Find the link again in the real TD (not clone)
+                const realLink = td.querySelector('a');
+
+                if (realLink) {
+                    // console.log(`[Sokker++] Inserting arrow after link for ${skillKey}`);
+                    realLink.insertAdjacentElement('afterend', arrow);
+                } else {
+                    // console.log(`[Sokker++] Appending arrow to TD for ${skillKey}`);
+                    td.appendChild(arrow);
+                }
+            }
+        }
+
+        // Hover events for tooltip are attached via class selector on container usually, 
+        // but here we can attach directly
+        td.addEventListener('mouseenter', (e) => showTooltip(e.pageX, e.pageY, playerId, skillKey));
+        td.addEventListener('mouseleave', () => scheduleHide());
     });
 }

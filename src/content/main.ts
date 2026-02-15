@@ -1,5 +1,5 @@
 import { initObserver } from './observer';
-import { processSquadTable } from './ui';
+import { processSquadTable, processPlayerPage } from './ui';
 import { syncData } from '../core/sync';
 import { getAllData, restoreData, getLastSyncWeek, clearDatabase } from '../core/repository';
 
@@ -9,7 +9,7 @@ async function main() {
     // Attempt auto-sync on load
     syncData().then(res => { /* console.log('Auto Sync result:', res) */ }).catch(err => console.error(err));
 
-    initObserver(processSquadTable);
+    initObserver(processSquadTable, processPlayerPage);
 
     // Listen for messages from Popup
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

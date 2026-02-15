@@ -28,6 +28,7 @@ export const skillMap: { [key: string]: string } = {
     'trabajo en equipo': 'teamwork',
     'experiencia': 'experience',
     'forma': 'form',
+    'condición': 'stamina',
 
     // Polish
     'kondycja': 'stamina',
