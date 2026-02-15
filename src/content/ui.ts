@@ -68,37 +68,19 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
         if (history.length === 0) continue;
 
         // Current Data is always the latest available (sync guarantees this)
-        const currentData = history[history.length - 1];
-
-        let targetCurrent = currentData;
-        let targetPrevious = null;
-
+        // STRICT WEEK MATCHING LOGIC
+        // 1. Determine Target Week based on Day
+        let targetWeek = todayInfo ? todayInfo.week : 0;
         if (usePreviousWeek) {
-            // Compare Week X-1 vs Week X-2
-            if (history.length >= 2) {
-                targetCurrent = history[history.length - 1]; // This is effectively "current state"
-                // But we want to show Arrows for the *previous* jump.
-                // Actually, if we are in Week X (Day 1), history might have Week X and Week X-1.
-                // If training hasn't happened, Week X skills == Week X-1 skills.
-                // So checking Week X vs Week X-1 gives no arrows.
-                // We want to visualize the change that happened LAST week.
-                // So we should compare Week X-1 vs Week X-2.
-
-                // However, visually we are showing the *values* of the current week (which are same as X-1).
-                // So we attach arrows based on (X-1 vs X-2) difference.
-
-                targetCurrent = history[history.length - 2];
-                if (history.length >= 3) {
-                    targetPrevious = history[history.length - 3];
-                }
-            }
-        } else {
-            // Standard: Week X vs Week X-1
-            targetCurrent = history[history.length - 1];
-            if (history.length >= 2) {
-                targetPrevious = history[history.length - 2];
-            }
+            targetWeek -= 1;
         }
+
+        // 2. Find exact history entries
+        const targetCurrent = history.find(h => h.week === targetWeek);
+        const targetPrevious = history.find(h => h.week === targetWeek - 1);
+
+        // Debug log for Lixar case
+        // if (targetWeek === 1178) console.log(`[Sokker++] Strict logic: Target=${targetWeek}`, targetCurrent, targetPrevious);
 
         if (targetCurrent && targetCurrent.skills) {
             // Highlight changes and attach tooltips
@@ -339,17 +321,35 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
 
     const historyData = await getPlayerHistory(pid);
     const history = historyData?.history || [];
-    const currentData = history.length > 0 ? history[history.length - 1] : null;
-    let previousData = null;
 
-    if (currentData && history.length >= 2) {
-        previousData = history[history.length - 2];
+    // Get today info for strict week matching
+    let todayInfo;
+    try {
+        todayInfo = await fetchTodayInfo();
+    } catch (e) {
+        console.error('[Sokker++] Failed to fetch today info', e);
     }
+
+    let targetWeek = todayInfo ? todayInfo.week : 0;
+    if (todayInfo && todayInfo.day < 5) {
+        targetWeek -= 1;
+    }
+
+    // STRICT MATCHING
+    const targetCurrent = history.find(h => h.week === targetWeek);
+    const targetPrevious = history.find(h => h.week === targetWeek - 1);
+
+    // For the "Current Values" to display, we usually want the latest data available?
+    // Actually, processPlayerPageTable uses these to calculate ARROWS.
+    // The table values are already rendered by Sokker.
+    // So we just pass the skills for comparison.
+    const currentSkills = targetCurrent ? targetCurrent.skills : undefined;
+    const previousSkills = targetPrevious ? targetPrevious.skills : undefined;
 
     // Process skills in the table-skills
     const skillTable = container.querySelector('.table-skills');
     if (skillTable) {
-        processPlayerPageTable(skillTable as HTMLElement, pid, currentData?.skills, previousData?.skills);
+        processPlayerPageTable(skillTable as HTMLElement, pid, currentSkills, previousSkills);
     }
 
     // Attach History Tooltip to Player Name Headers
