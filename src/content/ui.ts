@@ -29,6 +29,33 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+interface HistoryEntryWithSkills {
+    skills: Skills;
+}
+
+function selectComparisonEntries<T extends HistoryEntryWithSkills>(history: T[], usePreviousWeek: boolean): { targetCurrent: T | null, targetPrevious: T | null } {
+    if (history.length === 0) {
+        return { targetCurrent: null, targetPrevious: null };
+    }
+
+    if (usePreviousWeek) {
+        // Pre-training period: show last completed jump (X-1 vs X-2).
+        if (history.length >= 2) {
+            return {
+                targetCurrent: history[history.length - 2],
+                targetPrevious: history.length >= 3 ? history[history.length - 3] : null
+            };
+        }
+        return { targetCurrent: history[history.length - 1], targetPrevious: null };
+    }
+
+    // Post-training period: show current jump (X vs X-1).
+    return {
+        targetCurrent: history[history.length - 1],
+        targetPrevious: history.length >= 2 ? history[history.length - 2] : null
+    };
+}
+
 /**
  * Processes the Squad View (Cards layout) to inject analytics.
  * @param {HTMLElement} container 
@@ -67,38 +94,7 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
 
         if (history.length === 0) continue;
 
-        // Current Data is always the latest available (sync guarantees this)
-        const currentData = history[history.length - 1];
-
-        let targetCurrent = currentData;
-        let targetPrevious = null;
-
-        if (usePreviousWeek) {
-            // Compare Week X-1 vs Week X-2
-            if (history.length >= 2) {
-                targetCurrent = history[history.length - 1]; // This is effectively "current state"
-                // But we want to show Arrows for the *previous* jump.
-                // Actually, if we are in Week X (Day 1), history might have Week X and Week X-1.
-                // If training hasn't happened, Week X skills == Week X-1 skills.
-                // So checking Week X vs Week X-1 gives no arrows.
-                // We want to visualize the change that happened LAST week.
-                // So we should compare Week X-1 vs Week X-2.
-
-                // However, visually we are showing the *values* of the current week (which are same as X-1).
-                // So we attach arrows based on (X-1 vs X-2) difference.
-
-                targetCurrent = history[history.length - 2];
-                if (history.length >= 3) {
-                    targetPrevious = history[history.length - 3];
-                }
-            }
-        } else {
-            // Standard: Week X vs Week X-1
-            targetCurrent = history[history.length - 1];
-            if (history.length >= 2) {
-                targetPrevious = history[history.length - 2];
-            }
-        }
+        const { targetCurrent, targetPrevious } = selectComparisonEntries(history, !!usePreviousWeek);
 
         if (targetCurrent && targetCurrent.skills) {
             // Highlight changes and attach tooltips
@@ -106,7 +102,6 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
             // This determines the ARROWS. 
             // The actual displayed text (values) in the HTML is whatever Sokker rendered (current week).
             processPlayerSkills(box as HTMLElement, playerId, targetCurrent.skills, targetPrevious?.skills);
-            attachTooltipEventsToSkills(box as HTMLElement, playerId);
         }
     }
 }
@@ -295,6 +290,8 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
 
     targets.forEach(val => {
         if (!val.dataset.skillName) return;
+        if (val.dataset.sokkerPlusEventsBound === 'true') return;
+        val.dataset.sokkerPlusEventsBound = 'true';
 
         val.addEventListener('mouseenter', (e) => {
             // Show tooltip
@@ -337,19 +334,23 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
 
     // console.log(`[Sokker++] Processing player page for ${pid}`);
 
+    let todayInfo;
+    try {
+        todayInfo = await fetchTodayInfo();
+    } catch (e) {
+        console.error('[Sokker++] Failed to fetch today info on player page, defaulting to standard comparison', e);
+    }
+
+    const usePreviousWeek = !!todayInfo && todayInfo.day < 5;
+
     const historyData = await getPlayerHistory(pid);
     const history = historyData?.history || [];
-    const currentData = history.length > 0 ? history[history.length - 1] : null;
-    let previousData = null;
-
-    if (currentData && history.length >= 2) {
-        previousData = history[history.length - 2];
-    }
+    const { targetCurrent, targetPrevious } = selectComparisonEntries(history, usePreviousWeek);
 
     // Process skills in the table-skills
     const skillTable = container.querySelector('.table-skills');
     if (skillTable) {
-        processPlayerPageTable(skillTable as HTMLElement, pid, currentData?.skills, previousData?.skills);
+        processPlayerPageTable(skillTable as HTMLElement, pid, targetCurrent?.skills, targetPrevious?.skills);
     }
 
     // Attach History Tooltip to Player Name Headers

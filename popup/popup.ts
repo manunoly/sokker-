@@ -5,6 +5,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const importFile = document.getElementById('importFile') as HTMLInputElement;
     const statusDiv = document.getElementById('status') as HTMLElement;
 
+    function isValidBackupPayload(data: unknown): data is { players?: unknown[]; metadata?: unknown[]; weeks?: unknown[] } {
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+        const payload = data as { players?: unknown; metadata?: unknown; weeks?: unknown };
+        if (payload.players !== undefined && !Array.isArray(payload.players)) return false;
+        if (payload.metadata !== undefined && !Array.isArray(payload.metadata)) return false;
+        if (payload.weeks !== undefined && !Array.isArray(payload.weeks)) return false;
+        return true;
+    }
+
     // Helper to send message to active tab
     function sendMessageToContentScript(message: any, callback?: (response: any) => void) {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -100,6 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const result = e.target?.result as string;
                     const data = JSON.parse(result);
+                    if (!isValidBackupPayload(data)) {
+                        if (statusDiv) statusDiv.textContent = 'Invalid backup format.';
+                        return;
+                    }
                     if (statusDiv) statusDiv.textContent = 'Importing...';
                     sendMessageToContentScript({ action: 'IMPORT_DATA', data }, (response) => {
                         if (response && response.status === 'success') {

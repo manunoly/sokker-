@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build && copy manifest.json dist\\manifest.json",
+    "build": "vite build && node --eval \"const fs=require('node:fs');fs.copyFileSync('manifest.json','dist/manifest.json')\"",
     "test": "vitest"
   },
   "keywords": [],

@@ -14,6 +14,54 @@ const STORE_WEEKS = 'weeks'; // New store
 let db: IDBDatabase | null = null;
 
 /**
+ * Pure helper that merges one week's stats into a player record.
+ */
+export const upsertPlayerWeekRecord = (
+    existingRecord: PlayerData | undefined,
+    playerId: number,
+    playerName: string,
+    weekStats: PlayerHistoryEntry
+): PlayerData => {
+    const record: PlayerData = existingRecord ? {
+        ...existingRecord,
+        history: [...existingRecord.history]
+    } : {
+        id: playerId,
+        name: playerName,
+        latest: weekStats,
+        history: []
+    };
+
+    const existingIndex = record.history.findIndex(h => h.week === weekStats.week);
+    if (existingIndex !== -1) {
+        // Overwrite existing week (baseline refresh / corrections)
+        record.history[existingIndex] = weekStats;
+    } else {
+        record.history.push(weekStats);
+    }
+
+    record.history.sort((a, b) => a.week - b.week);
+
+    if (!record.latest || weekStats.week >= record.latest.week) {
+        record.latest = weekStats;
+    }
+
+    return record;
+};
+
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function isValidBackupData(data: unknown): data is { players?: unknown[]; metadata?: unknown[]; weeks?: unknown[] } {
+    if (!isObject(data)) return false;
+    if (data.players !== undefined && !Array.isArray(data.players)) return false;
+    if (data.metadata !== undefined && !Array.isArray(data.metadata)) return false;
+    if (data.weeks !== undefined && !Array.isArray(data.weeks)) return false;
+    return true;
+}
+
+/**
  * Initializes the IndexedDB connection.
  * @returns {Promise<IDBDatabase>}
  */
@@ -66,7 +114,7 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
     if (!db) await initDB();
 
     return new Promise((resolve, reject) => {
-        if (!db) return reject('DB not initialized');
+        if (!db) return reject(new Error('DB not initialized'));
 
         const transaction = db.transaction([STORE_PLAYERS, STORE_META, STORE_WEEKS], 'readwrite');
         const playerStore = transaction.objectStore(STORE_PLAYERS);
@@ -105,31 +153,12 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
 
             const getRequest = playerStore.get(playerId);
             getRequest.onsuccess = () => {
-                const record: PlayerData = getRequest.result || {
-                    id: playerId,
-                    name: entry.player.name.full,
-                    latest: weekStats,
-                    history: []
-                };
-
-                // Check if we already have this week
-                const existingIndex = record.history.findIndex(h => h.week === week);
-
-                if (existingIndex !== -1) {
-                    // Overwrite existing week
-                    record.history[existingIndex] = weekStats;
-                } else {
-                    // Append new week
-                    record.history.push(weekStats);
-                }
-
-                // Sort by week ascending
-                record.history.sort((a, b) => a.week - b.week);
-
-                // Update latest
-                if (weekStats.week >= (record.latest?.week || 0)) {
-                    record.latest = weekStats;
-                }
+                const record = upsertPlayerWeekRecord(
+                    getRequest.result as PlayerData | undefined,
+                    playerId,
+                    entry.player.name.full,
+                    weekStats
+                );
 
                 playerStore.put(record);
             };
@@ -144,7 +173,7 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
 export const getLastSyncWeek = async (): Promise<number | null> => {
     if (!db) await initDB();
     return new Promise((resolve, reject) => {
-        if (!db) return reject('DB not initialized');
+        if (!db) return reject(new Error('DB not initialized'));
         const transaction = db.transaction([STORE_META], 'readonly');
         const store = transaction.objectStore(STORE_META);
         const request = store.get('lastSyncWeek');
@@ -182,7 +211,7 @@ export const isWeekSynced = async (week: number): Promise<boolean> => {
 export const getPlayerHistory = async (playerId: number): Promise<PlayerData | null> => {
     if (!db) await initDB();
     return new Promise((resolve, reject) => {
-        if (!db) return reject('DB not initialized');
+        if (!db) return reject(new Error('DB not initialized'));
         const transaction = db.transaction([STORE_PLAYERS], 'readonly');
         const store = transaction.objectStore(STORE_PLAYERS);
         const request = store.get(Number(playerId)); // Ensure numeric ID
@@ -199,7 +228,7 @@ export const getPlayerHistory = async (playerId: number): Promise<PlayerData | n
 export const getAllData = async (): Promise<any> => {
     if (!db) await initDB();
     return new Promise((resolve, reject) => {
-        if (!db) return reject('DB not initialized');
+        if (!db) return reject(new Error('DB not initialized'));
         // Need to include weeks store in export potentially, but simplified for now.
         // Or fail gracefully if not needed.
         // Let's include it.
@@ -233,10 +262,11 @@ export const getAllData = async (): Promise<any> => {
  * Imports data from backup.
  * @param {Object} data 
  */
-export const restoreData = async (data: any): Promise<void> => {
+export const restoreData = async (data: unknown): Promise<void> => {
     if (!db) await initDB();
     return new Promise((resolve, reject) => {
-        if (!db) return reject('DB not initialized');
+        if (!db) return reject(new Error('DB not initialized'));
+        if (!isValidBackupData(data)) return reject(new Error('Invalid backup format'));
         const transaction = db.transaction([STORE_PLAYERS, STORE_META, STORE_WEEKS], 'readwrite');
 
         const playerStore = transaction.objectStore(STORE_PLAYERS);
@@ -266,7 +296,7 @@ export const restoreData = async (data: any): Promise<void> => {
 export const clearDatabase = async (): Promise<void> => {
     if (!db) await initDB();
     return new Promise((resolve, reject) => {
-        if (!db) return reject('DB not initialized');
+        if (!db) return reject(new Error('DB not initialized'));
         const transaction = db.transaction([STORE_PLAYERS, STORE_META, STORE_WEEKS], 'readwrite');
 
         transaction.objectStore(STORE_PLAYERS).clear();
@@ -280,4 +310,3 @@ export const clearDatabase = async (): Promise<void> => {
         transaction.onerror = (e) => reject((e.target as IDBTransaction).error);
     });
 };
-

@@ -20,29 +20,33 @@ export function initObserver(onTableFound: (container: HTMLElement) => void, onP
 
     const targetNode = document.body;
     const config = { childList: true, subtree: true };
+    const runPageProcessing = () => {
+        const currentPath = window.location.href;
+
+        if (currentPath.includes('/app/squad')) {
+            const squadContainer = findSquadContainer();
+            if (squadContainer) {
+                onTableFound(squadContainer);
+            }
+        } else if (currentPath.includes('/player/PID/') || currentPath.includes('/player/ID_player/')) {
+            const playerContainer = findPlayerContainer();
+            if (playerContainer && onPlayerPageFound) {
+                onPlayerPageFound(playerContainer);
+            }
+        }
+    };
 
     observer = new MutationObserver((mutationsList) => {
         // Debounce to avoid multiple calls during rendering
         if (debounceTimer) clearTimeout(debounceTimer);
 
         debounceTimer = setTimeout(() => {
-            const currentPath = window.location.href;
-
-            if (currentPath.includes('/app/squad')) {
-                const squadContainer = findSquadContainer();
-                if (squadContainer) {
-                    onTableFound(squadContainer);
-                }
-            } else if (currentPath.includes('/player/PID/') || currentPath.includes('/player/ID_player/')) {
-                const playerContainer = findPlayerContainer();
-                if (playerContainer && onPlayerPageFound) {
-                    onPlayerPageFound(playerContainer);
-                }
-            }
+            runPageProcessing();
         }, 500); // 500ms debounce
     });
 
     observer.observe(targetNode, config);
+    runPageProcessing();
     // console.log('Sokker++ Observer initialized');
 }
 
