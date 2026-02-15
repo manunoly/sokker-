@@ -5,20 +5,40 @@ import { SokkerResponse } from '../types/index';
 
 const BASE_URL: string = location.origin + '/api'; // Assumes running on sokker.org
 
+export interface TodayInfo {
+    season: number;
+    week: number;
+    seasonWeek: number;
+    day: number;
+    date: {
+        value: string;
+        timestamp: number;
+    };
+}
+
+/**
+ * Fetches the current day/week info.
+ * @returns {Promise<TodayInfo>}
+ */
+export async function fetchTodayInfo(): Promise<TodayInfo> {
+    try {
+        const response = await fetch(`${BASE_URL}/current`);
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        const data = await response.json();
+        return data.today;
+    } catch (error) {
+        console.error('Failed to fetch today info:', error);
+        throw error;
+    }
+}
+
 /**
  * Fetches the current game week.
  * @returns {Promise<number>} The current week number.
  */
 export async function fetchCurrentWeek(): Promise<number> {
-    try {
-        const response = await fetch(`${BASE_URL}/current`);
-        if (!response.ok) throw new Error(`API Error: ${response.status}`);
-        const data = await response.json();
-        return data.today.week;
-    } catch (error) {
-        console.error('Failed to fetch current week:', error);
-        throw error;
-    }
+    const info = await fetchTodayInfo();
+    return info.week;
 }
 
 /**

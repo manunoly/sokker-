@@ -1,4 +1,5 @@
 import { getPlayerHistory } from '../core/repository';
+import { fetchTodayInfo } from '../core/api';
 import { showTooltip, hideTooltip, updatePosition, scheduleHide, openZoomChart, showHistoryTooltip } from './tooltip';
 import { PlayerData, Skills } from '../types/index';
 import { mapSkillLabelToKey } from './i18n';
@@ -39,41 +40,72 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
     const playerBoxes = container.querySelectorAll('.player-box, .player-box--sm');
     // console.log(`[Sokker++] Found ${playerBoxes.length} player boxes.`);
 
+    // Get current time info to decide which weeks to compare
+    let todayInfo;
+    try {
+        todayInfo = await fetchTodayInfo();
+    } catch (e) {
+        console.error('[Sokker++] Failed to fetch today info, defaulting to standard comparison', e);
+    }
+
+    // Rule: If day < 5 (Sun-Thu), training hasn't happened for the current week yet.
+    // So currentData (Week X) is identical to Week X-1. 
+    // We should show the change from the PREVIOUS training: Week X-1 vs Week X-2.
+    const usePreviousWeek = todayInfo && todayInfo.day < 5;
+    // console.log(`[Sokker++] Day: ${todayInfo?.day}, Using previous week for comparison: ${usePreviousWeek}`);
+
     for (const box of playerBoxes) {
         const playerId = extractPlayerId(box as HTMLElement);
         if (!playerId) {
             console.warn('[Sokker++] Could not extract player ID from box', box);
             continue;
         }
-        // console.log(`[Sokker++] Processing player ${playerId}`);
 
         // Fetch history
         const historyData = await getPlayerHistory(playerId);
-
         const history = historyData?.history || [];
-        const currentData = history.length > 0 ? history[history.length - 1] : null;
-        let previousData = null;
 
-        if (currentData) {
-            // Simplified History Lookup:
-            // Since sync.ts and repository.ts now guarantee that:
-            // 1. We always have the latest data for the current week (overwritten if needed).
-            // 2. We always have the latest data for the previous stored week (refreshed if needed).
-            // 3. We overwrite gaps to avoid stale comparisons.
-            //
-            // We can simply compare currentData (Last item) with the immediate predecessor (Second to last item).
+        if (history.length === 0) continue;
 
+        // Current Data is always the latest available (sync guarantees this)
+        const currentData = history[history.length - 1];
+
+        let targetCurrent = currentData;
+        let targetPrevious = null;
+
+        if (usePreviousWeek) {
+            // Compare Week X-1 vs Week X-2
             if (history.length >= 2) {
-                // Get the entry immediately before the current one
-                previousData = history[history.length - 2];
+                targetCurrent = history[history.length - 1]; // This is effectively "current state"
+                // But we want to show Arrows for the *previous* jump.
+                // Actually, if we are in Week X (Day 1), history might have Week X and Week X-1.
+                // If training hasn't happened, Week X skills == Week X-1 skills.
+                // So checking Week X vs Week X-1 gives no arrows.
+                // We want to visualize the change that happened LAST week.
+                // So we should compare Week X-1 vs Week X-2.
+
+                // However, visually we are showing the *values* of the current week (which are same as X-1).
+                // So we attach arrows based on (X-1 vs X-2) difference.
+
+                targetCurrent = history[history.length - 2];
+                if (history.length >= 3) {
+                    targetPrevious = history[history.length - 3];
+                }
+            }
+        } else {
+            // Standard: Week X vs Week X-1
+            targetCurrent = history[history.length - 1];
+            if (history.length >= 2) {
+                targetPrevious = history[history.length - 2];
             }
         }
 
-        // console.log(`[Sokker++] Player ${playerId} history length: ${history.length} | Current Week: ${currentData?.week} | Previous Comparator Week: ${previousData?.week || 'None'}`);
-
-        if (currentData && currentData.skills) {
+        if (targetCurrent && targetCurrent.skills) {
             // Highlight changes and attach tooltips
-            processPlayerSkills(box as HTMLElement, playerId, currentData.skills, previousData?.skills);
+            // Note: We are passing targetCurrent.skills as "current" and targetPrevious.skills as "previous"
+            // This determines the ARROWS. 
+            // The actual displayed text (values) in the HTML is whatever Sokker rendered (current week).
+            processPlayerSkills(box as HTMLElement, playerId, targetCurrent.skills, targetPrevious?.skills);
             attachTooltipEventsToSkills(box as HTMLElement, playerId);
         }
     }
@@ -367,9 +399,19 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
 
         // Extract Skill Name from text nodes
         const clone = td.cloneNode(true) as HTMLElement;
-        const strong = clone.querySelector('strong');
+        // Clean up clone to extract text
+        const strong = clone.querySelector('strong, .strong');
         if (strong) strong.remove();
-        const skillLabel = clone.textContent?.trim() || '';
+
+        let skillLabel = '';
+        const link = clone.querySelector('a');
+        if (link) {
+            skillLabel = link.textContent?.trim() || '';
+        } else {
+            skillLabel = clone.textContent?.trim() || '';
+        }
+
+        // console.log(`[Sokker++] Extracted label: "${skillLabel}"`);
         const skillKey = mapSkillLabelToKey(skillLabel);
 
         if (!skillKey) return;
@@ -377,7 +419,8 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
         // The value element is inside the strong tag
         const valEl = td.querySelector('.skillNameNumber') as HTMLElement;
         // The text description "Level" is inside strong but outside span
-        const levelDescEl = td.querySelector('strong');
+        // Support both <strong> tag and <span class="strong">
+        const levelDescEl = td.querySelector('strong, .strong') as HTMLElement;
 
         // Tag elements for tooltips
         td.dataset.skillName = skillKey;
@@ -427,7 +470,6 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
                 }
 
                 // Add arrow
-                // For this layout, append arrow after the strong element
                 const arrow = document.createElement('span');
                 arrow.className = 'skill-arrow';
                 arrow.innerText = isImprovement ? '▲' : '▼';
@@ -435,15 +477,18 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
                 arrow.style.marginLeft = '5px';
                 arrow.title = `Previous: ${prev}`;
 
-                if (levelDescEl) {
-                    // Remove existing arrows to prevent duplication (robust)
-                    const existing = levelDescEl.querySelectorAll('.skill-arrow');
-                    existing.forEach(el => el.remove());
-                    levelDescEl.appendChild(arrow);
+                // TARGETED PLACEMENT
+                const existing = td.querySelectorAll('.skill-arrow');
+                existing.forEach(el => el.remove());
+
+                // Find the link again in the real TD (not clone)
+                const realLink = td.querySelector('a');
+
+                if (realLink) {
+                    // console.log(`[Sokker++] Inserting arrow after link for ${skillKey}`);
+                    realLink.insertAdjacentElement('afterend', arrow);
                 } else {
-                    // Remove existing arrows to prevent duplication (robust)
-                    const existing = td.querySelectorAll('.skill-arrow');
-                    existing.forEach(el => el.remove());
+                    // console.log(`[Sokker++] Appending arrow to TD for ${skillKey}`);
                     td.appendChild(arrow);
                 }
             }
