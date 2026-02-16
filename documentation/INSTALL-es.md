@@ -47,6 +47,7 @@ Sigue estos pasos para instalar la extensión **Sokker++** en tu navegador Chrom
 1.  Ve a [Sokker.org](https://sokker.org).
 2.  Entra en la página de **Equipo** o **Players**.
 3.  Deberías ver las flechas de mejora de habilidades y las gráficas al pasar el ratón por las habilidades.
+4.  **Nuevo:** Revisa la página del Jugador para ver el **Historial de Entrenamiento** (`trainHistory.png`) y los indicadores de **Subida de Habilidad** (`PlayerUp.png`).
 
 ---
 

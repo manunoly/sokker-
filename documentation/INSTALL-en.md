@@ -47,6 +47,7 @@ Follow these steps to install the **Sokker++** extension on your Chrome, Edge, o
 1.  Go to [Sokker.org](https://sokker.org).
 2.  Navigate to the **Squad** or **Players** page.
 3.  You should see skill improvement arrows and charts when hovering over skills.
+4.  **New:** Check the Player page to view the **Training History** (`trainHistory.png`) and specific **Skill Rise** indicators (`PlayerUp.png`).
 
 ---
 
