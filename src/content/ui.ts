@@ -264,11 +264,20 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         }
     });
 
-    // Attach History Tooltip to Player Name via a floating button anchored
-    // over the name link. The button lives in document.body, outside Vue's
-    // render tree — Vue cannot wipe it.
+    // Attach History Tooltip to Player Name:
+    //  - Hover on the name → ephemeral tooltip (auto-hides on mouse leave).
+    //  - Floating "+" button (outside Vue) → pinned tooltip (click to close).
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
     if (nameLink) {
+        if (!nameLink.dataset.sokkerPlusHoverBound) {
+            nameLink.dataset.sokkerPlusHoverBound = 'true';
+            nameLink.addEventListener('mouseenter', (e) => {
+                showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
+            });
+            nameLink.addEventListener('mouseleave', () => {
+                scheduleHide();
+            });
+        }
         attachFloatingHistoryButton(nameLink, (e) => {
             showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
         });
@@ -362,6 +371,16 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     // Actually, let's stick to container first.
 
     const attachHistory = (el: HTMLElement) => {
+        if (!el.dataset.sokkerPlusHoverBound) {
+            el.dataset.sokkerPlusHoverBound = 'true';
+            el.style.cursor = 'help';
+            el.addEventListener('mouseenter', (e) => {
+                showHistoryTooltip(e.pageX, e.pageY, pid, el);
+            });
+            el.addEventListener('mouseleave', () => {
+                scheduleHide();
+            });
+        }
         attachFloatingHistoryButton(el, (e) => {
             showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
         });
