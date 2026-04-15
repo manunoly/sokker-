@@ -161,6 +161,11 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
             const injury = entry.player.injury;
             const injuryDays = typeof injury?.daysRemaining === 'number' ? injury.daysRemaining : 0;
             const training = extractTrainingReport(report);
+            if (!training) {
+                console.warn('[Sokker++] extractTrainingReport returned undefined for', {
+                    playerId, week, kind: report.kind, type: report.type, formation: report.formation, intensity: report.intensity, games: report.games
+                });
+            }
             const weekStats: PlayerHistoryEntry = {
                 week: week,
                 date: report.day?.date?.value || new Date().toISOString().slice(0, 10),

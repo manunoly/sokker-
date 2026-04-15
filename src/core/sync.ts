@@ -3,7 +3,7 @@ import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced } from './repositor
 import { reconcileGaps } from './gapDetector';
 import { scheduleIdle } from '../utils/scheduleIdle';
 
-const MAX_WEEKS_TO_FETCH = 25;
+const MAX_WEEKS_TO_FETCH = 5;
 
 interface SyncResult {
     status: 'synced' | 'up-to-date' | 'error';
