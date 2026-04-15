@@ -3,7 +3,7 @@
  * No classes, no external dependencies.
  */
 
-import { PlayerData, PlayerHistoryEntry } from '../types/index';
+import { PlayerData, PlayerHistoryEntry, SnapshotSource } from '../types/index';
 
 const DB_NAME = 'SokkerTalentTrackerDB';
 const DB_VERSION = 2; // Incremented version for new store
@@ -15,6 +15,14 @@ let db: IDBDatabase | null = null;
 
 /**
  * Pure helper that merges one week's stats into a player record.
+ *
+ * Invariants:
+ *  - R1: a 'training' entry is never overwritten by a 'carried-over' entry.
+ *  - R2: a 'training' entry upgrades an existing 'carried-over' entry for the
+ *        same week. A 'carried-over' entry never overwrites another
+ *        'carried-over' entry (first write wins).
+ *  - Migration: legacy entries without a `source` field are treated as
+ *    'training' (they came from the training endpoint before this feature).
  */
 export const upsertPlayerWeekRecord = (
     existingRecord: PlayerData | undefined,
@@ -34,17 +42,27 @@ export const upsertPlayerWeekRecord = (
 
     const existingIndex = record.history.findIndex(h => h.week === weekStats.week);
     if (existingIndex !== -1) {
-        // Overwrite existing week (baseline refresh / corrections)
-        record.history[existingIndex] = weekStats;
+        const existing = record.history[existingIndex];
+        const existingSource: SnapshotSource = existing.source ?? 'training';
+        const incomingSource: SnapshotSource = weekStats.source ?? 'training';
+
+        const isUpgrade = existingSource !== 'training' && incomingSource === 'training';
+        const isSameTraining = existingSource === 'training' && incomingSource === 'training';
+
+        if (isUpgrade || isSameTraining) {
+            record.history[existingIndex] = weekStats;
+        }
+        // Otherwise (training already in place vs carried-over incoming, or
+        // carried-over vs carried-over): keep existing. R1 protects training;
+        // first carry-over wins.
     } else {
         record.history.push(weekStats);
     }
 
     record.history.sort((a, b) => a.week - b.week);
 
-    if (!record.latest || weekStats.week >= record.latest.week) {
-        record.latest = weekStats;
-    }
+    // Recompute latest as the entry with the highest week after merge.
+    record.latest = record.history[record.history.length - 1] ?? weekStats;
 
     return record;
 };
@@ -144,11 +162,16 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
                 return;
             }
 
+            const injury = entry.player.injury;
+            const injuryDays = typeof injury?.daysRemaining === 'number' ? injury.daysRemaining : 0;
             const weekStats: PlayerHistoryEntry = {
                 week: week,
                 date: report.day?.date?.value || new Date().toISOString(),
                 skills: report.skills,
-                value: entry.player.value.value
+                value: entry.player.value.value,
+                source: 'training',
+                injured: injuryDays > 0,
+                ...(injury ? { injury } : {})
             };
 
             const getRequest = playerStore.get(playerId);
@@ -204,8 +227,25 @@ export const isWeekSynced = async (week: number): Promise<boolean> => {
 };
 
 /**
+ * Retrieves every player record from the store. Used by the gap detector to
+ * locate weeks missing from each roster player's history.
+ */
+export const getAllPlayers = async (): Promise<PlayerData[]> => {
+    if (!db) await initDB();
+    return new Promise((resolve, reject) => {
+        if (!db) return reject(new Error('DB not initialized'));
+        const transaction = db.transaction([STORE_PLAYERS], 'readonly');
+        const store = transaction.objectStore(STORE_PLAYERS);
+        const request = store.getAll();
+
+        request.onsuccess = () => resolve((request.result as PlayerData[]) ?? []);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+/**
  * Retrieves history for a specific player.
- * @param {number} playerId 
+ * @param {number} playerId
  * @returns {Promise<PlayerData|null>}
  */
 export const getPlayerHistory = async (playerId: number): Promise<PlayerData | null> => {
@@ -307,6 +347,38 @@ export const clearDatabase = async (): Promise<void> => {
             console.log('Database cleared completely.');
             resolve();
         };
+        transaction.onerror = (e) => reject((e.target as IDBTransaction).error);
+    });
+};
+
+/**
+ * Persists a single PlayerHistoryEntry produced by Pipeline B. Delegates the
+ * R1/R2 enforcement to upsertPlayerWeekRecord. Intended to be called with
+ * entries whose source is 'carried-over' or 'roster-fallback'.
+ */
+export const savePlayerCarryOverEntry = async (
+    playerId: number,
+    playerName: string,
+    entry: PlayerHistoryEntry
+): Promise<void> => {
+    if (!db) await initDB();
+    return new Promise((resolve, reject) => {
+        if (!db) return reject(new Error('DB not initialized'));
+        const transaction = db.transaction([STORE_PLAYERS], 'readwrite');
+        const store = transaction.objectStore(STORE_PLAYERS);
+
+        const getRequest = store.get(playerId);
+        getRequest.onsuccess = () => {
+            const record = upsertPlayerWeekRecord(
+                getRequest.result as PlayerData | undefined,
+                playerId,
+                playerName,
+                entry
+            );
+            store.put(record);
+        };
+
+        transaction.oncomplete = () => resolve();
         transaction.onerror = (e) => reject((e.target as IDBTransaction).error);
     });
 };
