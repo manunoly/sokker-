@@ -298,9 +298,18 @@ export async function showHistoryTooltip(
         tooltipExists: !!tooltip,
         tooltipVisible: tooltip?.style.display === 'block',
         tooltipsWithOurIdInDom: document.querySelectorAll('#sokkerpp-history-tooltip').length,
+        foreignSokkerTooltips: document.querySelectorAll('#sokker-plus-tooltip').length,
         targetTag: targetEl.tagName,
         targetClass: targetEl.className,
         stack: new Error().stack?.split('\n').slice(1, 5).join(' | ')
+    });
+
+    // Hide any competing tooltip injected by another Sokker extension using
+    // the legacy id. We don't own it, but when both are displayed at the
+    // same time the UI shows a "double" tooltip. Hiding is non-destructive:
+    // the other extension can reshow on its next event.
+    document.querySelectorAll<HTMLElement>('#sokker-plus-tooltip').forEach((el) => {
+        el.style.setProperty('display', 'none', 'important');
     });
 
     if (!tooltip) createTooltip();
