@@ -323,14 +323,11 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
  * @param {HTMLElement} container
  */
 export async function processPlayerPage(container: HTMLElement): Promise<void> {
-    console.log('[Sokker++] processPlayerPage start', { container });
-
     const pid = extractPlayerIdFromUrl();
     if (!pid) {
         console.warn('[Sokker++] Could not extract player ID from URL');
         return;
     }
-    console.log('[Sokker++] processPlayerPage pid=', pid);
 
     // console.log(`[Sokker++] Processing player page for ${pid}`);
 
@@ -356,7 +353,6 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     // Attach History Tooltip to Player Name Headers
     // 1. Panel Header (Primary) - be specific to avoid matching other icons (like briefcase)
     const panelNameLink = container.querySelector<HTMLElement>('.h5.title-block-1 a[href*="player/PID/"]');
-    console.log('[Sokker++] panelNameLink lookup', { found: !!panelNameLink });
     // 2. Navbar Brand (Secondary/Fallback) - note: might be outside container if container is inner
     // If container is .l-main__inner, navbar might be outside. 
     // But let's try document.querySelector for navbar as fallback if not found in container?
@@ -531,10 +527,6 @@ function attachFloatingHistoryButton(target: HTMLElement, onClick: (e: MouseEven
     document.body.appendChild(btn);
     floatingButtonsByTarget.set(target, btn);
     positionFloatingButton(btn, target);
-    console.log('[Sokker++] floating history button attached', {
-        targetTag: target.tagName,
-        rect: btn.getBoundingClientRect()
-    });
 
     // Individual observer: if target is removed from DOM, drop the button.
     const targetObserver = new MutationObserver(() => {

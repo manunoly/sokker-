@@ -22,12 +22,26 @@ export function initObserver(
 
     const targetNode = document.body;
     const config = { childList: true, subtree: true };
+    let lastProcessedUrl = '';
+    let lastProcessedAt = 0;
+    const COOLDOWN_MS = 2000;
+
     const runPageProcessing = () => {
         const currentPath = window.location.href;
+        const now = Date.now();
+
+        // SPA frameworks (Vue here) re-render frequently. Without a cooldown,
+        // each mutation triggers a new processing pass — hammering network
+        // calls and causing UI effects to churn. We still process immediately
+        // when the URL changes (user navigated).
+        if (currentPath === lastProcessedUrl && now - lastProcessedAt < COOLDOWN_MS) {
+            return;
+        }
+        lastProcessedUrl = currentPath;
+        lastProcessedAt = now;
 
         if (currentPath.includes('/app/squad')) {
             const squadContainer = findSquadContainer();
-            console.log('[Sokker++] runPageProcessing squad', { squadContainer });
             if (squadContainer) {
                 onTableFound(squadContainer);
                 if (onSquadReady) {
@@ -36,12 +50,9 @@ export function initObserver(
             }
         } else if (currentPath.includes('/player/PID/') || currentPath.includes('/player/ID_player/')) {
             const playerContainer = findPlayerContainer();
-            console.log('[Sokker++] runPageProcessing player', { playerContainer });
             if (playerContainer && onPlayerPageFound) {
                 onPlayerPageFound(playerContainer);
             }
-        } else {
-            console.log('[Sokker++] runPageProcessing: path not matched', currentPath);
         }
     };
 
