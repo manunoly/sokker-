@@ -1,4 +1,6 @@
-import { PlayerHistoryEntry } from '../types/index';
+import { PlayerHistoryEntry, PlayerData, RosterPlayer } from '../types/index';
+import { fetchRoster, fetchTodayInfo } from './api';
+import { getAllPlayers, savePlayerCarryOverEntry } from './repository';
 
 /**
  * Given a player's history (any source) and the current week, returns the list
@@ -70,4 +72,123 @@ export function buildCarryOverEntry(
     };
     if (injured === true) entry.injured = true;
     return entry;
+}
+
+export interface ReconcileContext {
+    week: number;
+    teamId: number;
+}
+
+export interface ReconcileDeps {
+    fetchCurrentContext: () => Promise<ReconcileContext>;
+    fetchRoster: (teamId: number) => Promise<RosterPlayer[]>;
+    getAllPlayers: () => Promise<PlayerData[]>;
+    savePlayerCarryOverEntry: (
+        playerId: number,
+        playerName: string,
+        entry: PlayerHistoryEntry
+    ) => Promise<void>;
+}
+
+export interface ReconcileResult {
+    scannedPlayers: number;
+    rosterSize: number;
+    gapsFilled: number;
+    skipped: {
+        noHistory: number;
+        currentWeek: number;
+        alreadyPresent: number;
+        notInRoster: number;
+    };
+    error?: string;
+}
+
+/**
+ * Pure orchestrator: iterates over roster players, finds gaps in their stored
+ * history, builds carry-over entries cloning skills from N-1 (cascading if the
+ * preceding week was itself just filled in this same pass), and persists them.
+ *
+ * Respects R1 (never overwrites training), R2 (save helper enforces it), R3
+ * (skips currentWeek and anything before firstStoredWeek), R4 (ignores
+ * ex-players not in roster).
+ *
+ * All dependencies are injected so this function is testable without real IO.
+ */
+export async function reconcileGapsWithDeps(deps: ReconcileDeps): Promise<ReconcileResult> {
+    const result: ReconcileResult = {
+        scannedPlayers: 0,
+        rosterSize: 0,
+        gapsFilled: 0,
+        skipped: { noHistory: 0, currentWeek: 0, alreadyPresent: 0, notInRoster: 0 }
+    };
+
+    try {
+        const ctx = await deps.fetchCurrentContext();
+        const roster = await deps.fetchRoster(ctx.teamId);
+        const stored = await deps.getAllPlayers();
+
+        result.rosterSize = roster.length;
+
+        const storedById = new Map<number, PlayerData>();
+        for (const p of stored) storedById.set(p.id, p);
+
+        const rosterIds = new Set(roster.map((r) => r.id));
+        for (const p of stored) {
+            if (!rosterIds.has(p.id)) result.skipped.notInRoster++;
+        }
+
+        for (const rp of roster) {
+            result.scannedPlayers++;
+            const storedPlayer = storedById.get(rp.id);
+            if (!storedPlayer || storedPlayer.history.length === 0) {
+                result.skipped.noHistory++;
+                continue;
+            }
+
+            const history = [...storedPlayer.history].sort((a, b) => a.week - b.week);
+            const gaps = findWeekGaps(history, ctx.week);
+
+            // Telemetry: mark one skip per scanned roster player for current-week
+            // boundary (findWeekGaps excludes currentWeek by construction).
+            result.skipped.currentWeek++;
+
+            if (gaps.length === 0) continue;
+
+            // Cascade: work in-order so a carry-over written for week W can be used
+            // as the N-1 for week W+1 in the same pass.
+            const workingHistory = [...history];
+            for (const gap of gaps) {
+                const prev = workingHistory.find((h) => h.week === gap - 1);
+                if (!prev) continue;
+                const next = workingHistory.find((h) => h.week === gap + 1);
+                const injured = inferInjury(prev, next);
+                const carryOver = buildCarryOverEntry(prev, gap, injured);
+                await deps.savePlayerCarryOverEntry(rp.id, rp.info.name.full, carryOver);
+                workingHistory.push(carryOver);
+                workingHistory.sort((a, b) => a.week - b.week);
+                result.gapsFilled++;
+            }
+        }
+
+        return result;
+    } catch (err) {
+        result.error = err instanceof Error ? err.message : String(err);
+        return result;
+    }
+}
+
+/**
+ * Production wrapper. Wires reconcileGapsWithDeps against live
+ * repository + API dependencies.
+ */
+export async function reconcileGaps(): Promise<ReconcileResult> {
+    return reconcileGapsWithDeps({
+        fetchCurrentContext: async () => {
+            const info = await fetchTodayInfo();
+            return { week: info.week, teamId: info.teamId };
+        },
+        fetchRoster,
+        getAllPlayers,
+        savePlayerCarryOverEntry
+    });
 }
