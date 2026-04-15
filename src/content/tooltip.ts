@@ -424,7 +424,7 @@ export async function showHistoryTooltip(
 
     let html = `
         <h3 style="margin: 0 0 10px 0; font-size: 14px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 5px; color: #fff;">
-            General Skills
+            General Skills ++
         </h3>
         <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 350px;">
             <thead>
