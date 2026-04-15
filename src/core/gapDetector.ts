@@ -96,8 +96,6 @@ export interface ReconcileResult {
     gapsFilled: number;
     skipped: {
         noHistory: number;
-        currentWeek: number;
-        alreadyPresent: number;
         notInRoster: number;
     };
     error?: string;
@@ -119,7 +117,7 @@ export async function reconcileGapsWithDeps(deps: ReconcileDeps): Promise<Reconc
         scannedPlayers: 0,
         rosterSize: 0,
         gapsFilled: 0,
-        skipped: { noHistory: 0, currentWeek: 0, alreadyPresent: 0, notInRoster: 0 }
+        skipped: { noHistory: 0, notInRoster: 0 }
     };
 
     try {
@@ -147,10 +145,6 @@ export async function reconcileGapsWithDeps(deps: ReconcileDeps): Promise<Reconc
 
             const history = [...storedPlayer.history].sort((a, b) => a.week - b.week);
             const gaps = findWeekGaps(history, ctx.week);
-
-            // Telemetry: mark one skip per scanned roster player for current-week
-            // boundary (findWeekGaps excludes currentWeek by construction).
-            result.skipped.currentWeek++;
 
             if (gaps.length === 0) continue;
 

@@ -199,7 +199,6 @@ describe('reconcileGapsWithDeps', () => {
 
         expect(saved).toHaveLength(0);
         expect(result.gapsFilled).toBe(0);
-        expect(result.skipped.currentWeek).toBeGreaterThan(0);
     });
 
     it('counts ex-players (in store but not in roster) as skipped.notInRoster (R4)', async () => {

@@ -125,14 +125,14 @@ describe('prepareChartData preserves source and injured metadata', () => {
         const history = [
             {
                 week: 100,
-                date: '2026-02-06T12:00:00', // Thursday → keeps week=100 under existing adjustment rules
+                date: '2026-02-06T12:00:00', // Friday → keeps week=100 under existing adjustment rules
                 skills: { stamina: 10 },
                 value: 1,
                 source: 'training'
             },
             {
                 week: 101,
-                date: '2026-02-13T12:00:00', // Thursday → keeps week=101
+                date: '2026-02-13T12:00:00', // Friday → keeps week=101
                 skills: { stamina: 10 },
                 value: 1,
                 source: 'carried-over',

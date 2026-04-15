@@ -9,11 +9,8 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 /**
  * Initializes the MutationObserver.
  * @param {Function} onTableFound - Callback when the target table is detected.
- */
-/**
- * Initializes the MutationObserver.
- * @param {Function} onTableFound - Callback when the target table is detected.
  * @param {Function} [onPlayerPageFound] - Callback when the player page is detected.
+ * @param {Function} [onSquadReady] - Callback fired (in idle) when the user lands on /app/squad/.
  */
 export function initObserver(
     onTableFound: (container: HTMLElement) => void,

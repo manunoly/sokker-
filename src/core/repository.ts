@@ -166,7 +166,7 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
             const injuryDays = typeof injury?.daysRemaining === 'number' ? injury.daysRemaining : 0;
             const weekStats: PlayerHistoryEntry = {
                 week: week,
-                date: report.day?.date?.value || new Date().toISOString(),
+                date: report.day?.date?.value || new Date().toISOString().slice(0, 10),
                 skills: report.skills,
                 value: entry.player.value.value,
                 source: 'training',

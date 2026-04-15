@@ -110,7 +110,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: ChartPoint[
     }
 
     // Draw Line — segment by segment. A segment ending on a carried-over point
-    // (or starting from one) is rendered dashed + atenuated to signal that the
+    // (or starting from one) is rendered dashed + attenuated to signal that the
     // training data for that week was inferred, not observed.
     const SOLID_COLOR = '#00ff00';
     const CARRY_COLOR = '#888';
