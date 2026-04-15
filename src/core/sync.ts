@@ -1,5 +1,6 @@
 import { fetchCurrentWeek, fetchTrainingData } from './api';
 import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced } from './repository';
+import { reconcileGaps } from './gapDetector';
 
 const MAX_WEEKS_TO_FETCH = 25;
 
@@ -74,10 +75,33 @@ export async function syncData(): Promise<SyncResult> {
             }
         }
 
+        // Pipeline B: best-effort, non-blocking. Runs after we've already returned
+        // synced status to the caller. Failures here do not surface to the UI —
+        // gap detection is an enhancement, not a correctness requirement.
+        scheduleIdle(() => {
+            reconcileGaps().catch((err) => console.warn('reconcileGaps failed:', err));
+        });
+
         return { status: 'synced', weeks: weeksToSync.length, lastWeek: currentWeek };
 
     } catch (error) {
         console.error('Sync failed:', error);
         throw error;
+    }
+}
+
+/**
+ * Runs a callback when the browser is idle. Falls back to a small setTimeout
+ * when requestIdleCallback is not available (non-Chromium environments or
+ * worker contexts in tests).
+ */
+function scheduleIdle(cb: () => void): void {
+    const ric = (globalThis as typeof globalThis & {
+        requestIdleCallback?: (cb: () => void) => number;
+    }).requestIdleCallback;
+    if (typeof ric === 'function') {
+        ric(cb);
+    } else {
+        setTimeout(cb, 0);
     }
 }
