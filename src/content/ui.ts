@@ -264,20 +264,14 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         }
     });
 
-    // Attach History Tooltip to Player Name. Guard by DOM presence (not a
-    // dataset flag) so that if Sokker re-renders the link we re-insert the
-    // icon; and attach the icon as the LAST child of the link so it always
-    // renders inline with the name regardless of Sokker's squad layout.
+    // Attach History Tooltip to Player Name via a floating button anchored
+    // over the name link. The button lives in document.body, outside Vue's
+    // render tree — Vue cannot wipe it.
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
-    if (nameLink && !nameLink.querySelector('.sokker-plus-history-icon')) {
-        const icon = createHistoryIcon();
-        icon.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            showHistoryTooltip(e.pageX, e.pageY, playerId, icon, { pinned: true });
+    if (nameLink) {
+        attachFloatingHistoryButton(nameLink, (e) => {
+            showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
         });
-        nameLink.appendChild(icon);
-        console.log('[Sokker++] history icon attached (squad) for player', playerId);
     }
 
     attachTooltipEventsToSkills(box, playerId);
@@ -368,16 +362,9 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     // Actually, let's stick to container first.
 
     const attachHistory = (el: HTMLElement) => {
-        // Guard by presence in the DOM so re-renders trigger re-attach.
-        if (el.querySelector('.sokker-plus-history-icon')) return;
-        const icon = createHistoryIcon();
-        icon.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            showHistoryTooltip(e.pageX, e.pageY, pid, icon, { pinned: true });
+        attachFloatingHistoryButton(el, (e) => {
+            showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
         });
-        el.appendChild(icon);
-        console.log('[Sokker++] history icon attached (player page)');
     };
 
     if (panelNameLink) attachHistory(panelNameLink);
@@ -507,6 +494,91 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
     });
 }
 
+// Map each target element to its floating button. Strong Map so we can
+// iterate during scroll/resize repositioning. Entries are cleaned up by the
+// per-target MutationObserver below when the target leaves the DOM.
+const floatingButtonsByTarget = new Map<HTMLElement, HTMLButtonElement>();
+let floatingRepositionBound = false;
+
+/**
+ * Attaches a floating "HISTORY +" button that sits next to `target` but
+ * actually lives in document.body (outside Vue's reach). Repositions on
+ * scroll, resize, and observer ticks. Clicking calls `onClick` with the
+ * synthetic MouseEvent.
+ */
+function attachFloatingHistoryButton(target: HTMLElement, onClick: (e: MouseEvent) => void): void {
+    ensureHistoryIconStyles();
+    ensureGlobalRepositioner();
+
+    const existing = floatingButtonsByTarget.get(target);
+    if (existing && document.body.contains(existing)) {
+        // Just reposition in case the target has moved.
+        positionFloatingButton(existing, target);
+        return;
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sokker-plus-history-icon';
+    btn.textContent = '+';
+    btn.title = 'Open skill history';
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onClick(e);
+    });
+    document.body.appendChild(btn);
+    floatingButtonsByTarget.set(target, btn);
+    positionFloatingButton(btn, target);
+    console.log('[Sokker++] floating history button attached', {
+        targetTag: target.tagName,
+        rect: btn.getBoundingClientRect()
+    });
+
+    // Individual observer: if target is removed from DOM, drop the button.
+    const targetObserver = new MutationObserver(() => {
+        if (!document.body.contains(target)) {
+            btn.remove();
+            floatingButtonsByTarget.delete(target);
+            targetObserver.disconnect();
+            return;
+        }
+        positionFloatingButton(btn, target);
+    });
+    const targetParent = target.parentElement;
+    if (targetParent) {
+        targetObserver.observe(targetParent, { childList: true, subtree: true });
+    }
+}
+
+function positionFloatingButton(btn: HTMLButtonElement, target: HTMLElement): void {
+    if (!document.body.contains(target)) return;
+    const rect = target.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return; // not laid out yet
+    // Sit the button just to the right of the target, vertically centered.
+    const top = rect.top + window.scrollY + (rect.height / 2) - 11;
+    const left = rect.right + window.scrollX + 6;
+    btn.style.setProperty('top', `${top}px`, 'important');
+    btn.style.setProperty('left', `${left}px`, 'important');
+}
+
+function ensureGlobalRepositioner(): void {
+    if (floatingRepositionBound) return;
+    floatingRepositionBound = true;
+    const reposition = () => {
+        floatingButtonsByTarget.forEach((btn, target) => {
+            if (!document.body.contains(target)) {
+                btn.remove();
+                floatingButtonsByTarget.delete(target);
+                return;
+            }
+            positionFloatingButton(btn, target);
+        });
+    };
+    window.addEventListener('scroll', reposition, { passive: true });
+    window.addEventListener('resize', reposition, { passive: true });
+}
+
 /**
  * Injects a global stylesheet for the history-icon badge once per document.
  * We use !important to defeat Sokker's own CSS (which otherwise hides or
@@ -518,66 +590,35 @@ function ensureHistoryIconStyles(): void {
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-        .sokker-plus-history-icon {
+        button.sokker-plus-history-icon {
+            position: absolute !important;
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            margin-left: 6px !important;
-            width: 16px !important;
-            height: 16px !important;
-            min-width: 16px !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            width: 22px !important;
+            height: 22px !important;
+            min-width: 22px !important;
+            padding: 0 !important;
+            border: 2px solid #fff !important;
             border-radius: 50% !important;
             background-color: #007bff !important;
             color: #fff !important;
-            font-size: 12px !important;
-            font-weight: bold !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
             line-height: 1 !important;
             cursor: pointer !important;
             user-select: none !important;
-            vertical-align: middle !important;
             text-decoration: none !important;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.25) !important;
-            z-index: 1 !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.35) !important;
+            z-index: 2147483646 !important;
         }
-        .sokker-plus-history-icon:hover {
+        button.sokker-plus-history-icon:hover {
             background-color: #0056b3 !important;
         }
     `;
     document.head.appendChild(style);
 }
 
-/**
- * Creates a small "+" badge intended to be inserted as a child of a player
- * name link. Clicking it opens the pinned history tooltip.
- *
- * Uses BOTH a CSS class (with !important) AND inline styles via setProperty
- * to be defensive against Sokker's own CSS and any case where the injected
- * stylesheet might not apply.
- */
-function createHistoryIcon(): HTMLElement {
-    ensureHistoryIconStyles();
-    const icon = document.createElement('span');
-    icon.className = 'sokker-plus-history-icon';
-    icon.textContent = '+';
-    icon.title = 'Open skill history';
-    const imp = (name: string, value: string) => icon.style.setProperty(name, value, 'important');
-    imp('display', 'inline-flex');
-    imp('align-items', 'center');
-    imp('justify-content', 'center');
-    imp('margin-left', '6px');
-    imp('width', '16px');
-    imp('height', '16px');
-    imp('min-width', '16px');
-    imp('border-radius', '50%');
-    imp('background-color', '#007bff');
-    imp('color', '#fff');
-    imp('font-size', '12px');
-    imp('font-weight', 'bold');
-    imp('line-height', '1');
-    imp('cursor', 'pointer');
-    imp('user-select', 'none');
-    imp('vertical-align', 'middle');
-    imp('text-decoration', 'none');
-    imp('box-shadow', '0 1px 2px rgba(0,0,0,0.25)');
-    return icon;
-}
