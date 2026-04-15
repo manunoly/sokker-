@@ -428,14 +428,14 @@ export async function showHistoryTooltip(
         if (row.source === 'carried-over') {
             if (row.injured === true) {
                 statusIcon = '🩹';
-                statusTitle = 'Inferred: injured (data carried over from previous week)';
+                statusTitle = 'Probably injured — no training report, values carried from previous week';
             } else {
                 statusIcon = '⏸';
-                statusTitle = 'Missing training report — data carried over';
+                statusTitle = 'No training report — values carried from previous week';
             }
         } else if (row.source === 'roster-fallback') {
             statusIcon = '⏸';
-            statusTitle = 'Data derived from current roster (no previous training)';
+            statusTitle = 'No prior history — values from current roster';
         }
 
         html += `<tr style="border-bottom: 1px solid #444; background-color: ${rowBgColor};">`;
