@@ -503,28 +503,53 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
 }
 
 /**
+ * Injects a global stylesheet for the history-icon badge once per document.
+ * We use !important to defeat Sokker's own CSS (which otherwise hides or
+ * collapses the injected <span>).
+ */
+function ensureHistoryIconStyles(): void {
+    const STYLE_ID = 'sokker-plus-icon-styles';
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+        .sokker-plus-history-icon {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin-left: 6px !important;
+            width: 16px !important;
+            height: 16px !important;
+            min-width: 16px !important;
+            border-radius: 50% !important;
+            background-color: #007bff !important;
+            color: #fff !important;
+            font-size: 12px !important;
+            font-weight: bold !important;
+            line-height: 1 !important;
+            cursor: pointer !important;
+            user-select: none !important;
+            vertical-align: middle !important;
+            text-decoration: none !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.25) !important;
+            z-index: 1 !important;
+        }
+        .sokker-plus-history-icon:hover {
+            background-color: #0056b3 !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+/**
  * Creates a small "+" badge intended to be inserted right after a player
  * name link. Clicking it opens the pinned history tooltip.
  */
 function createHistoryIcon(): HTMLElement {
+    ensureHistoryIconStyles();
     const icon = document.createElement('span');
     icon.className = 'sokker-plus-history-icon';
     icon.textContent = '+';
     icon.title = 'Open skill history';
-    icon.style.display = 'inline-flex';
-    icon.style.alignItems = 'center';
-    icon.style.justifyContent = 'center';
-    icon.style.marginLeft = '4px';
-    icon.style.width = '14px';
-    icon.style.height = '14px';
-    icon.style.borderRadius = '50%';
-    icon.style.backgroundColor = '#007bff';
-    icon.style.color = '#fff';
-    icon.style.fontSize = '11px';
-    icon.style.fontWeight = 'bold';
-    icon.style.lineHeight = '1';
-    icon.style.cursor = 'pointer';
-    icon.style.userSelect = 'none';
-    icon.style.verticalAlign = 'middle';
     return icon;
 }

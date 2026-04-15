@@ -512,9 +512,11 @@ let hideTimeout: number | null = null;
  */
 export function updatePosition(x: number, y: number): void {
     if (!tooltip) return;
-    // Offset to not cover cursor
-    tooltip.style.left = (x + 15) + 'px';
-    tooltip.style.top = (y + 15) + 'px';
+    // Small offset so the cursor sits just inside the tooltip's hit-box:
+    // the mouseenter on the tooltip fires immediately and the hover-to-keep
+    // logic has a chance to cancel the pending hide before it expires.
+    tooltip.style.left = (x + 4) + 'px';
+    tooltip.style.top = (y + 4) + 'px';
 }
 
 /**
@@ -539,7 +541,7 @@ export function scheduleHide(): void {
     if (hideTimeout) window.clearTimeout(hideTimeout);
     hideTimeout = window.setTimeout(() => {
         hideTooltip();
-    }, 300); // 300ms delay
+    }, 600); // grace period for cursor to travel between trigger and tooltip
 }
 
 /**
