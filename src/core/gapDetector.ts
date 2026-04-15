@@ -172,11 +172,21 @@ export async function reconcileGapsWithDeps(deps: ReconcileDeps): Promise<Reconc
 }
 
 /**
+ * Module-level single-flight guard for reconcileGaps. reconcileGaps can be
+ * triggered from post-sync idle, /app/squad/ navigation, and the popup button.
+ * When a reconcile is already in flight, subsequent callers await the same
+ * promise instead of starting redundant work.
+ */
+let inFlight: Promise<ReconcileResult> | null = null;
+
+/**
  * Production wrapper. Wires reconcileGapsWithDeps against live
- * repository + API dependencies.
+ * repository + API dependencies. Guarded by an in-flight promise so
+ * overlapping triggers share a single run.
  */
 export async function reconcileGaps(): Promise<ReconcileResult> {
-    return reconcileGapsWithDeps({
+    if (inFlight) return inFlight;
+    inFlight = reconcileGapsWithDeps({
         fetchCurrentContext: async () => {
             const info = await fetchTodayInfo();
             return { week: info.week, teamId: info.teamId };
@@ -184,5 +194,6 @@ export async function reconcileGaps(): Promise<ReconcileResult> {
         fetchRoster,
         getAllPlayers,
         savePlayerCarryOverEntry
-    });
+    }).finally(() => { inFlight = null; });
+    return inFlight;
 }

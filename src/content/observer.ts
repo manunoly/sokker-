@@ -2,6 +2,7 @@
  * DOM Observer for Single Page Application (SPA) navigation.
  * Detects when the squad table is ready in the DOM.
  */
+import { scheduleIdle } from '../utils/scheduleIdle';
 
 let observer: MutationObserver | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -82,19 +83,4 @@ function findPlayerContainer(): HTMLElement | null {
         return document.querySelector('.l-main__inner') as HTMLElement || document.body;
     }
     return null;
-}
-
-/**
- * Runs a callback when the browser is idle. Falls back to a small setTimeout
- * when requestIdleCallback is not available.
- */
-function scheduleIdle(cb: () => void): void {
-    const ric = (globalThis as typeof globalThis & {
-        requestIdleCallback?: (cb: () => void) => number;
-    }).requestIdleCallback;
-    if (typeof ric === 'function') {
-        ric(cb);
-    } else {
-        setTimeout(cb, 0);
-    }
 }

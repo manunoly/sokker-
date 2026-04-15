@@ -21,7 +21,10 @@ async function main() {
         if (request.action === 'REPAIR_HISTORY') {
             reconcileGaps()
                 .then(result => sendResponse({ status: 'success', result }))
-                .catch(err => sendResponse({ status: 'error', message: err.message }));
+                .catch(err => sendResponse({
+                    status: 'error',
+                    message: err instanceof Error ? err.message : String(err)
+                }));
             return true;
         }
 

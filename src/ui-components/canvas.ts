@@ -118,7 +118,8 @@ export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: ChartPoint[
     for (let i = 1; i < sortedData.length; i++) {
         const prev = sortedData[i - 1];
         const curr = sortedData[i];
-        const anyCarry = prev.source === 'carried-over' || curr.source === 'carried-over';
+        const isInferred = (s: string | undefined) => s === 'carried-over' || s === 'roster-fallback';
+        const anyCarry = isInferred(prev.source) || isInferred(curr.source);
 
         ctx.beginPath();
         ctx.moveTo(getX(prev.week), getY(prev.value));

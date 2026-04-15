@@ -1,6 +1,7 @@
 import { fetchCurrentWeek, fetchTrainingData } from './api';
 import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced } from './repository';
 import { reconcileGaps } from './gapDetector';
+import { scheduleIdle } from '../utils/scheduleIdle';
 
 const MAX_WEEKS_TO_FETCH = 25;
 
@@ -87,21 +88,5 @@ export async function syncData(): Promise<SyncResult> {
     } catch (error) {
         console.error('Sync failed:', error);
         throw error;
-    }
-}
-
-/**
- * Runs a callback when the browser is idle. Falls back to a small setTimeout
- * when requestIdleCallback is not available (non-Chromium environments or
- * worker contexts in tests).
- */
-function scheduleIdle(cb: () => void): void {
-    const ric = (globalThis as typeof globalThis & {
-        requestIdleCallback?: (cb: () => void) => number;
-    }).requestIdleCallback;
-    if (typeof ric === 'function') {
-        ric(cb);
-    } else {
-        setTimeout(cb, 0);
     }
 }
