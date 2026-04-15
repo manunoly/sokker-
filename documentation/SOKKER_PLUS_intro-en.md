@@ -41,6 +41,10 @@ Here's why Sokker++ stands out from any other alternative:
     *   In the mini chart, segments touching an inferred point are drawn as a **dashed gray line** so you can tell real progress from filled-in data at a glance.
     *   Run it yourself with the new **"Repair History"** button in the popup — it also runs automatically after every sync and every time you enter the squad view.
 
+    *   **NEW: Training received per week:**
+    *   Three new columns in the General Skills table tell you what happened each week: **Kind** (🎯 advanced / 📋 formation / — no training), **Skill @ Pos** (skill trained and position, e.g. `striker @ ATT`), and **Eff** (training effectiveness 0–100% with a red/yellow/green heatmap).
+    *   Spot wasted weeks (low intensity) at a glance and confirm every young player is actually getting the training you planned.
+
 *   **Native Design:** The aesthetics respect the Sokker style 100%. **You won't feel like it's a plugin; you'll feel like the game has evolved.**
 
 ---

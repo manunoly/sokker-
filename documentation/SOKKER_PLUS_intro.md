@@ -41,6 +41,10 @@ Aquí te explicamos por qué Sokker++ destaca sobre cualquier otra alternativa:
     *   En el mini gráfico, los segmentos que tocan un punto inferido se dibujan con **línea gris punteada** para distinguir de un vistazo el progreso real del dato rellenado.
     *   Re-ejecútalo cuando quieras con el nuevo botón **"Reparar Historial"** del popup — también corre automáticamente después de cada sync y al entrar a la vista de plantilla.
 
+    *   **NUEVO: Entrenamiento recibido por semana:**
+    *   Tres nuevas columnas en la tabla de General Skills te dicen qué pasó cada semana: **Kind** (🎯 avanzado / 📋 formación / — sin entreno), **Skill @ Pos** (habilidad entrenada y posición: `striker @ ATT`), y **Eff** (efectividad del entrenamiento 0–100% con semáforo rojo/amarillo/verde).
+    *   Así detectas de un vistazo semanas desperdiciadas (intensidad baja) y confirmas que cada jugador joven está recibiendo el entrenamiento que le toca.
+
 *   **Diseño Nativo:** La estética respeta al 100% el estilo de Sokker. **No sentirás que es un plugin, sentirás que el juego ha evolucionado.**
 
 ---
