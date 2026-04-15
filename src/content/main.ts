@@ -18,6 +18,13 @@ async function main() {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Return true to indicate we will send a response asynchronously
 
+        if (request.action === 'REPAIR_HISTORY') {
+            reconcileGaps()
+                .then(result => sendResponse({ status: 'success', result }))
+                .catch(err => sendResponse({ status: 'error', message: err.message }));
+            return true;
+        }
+
         if (request.action === 'EXPORT_DATA') {
             getAllData()
                 .then(data => sendResponse({ status: 'success', data }))
