@@ -35,6 +35,12 @@ Here's why Sokker++ stands out from any other alternative:
     
     ![Training History](trainHistory.png)
 
+    *   **NEW: Gap Detector for missing training reports:**
+    *   Players sometimes miss a weekly training report (injury, API glitch, mid-week sale). Sokker++ now detects those gaps and fills them automatically by carrying forward the values from the previous week, so your weekly charts and "who improved this week" calculations stay consistent.
+    *   A **status column (⚑)** in the General Skills table explains every row: blank for a real training report, **🩹** when the gap is most likely caused by an injury (inferred from adjacent weeks), and **⏸** when the cause is unknown.
+    *   In the mini chart, segments touching an inferred point are drawn as a **dashed gray line** so you can tell real progress from filled-in data at a glance.
+    *   Run it yourself with the new **"Repair History"** button in the popup — it also runs automatically after every sync and every time you enter the squad view.
+
 *   **Native Design:** The aesthetics respect the Sokker style 100%. **You won't feel like it's a plugin; you'll feel like the game has evolved.**
 
 ---

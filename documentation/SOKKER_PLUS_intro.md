@@ -35,6 +35,12 @@ Aquí te explicamos por qué Sokker++ destaca sobre cualquier otra alternativa:
     
     ![Historial de Entrenamiento](trainHistory.png)
 
+    *   **NUEVO: Detector de huecos en reportes de entrenamiento:**
+    *   A veces un jugador se queda sin reporte semanal (lesión, bug del endpoint, venta a mitad de semana). Sokker++ detecta esos huecos y los rellena automáticamente clonando los valores de la semana anterior, para que tus gráficas semanales y los cálculos de "quién subió esta semana" sigan siendo consistentes.
+    *   Una **columna de estado (⚑)** en la tabla de General Skills explica cada fila: vacío para un reporte real de entrenamiento, **🩹** cuando el hueco es probablemente por lesión (inferido a partir de las semanas adyacentes), y **⏸** cuando la causa es desconocida.
+    *   En el mini gráfico, los segmentos que tocan un punto inferido se dibujan con **línea gris punteada** para distinguir de un vistazo el progreso real del dato rellenado.
+    *   Re-ejecútalo cuando quieras con el nuevo botón **"Reparar Historial"** del popup — también corre automáticamente después de cada sync y al entrar a la vista de plantilla.
+
 *   **Diseño Nativo:** La estética respeta al 100% el estilo de Sokker. **No sentirás que es un plugin, sentirás que el juego ha evolucionado.**
 
 ---
