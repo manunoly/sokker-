@@ -264,17 +264,20 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         }
     });
 
-    // Attach History Tooltip to Player Name
+    // Attach History Tooltip to Player Name. Guard by DOM presence (not a
+    // dataset flag) so that if Sokker re-renders the link we re-insert the
+    // icon; and attach the icon as the LAST child of the link so it always
+    // renders inline with the name regardless of Sokker's squad layout.
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
-    if (nameLink && !nameLink.dataset.historyAttached) {
-        nameLink.dataset.historyAttached = 'true';
+    if (nameLink && !nameLink.querySelector('.sokker-plus-history-icon')) {
         const icon = createHistoryIcon();
         icon.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
             showHistoryTooltip(e.pageX, e.pageY, playerId, icon, { pinned: true });
         });
-        nameLink.parentNode?.insertBefore(icon, nameLink.nextSibling);
+        nameLink.appendChild(icon);
+        console.log('[Sokker++] history icon attached (squad) for player', playerId);
     }
 
     attachTooltipEventsToSkills(box, playerId);
@@ -363,16 +366,16 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     // Actually, let's stick to container first.
 
     const attachHistory = (el: HTMLElement) => {
-        if (!el.dataset.historyAttached) {
-            el.dataset.historyAttached = 'true';
-            const icon = createHistoryIcon();
-            icon.addEventListener('click', (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                showHistoryTooltip(e.pageX, e.pageY, pid, icon, { pinned: true });
-            });
-            el.parentNode?.insertBefore(icon, el.nextSibling);
-        }
+        // Guard by presence in the DOM so re-renders trigger re-attach.
+        if (el.querySelector('.sokker-plus-history-icon')) return;
+        const icon = createHistoryIcon();
+        icon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            showHistoryTooltip(e.pageX, e.pageY, pid, icon, { pinned: true });
+        });
+        el.appendChild(icon);
+        console.log('[Sokker++] history icon attached (player page)');
     };
 
     if (panelNameLink) attachHistory(panelNameLink);
@@ -542,8 +545,12 @@ function ensureHistoryIconStyles(): void {
 }
 
 /**
- * Creates a small "+" badge intended to be inserted right after a player
+ * Creates a small "+" badge intended to be inserted as a child of a player
  * name link. Clicking it opens the pinned history tooltip.
+ *
+ * Uses BOTH a CSS class (with !important) AND inline styles via setProperty
+ * to be defensive against Sokker's own CSS and any case where the injected
+ * stylesheet might not apply.
  */
 function createHistoryIcon(): HTMLElement {
     ensureHistoryIconStyles();
@@ -551,5 +558,24 @@ function createHistoryIcon(): HTMLElement {
     icon.className = 'sokker-plus-history-icon';
     icon.textContent = '+';
     icon.title = 'Open skill history';
+    const imp = (name: string, value: string) => icon.style.setProperty(name, value, 'important');
+    imp('display', 'inline-flex');
+    imp('align-items', 'center');
+    imp('justify-content', 'center');
+    imp('margin-left', '6px');
+    imp('width', '16px');
+    imp('height', '16px');
+    imp('min-width', '16px');
+    imp('border-radius', '50%');
+    imp('background-color', '#007bff');
+    imp('color', '#fff');
+    imp('font-size', '12px');
+    imp('font-weight', 'bold');
+    imp('line-height', '1');
+    imp('cursor', 'pointer');
+    imp('user-select', 'none');
+    imp('vertical-align', 'middle');
+    imp('text-decoration', 'none');
+    imp('box-shadow', '0 1px 2px rgba(0,0,0,0.25)');
     return icon;
 }
