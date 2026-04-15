@@ -283,9 +283,10 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
                 scheduleHide();
             });
         }
-        attachFloatingHistoryButton(nameLink, (e) => {
-            showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
-        });
+        // Floating "+" button disabled for now (hover alone is enough).
+        // attachFloatingHistoryButton(nameLink, (e) => {
+        //     showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
+        // });
     }
 
     attachTooltipEventsToSkills(box, playerId);
@@ -389,9 +390,10 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
                 scheduleHide();
             });
         }
-        attachFloatingHistoryButton(el, (e) => {
-            showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
-        });
+        // Floating "+" button disabled for now (hover alone is enough).
+        // attachFloatingHistoryButton(el, (e) => {
+        //     showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
+        // });
     };
 
     if (panelNameLink) attachHistory(panelNameLink);
