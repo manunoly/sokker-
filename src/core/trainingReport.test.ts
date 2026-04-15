@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractTrainingReport } from './trainingReport';
+import { extractTrainingReport, formatSkillAtPosition } from './trainingReport';
 
 describe('extractTrainingReport', () => {
     it('returns undefined when report is null or undefined', () => {
@@ -113,5 +113,31 @@ describe('extractTrainingReport', () => {
     it('returns undefined for a non-object input', () => {
         expect(extractTrainingReport('not an object' as unknown)).toBeUndefined();
         expect(extractTrainingReport(42 as unknown)).toBeUndefined();
+    });
+});
+
+describe('formatSkillAtPosition', () => {
+    it('formats skill and position together', () => {
+        expect(formatSkillAtPosition({
+            kind: 'individual',
+            skill: 'striker',
+            position: 'ATT',
+            intensity: 100,
+            minutes: 270
+        })).toBe('striker @ ATT');
+    });
+
+    it('formats skill without position when position is null', () => {
+        expect(formatSkillAtPosition({
+            kind: 'formation',
+            skill: 'general',
+            position: null,
+            intensity: 0,
+            minutes: 0
+        })).toBe('general');
+    });
+
+    it('returns a dash for undefined training', () => {
+        expect(formatSkillAtPosition(undefined)).toBe('—');
     });
 });

@@ -50,3 +50,15 @@ export function extractTrainingReport(rawReport: unknown): TrainingReport | unde
 
     return { kind, skill, position, intensity, minutes };
 }
+
+/**
+ * Renders the "Skill @ Pos" column cell. When position is null we drop the
+ * "@ Pos" suffix rather than printing "@ null". Returns an em dash when
+ * training is undefined (carry-over or roster-fallback entries).
+ */
+export function formatSkillAtPosition(training: TrainingReport | undefined): string {
+    if (!training) return '—';
+    return training.position
+        ? `${training.skill} @ ${training.position}`
+        : training.skill;
+}
