@@ -1,5 +1,6 @@
 import { initObserver } from './observer';
 import { processSquadTable, processPlayerPage } from './ui';
+import { reconcileGaps } from '../core/gapDetector';
 import { syncData } from '../core/sync';
 import { getAllData, restoreData, getLastSyncWeek, clearDatabase } from '../core/repository';
 
@@ -9,7 +10,9 @@ async function main() {
     // Attempt auto-sync on load
     syncData().then(res => { /* console.log('Auto Sync result:', res) */ }).catch(err => console.error(err));
 
-    initObserver(processSquadTable, processPlayerPage);
+    initObserver(processSquadTable, processPlayerPage, () => {
+        reconcileGaps().catch((err) => console.warn('reconcileGaps on squad failed:', err));
+    });
 
     // Listen for messages from Popup
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

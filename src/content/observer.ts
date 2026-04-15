@@ -15,7 +15,11 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
  * @param {Function} onTableFound - Callback when the target table is detected.
  * @param {Function} [onPlayerPageFound] - Callback when the player page is detected.
  */
-export function initObserver(onTableFound: (container: HTMLElement) => void, onPlayerPageFound?: (container: HTMLElement) => void): void {
+export function initObserver(
+    onTableFound: (container: HTMLElement) => void,
+    onPlayerPageFound?: (container: HTMLElement) => void,
+    onSquadReady?: () => void
+): void {
     if (observer) return;
 
     const targetNode = document.body;
@@ -27,6 +31,9 @@ export function initObserver(onTableFound: (container: HTMLElement) => void, onP
             const squadContainer = findSquadContainer();
             if (squadContainer) {
                 onTableFound(squadContainer);
+                if (onSquadReady) {
+                    scheduleIdle(onSquadReady);
+                }
             }
         } else if (currentPath.includes('/player/PID/') || currentPath.includes('/player/ID_player/')) {
             const playerContainer = findPlayerContainer();
@@ -78,4 +85,19 @@ function findPlayerContainer(): HTMLElement | null {
         return document.querySelector('.l-main__inner') as HTMLElement || document.body;
     }
     return null;
+}
+
+/**
+ * Runs a callback when the browser is idle. Falls back to a small setTimeout
+ * when requestIdleCallback is not available.
+ */
+function scheduleIdle(cb: () => void): void {
+    const ric = (globalThis as typeof globalThis & {
+        requestIdleCallback?: (cb: () => void) => number;
+    }).requestIdleCallback;
+    if (typeof ric === 'function') {
+        ric(cb);
+    } else {
+        setTimeout(cb, 0);
+    }
 }
