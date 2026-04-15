@@ -1,4 +1,4 @@
-import { drawChart } from '../ui-components/canvas';
+import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
 
 let tooltip: HTMLElement | null = null;
@@ -68,7 +68,10 @@ function createTooltip(): void {
  * @param {string} skillName 
  * @returns {Array<{ week: number, value: number, date: Date }>}
  */
-export function prepareChartData(history: any[], skillName: string): Array<{ week: number, value: number, date: Date }> {
+export function prepareChartData(
+    history: any[],
+    skillName: string
+): Array<ChartPoint & { date: Date }> {
     const historyToUse = filterHistoryData(history);
 
     // Prepare and validate data points
@@ -88,12 +91,14 @@ export function prepareChartData(history: any[], skillName: string): Array<{ wee
         return {
             week: adjustedWeek,
             value: entry.skills[skillName],
-            date: date
+            date: date,
+            source: entry.source as ChartPointSource | undefined,
+            injured: entry.injured
         };
     });
 
     // Deduplicate: If we have multiple entries for the same adjustedWeek, take the LATEST one.
-    const bestPointsMap = new Map<number, { week: number, value: any, date: Date }>();
+    const bestPointsMap = new Map<number, { week: number, value: any, date: Date, source?: ChartPointSource, injured?: boolean }>();
 
     for (const p of rawPoints) {
         // Fix: Exclude future data points
@@ -113,7 +118,13 @@ export function prepareChartData(history: any[], skillName: string): Array<{ wee
 
     let sortedPoints = Array.from(bestPointsMap.values())
         .sort((a, b) => a.week - b.week)
-        .map(p => ({ week: p.week, value: p.value, date: p.date }));
+        .map(p => ({
+            week: p.week,
+            value: p.value,
+            date: p.date,
+            source: p.source,
+            injured: p.injured
+        }));
 
     // Fix: Detect "Bad Backfill" data.
     // 1. Date Clustering Check:
@@ -360,6 +371,7 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
         <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 350px;">
             <thead>
                 <tr style="border-bottom: 1px solid #555;">
+                    <th style="padding: 6px 4px;" title="Source of the data">⚑</th>
                     <th style="padding: 6px 4px;">Week</th>
                     ${skillsOrder.map(s => `<th style="padding: 6px 4px;">${s.label}</th>`).join('')}
                 </tr>
@@ -375,7 +387,23 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
         // If improvement/regression, use that color, otherwise use dark gray.
         const rowBgColor = '#333';
 
+        let statusIcon = '';
+        let statusTitle = 'Training report';
+        if (row.source === 'carried-over') {
+            if (row.injured === true) {
+                statusIcon = '🩹';
+                statusTitle = 'Inferred: injured (data carried over from previous week)';
+            } else {
+                statusIcon = '⏸';
+                statusTitle = 'Missing training report — data carried over';
+            }
+        } else if (row.source === 'roster-fallback') {
+            statusIcon = '⏸';
+            statusTitle = 'Data derived from current roster (no previous training)';
+        }
+
         html += `<tr style="border-bottom: 1px solid #444; background-color: ${rowBgColor};">`;
+        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};" title="${statusTitle}">${statusIcon}</td>`;
         html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${row.week}</td>`;
 
         skillsOrder.forEach(skill => {
@@ -415,9 +443,10 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
         exportBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // prevent click propagation
             // Generate CSV
-            let csv = 'Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
+            let csv = 'Source,Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
             rows.forEach(r => {
-                csv += `${r.week},` + skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
+                const sourceLabel = r.source ?? 'training';
+                csv += `${sourceLabel},${r.week},` + skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
             });
 
             // Download
