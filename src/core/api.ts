@@ -1,7 +1,7 @@
 /**
  * pure fetch wrappers for sokker.org API
  */
-import { SokkerResponse } from '../types/index';
+import { RosterPlayer, RosterResponse, SokkerResponse } from '../types/index';
 
 const BASE_URL: string = location.origin + '/api'; // Assumes running on sokker.org
 
@@ -14,10 +14,11 @@ export interface TodayInfo {
         value: string;
         timestamp: number;
     };
+    teamId: number;
 }
 
 /**
- * Fetches the current day/week info.
+ * Fetches the current day/week info + the user's team id.
  * @returns {Promise<TodayInfo>}
  */
 export async function fetchTodayInfo(): Promise<TodayInfo> {
@@ -25,7 +26,10 @@ export async function fetchTodayInfo(): Promise<TodayInfo> {
         const response = await fetch(`${BASE_URL}/current`);
         if (!response.ok) throw new Error(`API Error: ${response.status}`);
         const data = await response.json();
-        return data.today;
+        const today = data.today;
+        const teamId = data?.team?.id;
+        if (typeof teamId !== 'number') throw new Error('Missing team.id in /current response');
+        return { ...today, teamId };
     } catch (error) {
         console.error('Failed to fetch today info:', error);
         throw error;
@@ -54,6 +58,26 @@ export async function fetchTrainingData(week: number): Promise<SokkerResponse['p
         return data.players || [];
     } catch (error) {
         console.error(`Failed to fetch training data for week ${week}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Fetches the current roster of a team (all players currently owned).
+ * Used by Pipeline B (gap detector) to know which players deserve carry-over
+ * entries when they are missing from a training report.
+ * @param {number} teamId
+ * @returns {Promise<RosterPlayer[]>}
+ */
+export async function fetchRoster(teamId: number): Promise<RosterPlayer[]> {
+    try {
+        const url = `${BASE_URL}/player?filter[team]=${teamId}&filter[limit]=200&filter[offset]=0`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        const data = (await response.json()) as RosterResponse;
+        return Array.isArray(data.players) ? data.players : [];
+    } catch (error) {
+        console.error(`Failed to fetch roster for team ${teamId}:`, error);
         throw error;
     }
 }
