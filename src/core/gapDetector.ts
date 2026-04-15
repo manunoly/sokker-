@@ -43,3 +43,31 @@ export function inferInjury(
     if (nextDays > 0) return true;
     return undefined;
 }
+
+/**
+ * Builds a carried-over PlayerHistoryEntry for week `targetWeek` by cloning
+ * skills and value from `prev`. Never mutates `prev`. The `date` is shifted
+ * forward 7 days when `prev.date` is a parseable ISO date; otherwise it
+ * falls back to `prev.date` verbatim (we refuse to fabricate a date).
+ */
+export function buildCarryOverEntry(
+    prev: PlayerHistoryEntry,
+    targetWeek: number,
+    injured: boolean | undefined
+): PlayerHistoryEntry {
+    const prevTs = Date.parse(prev.date);
+    const date = Number.isFinite(prevTs)
+        ? new Date(prevTs + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+        : prev.date;
+
+    const entry: PlayerHistoryEntry = {
+        week: targetWeek,
+        date,
+        skills: { ...prev.skills },
+        value: prev.value,
+        source: 'carried-over',
+        reason: 'missing-report'
+    };
+    if (injured === true) entry.injured = true;
+    return entry;
+}

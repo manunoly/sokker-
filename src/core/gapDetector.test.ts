@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findWeekGaps, inferInjury } from './gapDetector';
+import { buildCarryOverEntry, findWeekGaps, inferInjury } from './gapDetector';
 import { PlayerHistoryEntry, Skills } from '../types/index';
 
 const baseSkills: Skills = {
@@ -79,5 +79,44 @@ describe('inferInjury', () => {
 
     it('prev has priority over next (both positive)', () => {
         expect(inferInjury(entryWithInjury(9, 7), entryWithInjury(11, 2))).toBe(true);
+    });
+});
+
+describe('buildCarryOverEntry', () => {
+    it('clones skills and value from the previous entry', () => {
+        const prev = entry(9);
+        const result = buildCarryOverEntry(prev, 10, undefined);
+        expect(result.skills).toEqual(prev.skills);
+        expect(result.skills).not.toBe(prev.skills); // defensive copy
+        expect(result.value).toBe(prev.value);
+        expect(result.week).toBe(10);
+    });
+
+    it('sets source to carried-over and reason to missing-report', () => {
+        const prev = entry(9);
+        const result = buildCarryOverEntry(prev, 10, undefined);
+        expect(result.source).toBe('carried-over');
+        expect(result.reason).toBe('missing-report');
+    });
+
+    it('sets injured only when inference is true', () => {
+        const prev = entry(9);
+        const injuredResult = buildCarryOverEntry(prev, 10, true);
+        expect(injuredResult.injured).toBe(true);
+
+        const unknownResult = buildCarryOverEntry(prev, 10, undefined);
+        expect(unknownResult.injured).toBeUndefined();
+    });
+
+    it('derives the date from the previous week shifted by 7 days when parseable', () => {
+        const prev: PlayerHistoryEntry = { ...entry(9), date: '2026-01-09' };
+        const result = buildCarryOverEntry(prev, 10, undefined);
+        expect(result.date).toBe('2026-01-16');
+    });
+
+    it('falls back to previous date verbatim when not parseable', () => {
+        const prev: PlayerHistoryEntry = { ...entry(9), date: 'not-a-date' };
+        const result = buildCarryOverEntry(prev, 10, undefined);
+        expect(result.date).toBe('not-a-date');
     });
 });
