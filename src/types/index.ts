@@ -101,7 +101,7 @@ export interface RosterPlayer {
         injury: Injury;
         value?: { value: number; currency: string };
     };
-    transfer: unknown | null;
+    transfer: unknown;
 }
 
 export interface RosterResponse {
