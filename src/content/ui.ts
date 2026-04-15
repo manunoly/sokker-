@@ -266,7 +266,8 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
 
     // Attach History Tooltip to Player Name:
     //  - Hover on the name → ephemeral tooltip (auto-hides on mouse leave).
-    //  - Floating "+" button (outside Vue) → pinned tooltip (click to close).
+    //  - Floating "+" button disabled for now (was causing a double-render
+    //    issue); re-enable when that UX is polished.
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
     if (nameLink) {
         if (!nameLink.dataset.sokkerPlusHoverBound) {
@@ -278,9 +279,9 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
                 scheduleHide();
             });
         }
-        attachFloatingHistoryButton(nameLink, (e) => {
-            showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
-        });
+        // attachFloatingHistoryButton(nameLink, (e) => {
+        //     showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
+        // });
     }
 
     attachTooltipEventsToSkills(box, playerId);
@@ -381,9 +382,11 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
                 scheduleHide();
             });
         }
-        attachFloatingHistoryButton(el, (e) => {
-            showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
-        });
+        // Floating "+" button disabled for now (was causing a double-render
+        // issue); re-enable when that UX is polished.
+        // attachFloatingHistoryButton(el, (e) => {
+        //     showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
+        // });
     };
 
     if (panelNameLink) attachHistory(panelNameLink);
