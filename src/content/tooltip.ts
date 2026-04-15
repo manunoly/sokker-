@@ -1,5 +1,7 @@
 import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
+import { formatSkillAtPosition } from '../core/trainingReport';
+import { TrainingKind, TrainingPosition, TrainingReport } from '../types/index';
 
 let tooltip: HTMLElement | null = null;
 let canvas: HTMLCanvasElement | null = null;
@@ -426,10 +428,13 @@ export async function showHistoryTooltip(
         <h3 style="margin: 0 0 10px 0; font-size: 14px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 5px; color: #fff;">
             General Skills ++
         </h3>
-        <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 350px;">
+        <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 420px;">
             <thead>
                 <tr style="border-bottom: 1px solid #555;">
                     <th style="padding: 6px 4px;" title="Source of the data">⚑</th>
+                    <th style="padding: 6px 4px;" title="Training kind: 🎯 advanced, 📋 formation, — none">Kind</th>
+                    <th style="padding: 6px 4px; text-align: left;" title="Skill trained at assigned position">Skill @ Pos</th>
+                    <th style="padding: 6px 4px;" title="Training effectiveness (intensity)">Eff</th>
                     <th style="padding: 6px 4px;">Week</th>
                     ${skillsOrder.map(s => `<th style="padding: 6px 4px;">${s.label}</th>`).join('')}
                 </tr>
@@ -460,8 +465,17 @@ export async function showHistoryTooltip(
             statusTitle = 'No prior history — values from current roster';
         }
 
+        const training = row.training as TrainingReport | undefined;
+        const kindIcon = trainingKindIcon(training?.kind);
+        const kindTitle = trainingKindTitle(training?.kind);
+        const eff = intensityCellStyle(training, rowBgColor);
+        const skillAtPos = renderSkillAtPosCell(training);
+
         html += `<tr style="border-bottom: 1px solid #444; background-color: ${rowBgColor};">`;
         html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};" title="${statusTitle}">${statusIcon}</td>`;
+        html += `<td style="padding: 6px 4px; color: #fff; background-color: ${rowBgColor};" title="${kindTitle}">${kindIcon}</td>`;
+        html += `<td style="padding: 6px 4px; text-align: left; color: #fff; background-color: ${rowBgColor};">${skillAtPos}</td>`;
+        html += `<td style="padding: 6px 4px; color: #fff; background-color: ${eff.bg};">${eff.text}</td>`;
         html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${row.week}</td>`;
 
         skillsOrder.forEach(skill => {
@@ -501,10 +515,17 @@ export async function showHistoryTooltip(
         exportBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // prevent click propagation
             // Generate CSV
-            let csv = 'Source,Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
+            let csv = 'Source,Kind,Skill,Position,Intensity,Minutes,Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
             rows.forEach(r => {
                 const sourceLabel = r.source ?? 'training';
-                csv += `${sourceLabel},${r.week},` + skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
+                const t = r.training as TrainingReport | undefined;
+                const kind = t?.kind ?? '';
+                const skill = t?.skill ?? '';
+                const pos = t?.position ?? '';
+                const intensity = t ? String(t.intensity) : '';
+                const minutes = t ? String(t.minutes) : '';
+                csv += `${sourceLabel},${kind},${skill},${pos},${intensity},${minutes},${r.week},` +
+                    skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
             });
 
             // Download
@@ -754,4 +775,46 @@ function unpinAndHide(): void {
     }
     if (closeBtn) closeBtn.style.display = 'none';
     hideTooltip();
+}
+
+function trainingKindIcon(kind: TrainingKind | undefined): string {
+    if (kind === 'individual') return '🎯';
+    if (kind === 'formation') return '📋';
+    return '—';
+}
+
+function trainingKindTitle(kind: TrainingKind | undefined): string {
+    if (kind === 'individual') return 'Advanced training (intense)';
+    if (kind === 'formation') return 'Formation training (moderate)';
+    return 'No training recorded for this week';
+}
+
+function positionBadgeColor(position: TrainingPosition | null | undefined): string {
+    if (position === 'GK') return '#2c5aa0';
+    if (position === 'DEF') return '#2e5e32';
+    if (position === 'MID') return '#8a6d1c';
+    if (position === 'ATT') return '#7a2a2a';
+    return '#555';
+}
+
+function intensityCellStyle(training: TrainingReport | undefined, rowBgColor: string): { text: string; bg: string } {
+    if (!training) return { text: '—', bg: rowBgColor };
+    const i = training.intensity;
+    if (i >= 80) return { text: `${i}%`, bg: '#2e5e32' };
+    if (i >= 50) return { text: `${i}%`, bg: '#8a6d1c' };
+    if (i > 0)  return { text: `${i}%`, bg: '#6e2a2a' };
+    return { text: '—', bg: rowBgColor };
+}
+
+function renderSkillAtPosCell(training: TrainingReport | undefined): string {
+    if (!training) {
+        return '<span style="color:#888;">—</span>';
+    }
+    const label = formatSkillAtPosition(training);
+    if (!training.position) {
+        return `<span>${label}</span>`;
+    }
+    const [skillPart] = label.split(' @ ');
+    const bg = positionBadgeColor(training.position);
+    return `${skillPart} <span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${bg};color:#fff;font-size:10px;margin-left:4px;">${training.position}</span>`;
 }
