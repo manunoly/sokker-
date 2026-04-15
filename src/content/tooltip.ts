@@ -298,6 +298,15 @@ export async function showHistoryTooltip(
     if (opts?.pinned) {
         pinned = true;
         attachPinnedBehavior();
+    } else if (pinned) {
+        // Opening in ephemeral (hover) mode — reset any sticky pinned state
+        // left over from a previous "+" click so scheduleHide works again.
+        pinned = false;
+        if (outsideClickHandler) {
+            document.removeEventListener('click', outsideClickHandler);
+            outsideClickHandler = null;
+        }
+        if (closeBtn) closeBtn.style.display = 'none';
     }
 
     // Initial position
