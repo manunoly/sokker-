@@ -290,6 +290,19 @@ export async function showHistoryTooltip(
 ): Promise<void> {
     const loadId = ++activeTooltipLoadId;
 
+    console.log('[Sokker++] showHistoryTooltip invoked', {
+        playerId,
+        loadId,
+        pinnedRequested: !!opts?.pinned,
+        currentPinnedState: pinned,
+        tooltipExists: !!tooltip,
+        tooltipVisible: tooltip?.style.display === 'block',
+        tooltipsWithOurIdInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
+        targetTag: targetEl.tagName,
+        targetClass: targetEl.className,
+        stack: new Error().stack?.split('\n').slice(1, 5).join(' | ')
+    });
+
     if (!tooltip) createTooltip();
 
     // Cancel any pending hide

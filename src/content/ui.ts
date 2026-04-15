@@ -264,12 +264,25 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         }
     });
 
-    // History tooltip is opened ONLY via the floating "+" button (in
-    // document.body, outside Vue). Hover-on-name was causing a visible
-    // double-render because another installed extension also attaches its
-    // own tooltip to the same link.
+    // Two ways to open the history tooltip:
+    //  - Hover on the name → ephemeral (auto-hide).
+    //  - Floating "+" button → pinned.
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
     if (nameLink) {
+        if (!nameLink.dataset.sokkerPlusHoverBound) {
+            nameLink.dataset.sokkerPlusHoverBound = 'true';
+            nameLink.addEventListener('mouseenter', (e) => {
+                console.log('[Sokker++] hover mouseenter (squad)', {
+                    playerId,
+                    tooltipsInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
+                    otherTooltips: document.querySelectorAll('[id*="tooltip" i], [class*="tooltip" i]').length
+                });
+                showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
+            });
+            nameLink.addEventListener('mouseleave', () => {
+                scheduleHide();
+            });
+        }
         attachFloatingHistoryButton(nameLink, (e) => {
             showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
         });
@@ -359,6 +372,23 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     // Actually, let's stick to container first.
 
     const attachHistory = (el: HTMLElement) => {
+        if (!el.dataset.sokkerPlusHoverBound) {
+            el.dataset.sokkerPlusHoverBound = 'true';
+            el.style.cursor = 'help';
+            el.addEventListener('mouseenter', (e) => {
+                console.log('[Sokker++] hover mouseenter (player page)', {
+                    pid,
+                    targetTag: el.tagName,
+                    targetClass: el.className,
+                    tooltipsInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
+                    otherTooltips: document.querySelectorAll('[id*="tooltip" i], [class*="tooltip" i]').length
+                });
+                showHistoryTooltip(e.pageX, e.pageY, pid, el);
+            });
+            el.addEventListener('mouseleave', () => {
+                scheduleHide();
+            });
+        }
         attachFloatingHistoryButton(el, (e) => {
             showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
         });
