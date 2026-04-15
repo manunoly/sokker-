@@ -22,7 +22,9 @@ function createTooltip(): void {
     tooltip.style.borderRadius = '5px';
     tooltip.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
     tooltip.style.display = 'none';
-    tooltip.style.pointerEvents = 'none'; // Pass through clicks
+    // pointer-events: auto so mouseenter/mouseleave (below) actually fire and
+    // the user can interact with the history table (scroll, click Export CSV).
+    tooltip.style.pointerEvents = 'auto';
 
     // Canvas container
     canvas = document.createElement('canvas');
