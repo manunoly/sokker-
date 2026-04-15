@@ -27,6 +27,7 @@ export function initObserver(
 
         if (currentPath.includes('/app/squad')) {
             const squadContainer = findSquadContainer();
+            console.log('[Sokker++] runPageProcessing squad', { squadContainer });
             if (squadContainer) {
                 onTableFound(squadContainer);
                 if (onSquadReady) {
@@ -35,9 +36,12 @@ export function initObserver(
             }
         } else if (currentPath.includes('/player/PID/') || currentPath.includes('/player/ID_player/')) {
             const playerContainer = findPlayerContainer();
+            console.log('[Sokker++] runPageProcessing player', { playerContainer });
             if (playerContainer && onPlayerPageFound) {
                 onPlayerPageFound(playerContainer);
             }
+        } else {
+            console.log('[Sokker++] runPageProcessing: path not matched', currentPath);
         }
     };
 

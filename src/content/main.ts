@@ -5,7 +5,10 @@ import { syncData } from '../core/sync';
 import { getAllData, restoreData, getLastSyncWeek, clearDatabase } from '../core/repository';
 
 async function main() {
-    // console.log('Initializing Sokker++...');
+    console.log('%c[Sokker++] content script loaded', 'color:#28a745;font-weight:bold', {
+        url: window.location.href,
+        readyState: document.readyState
+    });
 
     // Attempt auto-sync on load
     syncData().then(res => { /* console.log('Auto Sync result:', res) */ }).catch(err => console.error(err));
@@ -13,6 +16,7 @@ async function main() {
     initObserver(processSquadTable, processPlayerPage, () => {
         reconcileGaps().catch((err) => console.warn('reconcileGaps on squad failed:', err));
     });
+    console.log('[Sokker++] observer initialized');
 
     // Listen for messages from Popup
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
