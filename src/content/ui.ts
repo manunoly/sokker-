@@ -264,24 +264,15 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         }
     });
 
-    // Attach History Tooltip to Player Name:
-    //  - Hover on the name → ephemeral tooltip (auto-hides on mouse leave).
-    //  - Floating "+" button disabled for now (was causing a double-render
-    //    issue); re-enable when that UX is polished.
+    // History tooltip is opened ONLY via the floating "+" button (in
+    // document.body, outside Vue). Hover-on-name was causing a visible
+    // double-render because another installed extension also attaches its
+    // own tooltip to the same link.
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
     if (nameLink) {
-        if (!nameLink.dataset.sokkerPlusHoverBound) {
-            nameLink.dataset.sokkerPlusHoverBound = 'true';
-            nameLink.addEventListener('mouseenter', (e) => {
-                showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
-            });
-            nameLink.addEventListener('mouseleave', () => {
-                scheduleHide();
-            });
-        }
-        // attachFloatingHistoryButton(nameLink, (e) => {
-        //     showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
-        // });
+        attachFloatingHistoryButton(nameLink, (e) => {
+            showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
+        });
     }
 
     attachTooltipEventsToSkills(box, playerId);
@@ -372,21 +363,9 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     // Actually, let's stick to container first.
 
     const attachHistory = (el: HTMLElement) => {
-        if (!el.dataset.sokkerPlusHoverBound) {
-            el.dataset.sokkerPlusHoverBound = 'true';
-            el.style.cursor = 'help';
-            el.addEventListener('mouseenter', (e) => {
-                showHistoryTooltip(e.pageX, e.pageY, pid, el);
-            });
-            el.addEventListener('mouseleave', () => {
-                scheduleHide();
-            });
-        }
-        // Floating "+" button disabled for now (was causing a double-render
-        // issue); re-enable when that UX is polished.
-        // attachFloatingHistoryButton(el, (e) => {
-        //     showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
-        // });
+        attachFloatingHistoryButton(el, (e) => {
+            showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
+        });
     };
 
     if (panelNameLink) attachHistory(panelNameLink);
