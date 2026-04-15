@@ -41,7 +41,7 @@ export function extractTrainingReport(rawReport: unknown): TrainingReport | unde
         ? rawPosName as TrainingPosition
         : null;
 
-    const intensity = toNumber(rawReport.intensity);
+    const intensity = Math.max(0, Math.min(100, toNumber(rawReport.intensity)));
     const games = isObject(rawReport.games) ? rawReport.games : {};
     const minutes =
         toNumber(games.minutesOfficial) +

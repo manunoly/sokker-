@@ -114,6 +114,19 @@ describe('extractTrainingReport', () => {
         expect(extractTrainingReport('not an object' as unknown)).toBeUndefined();
         expect(extractTrainingReport(42 as unknown)).toBeUndefined();
     });
+
+    it('clamps intensity to the [0, 100] range', () => {
+        const raw = {
+            kind: { code: 1, name: 'individual' },
+            type: { code: 7, name: 'striker' },
+            formation: { code: 3, name: 'ATT' },
+            games: { minutesOfficial: 90, minutesFriendly: 0, minutesNational: 0 }
+        };
+        expect(extractTrainingReport({ ...raw, intensity: 250 })?.intensity).toBe(100);
+        expect(extractTrainingReport({ ...raw, intensity: -5 })?.intensity).toBe(0);
+        expect(extractTrainingReport({ ...raw, intensity: 100 })?.intensity).toBe(100);
+        expect(extractTrainingReport({ ...raw, intensity: 0 })?.intensity).toBe(0);
+    });
 });
 
 describe('formatSkillAtPosition', () => {

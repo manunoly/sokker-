@@ -802,8 +802,7 @@ function intensityCellStyle(training: TrainingReport | undefined, rowBgColor: st
     const i = training.intensity;
     if (i >= 80) return { text: `${i}%`, bg: '#2e5e32' };
     if (i >= 50) return { text: `${i}%`, bg: '#8a6d1c' };
-    if (i > 0)  return { text: `${i}%`, bg: '#6e2a2a' };
-    return { text: '—', bg: rowBgColor };
+    return { text: `${i}%`, bg: '#6e2a2a' };
 }
 
 function renderSkillAtPosCell(training: TrainingReport | undefined): string {
