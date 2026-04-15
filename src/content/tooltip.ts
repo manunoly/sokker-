@@ -16,7 +16,7 @@ function createTooltip(): void {
     if (tooltip) return;
 
     tooltip = document.createElement('div');
-    tooltip.id = 'sokker-plus-tooltip';
+    tooltip.id = 'sokkerpp-history-tooltip';
     tooltip.style.position = 'absolute';
     tooltip.style.zIndex = '9999';
     tooltip.style.backgroundColor = '#333';
@@ -237,7 +237,7 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
     if (canvas) canvas.style.display = 'block';
 
     // Hide history table if present
-    const tableContainer = tooltip?.querySelector('#sokker-plus-history-table') as HTMLElement;
+    const tableContainer = tooltip?.querySelector('#sokkerpp-history-table') as HTMLElement;
     if (tableContainer) {
         tableContainer.style.display = 'none';
     }
@@ -297,7 +297,7 @@ export async function showHistoryTooltip(
         currentPinnedState: pinned,
         tooltipExists: !!tooltip,
         tooltipVisible: tooltip?.style.display === 'block',
-        tooltipsWithOurIdInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
+        tooltipsWithOurIdInDom: document.querySelectorAll('#sokkerpp-history-tooltip').length,
         targetTag: targetEl.tagName,
         targetClass: targetEl.className,
         stack: new Error().stack?.split('\n').slice(1, 5).join(' | ')
@@ -338,10 +338,10 @@ export async function showHistoryTooltip(
     if (zoomBtn) zoomBtn.style.display = 'none';
 
     // Check if table already exists, if not create container
-    let tableContainer = tooltip?.querySelector('#sokker-plus-history-table') as HTMLElement;
+    let tableContainer = tooltip?.querySelector('#sokkerpp-history-table') as HTMLElement;
     if (!tableContainer) {
         tableContainer = document.createElement('div');
-        tableContainer.id = 'sokker-plus-history-table';
+        tableContainer.id = 'sokkerpp-history-table';
         tooltip?.appendChild(tableContainer);
     }
     tableContainer.style.display = 'block';
@@ -480,14 +480,14 @@ export async function showHistoryTooltip(
     // Add Copy/Export button
     html += `
         <div style="margin-top: 10px; text-align: right;">
-            <button id="sokker-plus-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
+            <button id="sokkerpp-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
         </div>
     `;
 
     tableContainer.innerHTML = html;
 
     // Attach export event
-    const exportBtn = tableContainer.querySelector('#sokker-plus-export-csv');
+    const exportBtn = tableContainer.querySelector('#sokkerpp-export-csv');
     if (exportBtn) {
         exportBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // prevent click propagation
@@ -582,7 +582,7 @@ export function cancelHide(): void {
  * @param {string} skillName 
  */
 function createZoomModal(dataPoints: Array<{ week: number, value: number }>, skillName: string): void {
-    const modalId = 'sokker-plus-zoom-modal';
+    const modalId = 'sokkerpp-zoom-modal';
     let modal = document.getElementById(modalId);
 
     if (modal) {
