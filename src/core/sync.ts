@@ -1,5 +1,7 @@
 import { fetchCurrentWeek, fetchTrainingData } from './api';
 import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced } from './repository';
+import { reconcileGaps } from './gapDetector';
+import { scheduleIdle } from '../utils/scheduleIdle';
 
 const MAX_WEEKS_TO_FETCH = 25;
 
@@ -73,6 +75,13 @@ export async function syncData(): Promise<SyncResult> {
                 console.warn(`No data found for week ${week}`);
             }
         }
+
+        // Pipeline B: best-effort, non-blocking. Runs after we've already returned
+        // synced status to the caller. Failures here do not surface to the UI —
+        // gap detection is an enhancement, not a correctness requirement.
+        scheduleIdle(() => {
+            reconcileGaps().catch((err) => console.warn('reconcileGaps failed:', err));
+        });
 
         return { status: 'synced', weeks: weeksToSync.length, lastWeek: currentWeek };
 

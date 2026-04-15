@@ -119,3 +119,33 @@ describe('prepareChartData', () => {
         expect(result[result.length - 1].value).toBe(6);
     });
 });
+
+describe('prepareChartData preserves source and injured metadata', () => {
+    it('maps source from each history entry to the produced ChartPoint', () => {
+        const history = [
+            {
+                week: 100,
+                date: '2026-02-06T12:00:00', // Friday → keeps week=100 under existing adjustment rules
+                skills: { stamina: 10 },
+                value: 1,
+                source: 'training'
+            },
+            {
+                week: 101,
+                date: '2026-02-13T12:00:00', // Friday → keeps week=101
+                skills: { stamina: 10 },
+                value: 1,
+                source: 'carried-over',
+                injured: true
+            }
+        ];
+
+        const points = prepareChartData(history, 'stamina');
+
+        const w100 = points.find((p) => p.week === 100);
+        const w101 = points.find((p) => p.week === 101);
+        expect(w100?.source).toBe('training');
+        expect(w101?.source).toBe('carried-over');
+        expect(w101?.injured).toBe(true);
+    });
+});

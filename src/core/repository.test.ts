@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isValidBackupData, upsertPlayerWeekRecord } from './repository';
-import { PlayerData, PlayerHistoryEntry } from '../types/index';
+import { PlayerData, PlayerHistoryEntry, SnapshotSource } from '../types/index';
 
 function makeWeekStats(week: number, playmaking: number): PlayerHistoryEntry {
     return {
@@ -20,7 +20,8 @@ function makeWeekStats(week: number, playmaking: number): PlayerHistoryEntry {
             teamwork: 10,
             experience: 10
         },
-        value: 1_000_000
+        value: 1_000_000,
+        source: 'training'
     };
 }
 
@@ -96,6 +97,101 @@ describe('upsertPlayerWeekRecord', () => {
         expect(existing.history).toBe(originalRef);
         expect(updated.history).not.toBe(existing.history);
         expect(updated.history.map(h => h.week)).toEqual([10, 11, 12]);
+    });
+});
+
+function makeWeekStatsWithSource(
+    week: number,
+    playmaking: number,
+    source: SnapshotSource,
+    injured?: boolean
+): PlayerHistoryEntry {
+    return {
+        week,
+        date: `2023-01-${String(week).padStart(2, '0')}T12:00:00`,
+        skills: {
+            stamina: 10, keeper: 1, playmaking, passing: 10, technique: 10,
+            defending: 10, striker: 10, pace: 10, tacticalDiscipline: 10,
+            form: 10, teamwork: 10, experience: 10
+        },
+        value: 1_000_000,
+        source,
+        ...(injured !== undefined ? { injured } : {})
+    };
+}
+
+describe('upsertPlayerWeekRecord R1/R2 invariants', () => {
+    it('R1: refuses to overwrite a training entry with a carried-over entry', () => {
+        const trainingEntry = makeWeekStatsWithSource(10, 5, 'training');
+        const existing: PlayerData = {
+            id: 123,
+            name: 'Player',
+            latest: trainingEntry,
+            history: [trainingEntry]
+        };
+
+        const carryOver = makeWeekStatsWithSource(10, 99, 'carried-over', true);
+        const updated = upsertPlayerWeekRecord(existing, 123, 'Player', carryOver);
+
+        expect(updated.history).toHaveLength(1);
+        expect(updated.history[0].source).toBe('training');
+        expect(updated.history[0].skills.playmaking).toBe(5);
+    });
+
+    it('R2: training entry upgrades an existing carried-over entry', () => {
+        const carryOver = makeWeekStatsWithSource(10, 5, 'carried-over', true);
+        const existing: PlayerData = {
+            id: 123,
+            name: 'Player',
+            latest: carryOver,
+            history: [carryOver]
+        };
+
+        const training = makeWeekStatsWithSource(10, 6, 'training');
+        const updated = upsertPlayerWeekRecord(existing, 123, 'Player', training);
+
+        expect(updated.history).toHaveLength(1);
+        expect(updated.history[0].source).toBe('training');
+        expect(updated.history[0].skills.playmaking).toBe(6);
+        expect(updated.history[0].injured).toBeUndefined();
+    });
+
+    it('R2: carried-over does not overwrite another carried-over', () => {
+        const first = makeWeekStatsWithSource(10, 5, 'carried-over', true);
+        const existing: PlayerData = {
+            id: 123,
+            name: 'Player',
+            latest: first,
+            history: [first]
+        };
+
+        const second = makeWeekStatsWithSource(10, 99, 'carried-over', false);
+        const updated = upsertPlayerWeekRecord(existing, 123, 'Player', second);
+
+        expect(updated.history).toHaveLength(1);
+        expect(updated.history[0].skills.playmaking).toBe(5);
+        expect(updated.history[0].injured).toBe(true);
+    });
+
+    it('migration: entry without source is treated as training (R1 applies)', () => {
+        const legacyEntry = {
+            week: 10,
+            date: '2023-01-10T12:00:00',
+            skills: makeWeekStats(10, 5).skills,
+            value: 1_000_000
+        } as PlayerHistoryEntry;
+
+        const existing: PlayerData = {
+            id: 123,
+            name: 'Player',
+            latest: legacyEntry,
+            history: [legacyEntry]
+        };
+
+        const carryOver = makeWeekStatsWithSource(10, 99, 'carried-over', true);
+        const updated = upsertPlayerWeekRecord(existing, 123, 'Player', carryOver);
+
+        expect(updated.history[0].skills.playmaking).toBe(5);
     });
 });
 

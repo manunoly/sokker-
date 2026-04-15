@@ -264,16 +264,29 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         }
     });
 
-    // Attach History Tooltip to Player Name
+    // Two ways to open the history tooltip:
+    //  - Hover on the name → ephemeral (auto-hide).
+    //  - Floating "+" button → pinned.
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
-    if (nameLink && !nameLink.dataset.historyAttached) {
-        nameLink.dataset.historyAttached = 'true';
-        nameLink.addEventListener('mouseenter', (e) => {
-            showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
-        });
-        nameLink.addEventListener('mouseleave', () => {
-            scheduleHide();
-        });
+    if (nameLink) {
+        if (!nameLink.dataset.sokkerPlusHoverBound) {
+            nameLink.dataset.sokkerPlusHoverBound = 'true';
+            nameLink.addEventListener('mouseenter', (e) => {
+                console.log('[Sokker++] hover mouseenter (squad)', {
+                    playerId,
+                    tooltipsInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
+                    otherTooltips: document.querySelectorAll('[id*="tooltip" i], [class*="tooltip" i]').length
+                });
+                showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
+            });
+            nameLink.addEventListener('mouseleave', () => {
+                scheduleHide();
+            });
+        }
+        // Floating "+" button disabled for now (hover alone is enough).
+        // attachFloatingHistoryButton(nameLink, (e) => {
+        //     showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
+        // });
     }
 
     attachTooltipEventsToSkills(box, playerId);
@@ -324,8 +337,6 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
  * @param {HTMLElement} container
  */
 export async function processPlayerPage(container: HTMLElement): Promise<void> {
-    // console.log('Processing Player Page...');
-
     const pid = extractPlayerIdFromUrl();
     if (!pid) {
         console.warn('[Sokker++] Could not extract player ID from URL');
@@ -362,17 +373,27 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     // Actually, let's stick to container first.
 
     const attachHistory = (el: HTMLElement) => {
-        if (!el.dataset.historyAttached) {
-            el.dataset.historyAttached = 'true';
+        if (!el.dataset.sokkerPlusHoverBound) {
+            el.dataset.sokkerPlusHoverBound = 'true';
             el.style.cursor = 'help';
             el.addEventListener('mouseenter', (e) => {
+                console.log('[Sokker++] hover mouseenter (player page)', {
+                    pid,
+                    targetTag: el.tagName,
+                    targetClass: el.className,
+                    tooltipsInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
+                    otherTooltips: document.querySelectorAll('[id*="tooltip" i], [class*="tooltip" i]').length
+                });
                 showHistoryTooltip(e.pageX, e.pageY, pid, el);
             });
             el.addEventListener('mouseleave', () => {
                 scheduleHide();
             });
-            // console.log('[Sokker++] Attached history to', el);
         }
+        // Floating "+" button disabled for now (hover alone is enough).
+        // attachFloatingHistoryButton(el, (e) => {
+        //     showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
+        // });
     };
 
     if (panelNameLink) attachHistory(panelNameLink);
@@ -495,9 +516,134 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
             }
         }
 
-        // Hover events for tooltip are attached via class selector on container usually, 
+        // Hover events for tooltip are attached via class selector on container usually,
         // but here we can attach directly
         td.addEventListener('mouseenter', (e) => showTooltip(e.pageX, e.pageY, playerId, skillKey));
         td.addEventListener('mouseleave', () => scheduleHide());
     });
 }
+
+// Map each target element to its floating button. Strong Map so we can
+// iterate during scroll/resize repositioning. Entries are cleaned up by the
+// per-target MutationObserver below when the target leaves the DOM.
+const floatingButtonsByTarget = new Map<HTMLElement, HTMLButtonElement>();
+let floatingRepositionBound = false;
+
+/**
+ * Attaches a floating "HISTORY +" button that sits next to `target` but
+ * actually lives in document.body (outside Vue's reach). Repositions on
+ * scroll, resize, and observer ticks. Clicking calls `onClick` with the
+ * synthetic MouseEvent.
+ */
+function attachFloatingHistoryButton(target: HTMLElement, onClick: (e: MouseEvent) => void): void {
+    ensureHistoryIconStyles();
+    ensureGlobalRepositioner();
+
+    const existing = floatingButtonsByTarget.get(target);
+    if (existing && document.body.contains(existing)) {
+        // Just reposition in case the target has moved.
+        positionFloatingButton(existing, target);
+        return;
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sokker-plus-history-icon';
+    btn.textContent = '+';
+    btn.title = 'Open skill history';
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onClick(e);
+    });
+    document.body.appendChild(btn);
+    floatingButtonsByTarget.set(target, btn);
+    positionFloatingButton(btn, target);
+
+    // Individual observer: if target is removed from DOM, drop the button.
+    const targetObserver = new MutationObserver(() => {
+        if (!document.body.contains(target)) {
+            btn.remove();
+            floatingButtonsByTarget.delete(target);
+            targetObserver.disconnect();
+            return;
+        }
+        positionFloatingButton(btn, target);
+    });
+    const targetParent = target.parentElement;
+    if (targetParent) {
+        targetObserver.observe(targetParent, { childList: true, subtree: true });
+    }
+}
+
+function positionFloatingButton(btn: HTMLButtonElement, target: HTMLElement): void {
+    if (!document.body.contains(target)) return;
+    const rect = target.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return; // not laid out yet
+    // Sit the button just to the right of the target, vertically centered.
+    const top = rect.top + window.scrollY + (rect.height / 2) - 11;
+    const left = rect.right + window.scrollX + 6;
+    btn.style.setProperty('top', `${top}px`, 'important');
+    btn.style.setProperty('left', `${left}px`, 'important');
+}
+
+function ensureGlobalRepositioner(): void {
+    if (floatingRepositionBound) return;
+    floatingRepositionBound = true;
+    const reposition = () => {
+        floatingButtonsByTarget.forEach((btn, target) => {
+            if (!document.body.contains(target)) {
+                btn.remove();
+                floatingButtonsByTarget.delete(target);
+                return;
+            }
+            positionFloatingButton(btn, target);
+        });
+    };
+    window.addEventListener('scroll', reposition, { passive: true });
+    window.addEventListener('resize', reposition, { passive: true });
+}
+
+/**
+ * Injects a global stylesheet for the history-icon badge once per document.
+ * We use !important to defeat Sokker's own CSS (which otherwise hides or
+ * collapses the injected <span>).
+ */
+function ensureHistoryIconStyles(): void {
+    const STYLE_ID = 'sokker-plus-icon-styles';
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+        button.sokker-plus-history-icon {
+            position: absolute !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            width: 22px !important;
+            height: 22px !important;
+            min-width: 22px !important;
+            padding: 0 !important;
+            border: 2px solid #fff !important;
+            border-radius: 50% !important;
+            background-color: #007bff !important;
+            color: #fff !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            line-height: 1 !important;
+            cursor: pointer !important;
+            user-select: none !important;
+            text-decoration: none !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.35) !important;
+            z-index: 2147483646 !important;
+        }
+        button.sokker-plus-history-icon:hover {
+            background-color: #0056b3 !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+

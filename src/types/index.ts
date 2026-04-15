@@ -41,11 +41,22 @@ export interface Skills {
     experience: number;
 }
 
+export type SnapshotSource = 'training' | 'carried-over' | 'roster-fallback';
+
+export interface Injury {
+    daysRemaining: number;
+    severe: boolean;
+}
+
 export interface PlayerHistoryEntry {
     week: number;
     date: string; // YYYY-MM-DD
     skills: Skills;
     value: number;
+    source: SnapshotSource;
+    injured?: boolean;
+    injury?: Injury;
+    reason?: 'missing-report';
 }
 
 export interface PlayerData {
@@ -65,7 +76,8 @@ export interface SokkerResponse {
         id: number;
         player: {
             name: { full: string };
-            // ... other raw fields if needed for parsing
+            injury?: Injury;
+            value: { value: number; currency: string };
         };
         report: {
             week: number;
@@ -79,4 +91,20 @@ export interface SokkerResponse {
             };
         }
     }>;
+}
+
+export interface RosterPlayer {
+    id: number;
+    info: {
+        name: { name: string; surname: string; full: string };
+        skills: Skills;
+        injury: Injury;
+        value?: { value: number; currency: string };
+    };
+    transfer: unknown;
+}
+
+export interface RosterResponse {
+    players: RosterPlayer[];
+    total: number;
 }

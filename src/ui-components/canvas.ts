@@ -1,3 +1,12 @@
+export type ChartPointSource = 'training' | 'carried-over' | 'roster-fallback';
+
+export interface ChartPoint {
+    week: number;
+    value: number;
+    source?: ChartPointSource;
+    injured?: boolean;
+}
+
 export interface ChartOptions {
     forceYRange?: [number, number];
     showAllXLabels?: boolean;
@@ -13,7 +22,7 @@ export interface ChartOptions {
  * @param {number} height 
  * @param {ChartOptions} [options]
  */
-export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: Array<{ week: number, value: number }>, width: number, height: number, options?: ChartOptions): void {
+export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: ChartPoint[], width: number, height: number, options?: ChartOptions): void {
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
@@ -100,26 +109,48 @@ export function drawChart(ctx: CanvasRenderingContext2D, dataPoints: Array<{ wee
         ctx.stroke();
     }
 
-    // Draw Line
-    ctx.strokeStyle = '#00ff00'; // Neon green
-    ctx.lineWidth = 2;
-    ctx.beginPath();
+    // Draw Line — segment by segment. A segment ending on a carried-over point
+    // (or starting from one) is rendered dashed + attenuated to signal that the
+    // training data for that week was inferred, not observed.
+    const SOLID_COLOR = '#00ff00';
+    const CARRY_COLOR = '#888';
 
-    sortedData.forEach((point, index) => {
-        const x = getX(point.week);
-        const y = getY(point.value);
-        if (index === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+    for (let i = 1; i < sortedData.length; i++) {
+        const prev = sortedData[i - 1];
+        const curr = sortedData[i];
+        const isInferred = (s: string | undefined) => s === 'carried-over' || s === 'roster-fallback';
+        const anyCarry = isInferred(prev.source) || isInferred(curr.source);
 
-    // Draw Points
-    ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(getX(prev.week), getY(prev.value));
+        ctx.lineTo(getX(curr.week), getY(curr.value));
+        ctx.setLineDash(anyCarry ? [4, 3] : []);
+        ctx.strokeStyle = anyCarry ? CARRY_COLOR : SOLID_COLOR;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+    ctx.setLineDash([]); // Reset for any subsequent drawing
+
+    // Draw Points — color conveys source. Training = white, carry-over = gray,
+    // carry-over + injured-inferred = orange. Radius is slightly smaller for
+    // non-training to visually de-emphasize inferred data.
     sortedData.forEach((point) => {
         const x = getX(point.week);
         const y = getY(point.value);
+
+        let fill = '#fff';
+        let radius = 3;
+        if (point.source === 'carried-over') {
+            fill = point.injured ? '#ff9900' : '#888';
+            radius = 2.5;
+        } else if (point.source === 'roster-fallback') {
+            fill = '#888';
+            radius = 2.5;
+        }
+
+        ctx.fillStyle = fill;
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2); // Small circle
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
     });
 

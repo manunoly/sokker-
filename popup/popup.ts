@@ -54,6 +54,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const repairBtn = document.getElementById('repairBtn') as HTMLButtonElement;
+    if (repairBtn) {
+        repairBtn.addEventListener('click', () => {
+            if (statusDiv) statusDiv.textContent = 'Repairing history...';
+            sendMessageToContentScript({ action: 'REPAIR_HISTORY' }, (response) => {
+                if (response && response.status === 'success') {
+                    const r = response.result;
+                    if (r.error) {
+                        if (statusDiv) statusDiv.textContent = `Repair error: ${r.error}`;
+                        return;
+                    }
+                    if (statusDiv) {
+                        statusDiv.textContent = `Repair done. ${r.gapsFilled} gap(s) filled across ${r.rosterSize} roster player(s).`;
+                    }
+                } else {
+                    if (statusDiv) statusDiv.textContent = 'Repair Failed.';
+                }
+            });
+        });
+    }
+
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (statusDiv) statusDiv.textContent = 'Exporting...';

@@ -2,6 +2,7 @@
  * DOM Observer for Single Page Application (SPA) navigation.
  * Detects when the squad table is ready in the DOM.
  */
+import { scheduleIdle } from '../utils/scheduleIdle';
 
 let observer: MutationObserver | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -9,24 +10,43 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 /**
  * Initializes the MutationObserver.
  * @param {Function} onTableFound - Callback when the target table is detected.
- */
-/**
- * Initializes the MutationObserver.
- * @param {Function} onTableFound - Callback when the target table is detected.
  * @param {Function} [onPlayerPageFound] - Callback when the player page is detected.
+ * @param {Function} [onSquadReady] - Callback fired (in idle) when the user lands on /app/squad/.
  */
-export function initObserver(onTableFound: (container: HTMLElement) => void, onPlayerPageFound?: (container: HTMLElement) => void): void {
+export function initObserver(
+    onTableFound: (container: HTMLElement) => void,
+    onPlayerPageFound?: (container: HTMLElement) => void,
+    onSquadReady?: () => void
+): void {
     if (observer) return;
 
     const targetNode = document.body;
     const config = { childList: true, subtree: true };
+    let lastProcessedUrl = '';
+    let lastProcessedAt = 0;
+    const COOLDOWN_MS = 2000;
+
     const runPageProcessing = () => {
         const currentPath = window.location.href;
+        const now = Date.now();
+
+        // SPA frameworks (Vue here) re-render frequently. Without a cooldown,
+        // each mutation triggers a new processing pass — hammering network
+        // calls and causing UI effects to churn. We still process immediately
+        // when the URL changes (user navigated).
+        if (currentPath === lastProcessedUrl && now - lastProcessedAt < COOLDOWN_MS) {
+            return;
+        }
+        lastProcessedUrl = currentPath;
+        lastProcessedAt = now;
 
         if (currentPath.includes('/app/squad')) {
             const squadContainer = findSquadContainer();
             if (squadContainer) {
                 onTableFound(squadContainer);
+                if (onSquadReady) {
+                    scheduleIdle(onSquadReady);
+                }
             }
         } else if (currentPath.includes('/player/PID/') || currentPath.includes('/player/ID_player/')) {
             const playerContainer = findPlayerContainer();

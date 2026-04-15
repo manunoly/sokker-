@@ -1,10 +1,13 @@
-import { drawChart } from '../ui-components/canvas';
+import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
 
 let tooltip: HTMLElement | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let zoomBtn: HTMLElement | null = null;
 let activeTooltipLoadId = 0;
+let closeBtn: HTMLElement | null = null;
+let pinned = false;
+let outsideClickHandler: ((e: MouseEvent) => void) | null = null;
 
 /**
  * creates the tooltip element in the DOM if not exists.
@@ -13,7 +16,7 @@ function createTooltip(): void {
     if (tooltip) return;
 
     tooltip = document.createElement('div');
-    tooltip.id = 'sokker-plus-tooltip';
+    tooltip.id = 'sokkerpp-history-tooltip';
     tooltip.style.position = 'absolute';
     tooltip.style.zIndex = '9999';
     tooltip.style.backgroundColor = '#333';
@@ -22,7 +25,9 @@ function createTooltip(): void {
     tooltip.style.borderRadius = '5px';
     tooltip.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
     tooltip.style.display = 'none';
-    tooltip.style.pointerEvents = 'none'; // Pass through clicks
+    // pointer-events: auto so mouseenter/mouseleave (below) actually fire and
+    // the user can interact with the history table (scroll, click Export CSV).
+    tooltip.style.pointerEvents = 'auto';
 
     // Canvas container
     canvas = document.createElement('canvas');
@@ -68,7 +73,10 @@ function createTooltip(): void {
  * @param {string} skillName 
  * @returns {Array<{ week: number, value: number, date: Date }>}
  */
-export function prepareChartData(history: any[], skillName: string): Array<{ week: number, value: number, date: Date }> {
+export function prepareChartData(
+    history: any[],
+    skillName: string
+): Array<ChartPoint & { date: Date }> {
     const historyToUse = filterHistoryData(history);
 
     // Prepare and validate data points
@@ -88,12 +96,14 @@ export function prepareChartData(history: any[], skillName: string): Array<{ wee
         return {
             week: adjustedWeek,
             value: entry.skills[skillName],
-            date: date
+            date: date,
+            source: entry.source as ChartPointSource | undefined,
+            injured: entry.injured
         };
     });
 
     // Deduplicate: If we have multiple entries for the same adjustedWeek, take the LATEST one.
-    const bestPointsMap = new Map<number, { week: number, value: any, date: Date }>();
+    const bestPointsMap = new Map<number, { week: number, value: any, date: Date, source?: ChartPointSource, injured?: boolean }>();
 
     for (const p of rawPoints) {
         // Fix: Exclude future data points
@@ -113,7 +123,13 @@ export function prepareChartData(history: any[], skillName: string): Array<{ wee
 
     let sortedPoints = Array.from(bestPointsMap.values())
         .sort((a, b) => a.week - b.week)
-        .map(p => ({ week: p.week, value: p.value, date: p.date }));
+        .map(p => ({
+            week: p.week,
+            value: p.value,
+            date: p.date,
+            source: p.source,
+            injured: p.injured
+        }));
 
     // Fix: Detect "Bad Backfill" data.
     // 1. Date Clustering Check:
@@ -202,6 +218,17 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
     // Cancel any pending hide
     cancelHide();
 
+    // Leaving pinned mode if the user hovered a different skill cell while
+    // a pinned history is open: clean up before re-rendering.
+    if (pinned) {
+        pinned = false;
+        if (outsideClickHandler) {
+            document.removeEventListener('click', outsideClickHandler);
+            outsideClickHandler = null;
+        }
+        if (closeBtn) closeBtn.style.display = 'none';
+    }
+
     // Initial position
     updatePosition(x, y);
     if (tooltip) tooltip.style.display = 'block';
@@ -210,7 +237,7 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
     if (canvas) canvas.style.display = 'block';
 
     // Hide history table if present
-    const tableContainer = tooltip?.querySelector('#sokker-plus-history-table') as HTMLElement;
+    const tableContainer = tooltip?.querySelector('#sokkerpp-history-table') as HTMLElement;
     if (tableContainer) {
         tableContainer.style.display = 'none';
     }
@@ -254,13 +281,55 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
  * @param {number} playerId 
  * @param {HTMLElement} targetEl - The element that triggered the tooltip
  */
-export async function showHistoryTooltip(x: number, y: number, playerId: number, targetEl: HTMLElement): Promise<void> {
+export async function showHistoryTooltip(
+    x: number,
+    y: number,
+    playerId: number,
+    targetEl: HTMLElement,
+    opts?: { pinned?: boolean }
+): Promise<void> {
     const loadId = ++activeTooltipLoadId;
+
+    console.log('[Sokker++] showHistoryTooltip invoked', {
+        playerId,
+        loadId,
+        pinnedRequested: !!opts?.pinned,
+        currentPinnedState: pinned,
+        tooltipExists: !!tooltip,
+        tooltipVisible: tooltip?.style.display === 'block',
+        tooltipsWithOurIdInDom: document.querySelectorAll('#sokkerpp-history-tooltip').length,
+        foreignSokkerTooltips: document.querySelectorAll('#sokker-plus-tooltip').length,
+        targetTag: targetEl.tagName,
+        targetClass: targetEl.className,
+        stack: new Error().stack?.split('\n').slice(1, 5).join(' | ')
+    });
+
+    // Hide any competing tooltip injected by another Sokker extension using
+    // the legacy id. We don't own it, but when both are displayed at the
+    // same time the UI shows a "double" tooltip. Hiding is non-destructive:
+    // the other extension can reshow on its next event.
+    document.querySelectorAll<HTMLElement>('#sokker-plus-tooltip').forEach((el) => {
+        el.style.setProperty('display', 'none', 'important');
+    });
 
     if (!tooltip) createTooltip();
 
     // Cancel any pending hide
     cancelHide();
+
+    if (opts?.pinned) {
+        pinned = true;
+        attachPinnedBehavior();
+    } else if (pinned) {
+        // Opening in ephemeral (hover) mode — reset any sticky pinned state
+        // left over from a previous "+" click so scheduleHide works again.
+        pinned = false;
+        if (outsideClickHandler) {
+            document.removeEventListener('click', outsideClickHandler);
+            outsideClickHandler = null;
+        }
+        if (closeBtn) closeBtn.style.display = 'none';
+    }
 
     // Initial position
     updatePosition(x, y);
@@ -278,10 +347,10 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
     if (zoomBtn) zoomBtn.style.display = 'none';
 
     // Check if table already exists, if not create container
-    let tableContainer = tooltip?.querySelector('#sokker-plus-history-table') as HTMLElement;
+    let tableContainer = tooltip?.querySelector('#sokkerpp-history-table') as HTMLElement;
     if (!tableContainer) {
         tableContainer = document.createElement('div');
-        tableContainer.id = 'sokker-plus-history-table';
+        tableContainer.id = 'sokkerpp-history-table';
         tooltip?.appendChild(tableContainer);
     }
     tableContainer.style.display = 'block';
@@ -360,6 +429,7 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
         <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 350px;">
             <thead>
                 <tr style="border-bottom: 1px solid #555;">
+                    <th style="padding: 6px 4px;" title="Source of the data">⚑</th>
                     <th style="padding: 6px 4px;">Week</th>
                     ${skillsOrder.map(s => `<th style="padding: 6px 4px;">${s.label}</th>`).join('')}
                 </tr>
@@ -375,7 +445,23 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
         // If improvement/regression, use that color, otherwise use dark gray.
         const rowBgColor = '#333';
 
+        let statusIcon = '';
+        let statusTitle = 'Training report';
+        if (row.source === 'carried-over') {
+            if (row.injured === true) {
+                statusIcon = '🩹';
+                statusTitle = 'Probably injured — no training report, values carried from previous week';
+            } else {
+                statusIcon = '⏸';
+                statusTitle = 'No training report — values carried from previous week';
+            }
+        } else if (row.source === 'roster-fallback') {
+            statusIcon = '⏸';
+            statusTitle = 'No prior history — values from current roster';
+        }
+
         html += `<tr style="border-bottom: 1px solid #444; background-color: ${rowBgColor};">`;
+        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};" title="${statusTitle}">${statusIcon}</td>`;
         html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${row.week}</td>`;
 
         skillsOrder.forEach(skill => {
@@ -403,21 +489,22 @@ export async function showHistoryTooltip(x: number, y: number, playerId: number,
     // Add Copy/Export button
     html += `
         <div style="margin-top: 10px; text-align: right;">
-            <button id="sokker-plus-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
+            <button id="sokkerpp-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
         </div>
     `;
 
     tableContainer.innerHTML = html;
 
     // Attach export event
-    const exportBtn = tableContainer.querySelector('#sokker-plus-export-csv');
+    const exportBtn = tableContainer.querySelector('#sokkerpp-export-csv');
     if (exportBtn) {
         exportBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // prevent click propagation
             // Generate CSV
-            let csv = 'Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
+            let csv = 'Source,Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
             rows.forEach(r => {
-                csv += `${r.week},` + skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
+                const sourceLabel = r.source ?? 'training';
+                csv += `${sourceLabel},${r.week},` + skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
             });
 
             // Download
@@ -456,9 +543,11 @@ let hideTimeout: number | null = null;
  */
 export function updatePosition(x: number, y: number): void {
     if (!tooltip) return;
-    // Offset to not cover cursor
-    tooltip.style.left = (x + 15) + 'px';
-    tooltip.style.top = (y + 15) + 'px';
+    // Small offset so the cursor sits just inside the tooltip's hit-box:
+    // the mouseenter on the tooltip fires immediately and the hover-to-keep
+    // logic has a chance to cancel the pending hide before it expires.
+    tooltip.style.left = (x + 4) + 'px';
+    tooltip.style.top = (y + 4) + 'px';
 }
 
 /**
@@ -479,10 +568,11 @@ export function hideTooltip(): void {
  * Allows user to move mouse over the tooltip.
  */
 export function scheduleHide(): void {
+    if (pinned) return;
     if (hideTimeout) window.clearTimeout(hideTimeout);
     hideTimeout = window.setTimeout(() => {
         hideTooltip();
-    }, 300); // 300ms delay
+    }, 600); // grace period for cursor to travel between trigger and tooltip
 }
 
 /**
@@ -501,7 +591,7 @@ export function cancelHide(): void {
  * @param {string} skillName 
  */
 function createZoomModal(dataPoints: Array<{ week: number, value: number }>, skillName: string): void {
-    const modalId = 'sokker-plus-zoom-modal';
+    const modalId = 'sokkerpp-zoom-modal';
     let modal = document.getElementById(modalId);
 
     if (modal) {
@@ -579,7 +669,7 @@ function createZoomModal(dataPoints: Array<{ week: number, value: number }>, ski
 
 /**
  * Filter history to remove "Naive Backfills" based on static Form.
- * @param {Array<any>} history 
+ * @param {Array<any>} history
  * @returns {Array<any>}
  */
 function filterHistoryData(history: any[]): any[] {
@@ -594,4 +684,74 @@ function filterHistoryData(history: any[]): any[] {
         }
     }
     return history;
+}
+
+/**
+ * Makes the tooltip behave in "pinned" mode: auto-hide is suppressed, a close
+ * button is shown, and clicks outside the tooltip close it.
+ */
+function attachPinnedBehavior(): void {
+    if (!tooltip) return;
+
+    ensureCloseButton();
+
+    // Remove any stale handler before binding a fresh one.
+    if (outsideClickHandler) {
+        document.removeEventListener('click', outsideClickHandler);
+        outsideClickHandler = null;
+    }
+
+    outsideClickHandler = (e: MouseEvent) => {
+        if (!tooltip) return;
+        const target = e.target as Node | null;
+        if (target && tooltip.contains(target)) return;
+        unpinAndHide();
+    };
+
+    // Defer attachment to the next tick so the click event that TRIGGERED
+    // the pin doesn't immediately fire this outside-click handler.
+    setTimeout(() => {
+        if (outsideClickHandler) {
+            document.addEventListener('click', outsideClickHandler);
+        }
+    }, 0);
+}
+
+function ensureCloseButton(): void {
+    if (!tooltip) return;
+    if (!closeBtn) {
+        closeBtn = document.createElement('div');
+        closeBtn.innerText = '\u00d7'; // "×" multiplication sign
+        closeBtn.title = 'Close';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '2px';
+        closeBtn.style.right = '6px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.fontSize = '16px';
+        closeBtn.style.lineHeight = '1';
+        closeBtn.style.color = '#fff';
+        closeBtn.style.opacity = '0.8';
+        closeBtn.style.pointerEvents = 'auto';
+        closeBtn.style.padding = '2px 6px';
+        closeBtn.style.borderRadius = '3px';
+        closeBtn.style.userSelect = 'none';
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            unpinAndHide();
+        });
+        tooltip.appendChild(closeBtn);
+    }
+    closeBtn.style.display = 'block';
+    // Hide the zoom button while pinned — it would overlap with close.
+    if (zoomBtn) zoomBtn.style.display = 'none';
+}
+
+function unpinAndHide(): void {
+    pinned = false;
+    if (outsideClickHandler) {
+        document.removeEventListener('click', outsideClickHandler);
+        outsideClickHandler = null;
+    }
+    if (closeBtn) closeBtn.style.display = 'none';
+    hideTooltip();
 }
