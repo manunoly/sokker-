@@ -268,12 +268,13 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
     const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
     if (nameLink && !nameLink.dataset.historyAttached) {
         nameLink.dataset.historyAttached = 'true';
-        nameLink.addEventListener('mouseenter', (e) => {
-            showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
+        const icon = createHistoryIcon();
+        icon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            showHistoryTooltip(e.pageX, e.pageY, playerId, icon, { pinned: true });
         });
-        nameLink.addEventListener('mouseleave', () => {
-            scheduleHide();
-        });
+        nameLink.parentNode?.insertBefore(icon, nameLink.nextSibling);
     }
 
     attachTooltipEventsToSkills(box, playerId);
@@ -364,14 +365,13 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
     const attachHistory = (el: HTMLElement) => {
         if (!el.dataset.historyAttached) {
             el.dataset.historyAttached = 'true';
-            el.style.cursor = 'help';
-            el.addEventListener('mouseenter', (e) => {
-                showHistoryTooltip(e.pageX, e.pageY, pid, el);
+            const icon = createHistoryIcon();
+            icon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                showHistoryTooltip(e.pageX, e.pageY, pid, icon, { pinned: true });
             });
-            el.addEventListener('mouseleave', () => {
-                scheduleHide();
-            });
-            // console.log('[Sokker++] Attached history to', el);
+            el.parentNode?.insertBefore(icon, el.nextSibling);
         }
     };
 
@@ -495,9 +495,36 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
             }
         }
 
-        // Hover events for tooltip are attached via class selector on container usually, 
+        // Hover events for tooltip are attached via class selector on container usually,
         // but here we can attach directly
         td.addEventListener('mouseenter', (e) => showTooltip(e.pageX, e.pageY, playerId, skillKey));
         td.addEventListener('mouseleave', () => scheduleHide());
     });
+}
+
+/**
+ * Creates a small "+" badge intended to be inserted right after a player
+ * name link. Clicking it opens the pinned history tooltip.
+ */
+function createHistoryIcon(): HTMLElement {
+    const icon = document.createElement('span');
+    icon.className = 'sokker-plus-history-icon';
+    icon.textContent = '+';
+    icon.title = 'Open skill history';
+    icon.style.display = 'inline-flex';
+    icon.style.alignItems = 'center';
+    icon.style.justifyContent = 'center';
+    icon.style.marginLeft = '4px';
+    icon.style.width = '14px';
+    icon.style.height = '14px';
+    icon.style.borderRadius = '50%';
+    icon.style.backgroundColor = '#007bff';
+    icon.style.color = '#fff';
+    icon.style.fontSize = '11px';
+    icon.style.fontWeight = 'bold';
+    icon.style.lineHeight = '1';
+    icon.style.cursor = 'pointer';
+    icon.style.userSelect = 'none';
+    icon.style.verticalAlign = 'middle';
+    return icon;
 }

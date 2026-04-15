@@ -5,6 +5,9 @@ let tooltip: HTMLElement | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let zoomBtn: HTMLElement | null = null;
 let activeTooltipLoadId = 0;
+let closeBtn: HTMLElement | null = null;
+let pinned = false;
+let outsideClickHandler: ((e: MouseEvent) => void) | null = null;
 
 /**
  * creates the tooltip element in the DOM if not exists.
@@ -215,6 +218,17 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
     // Cancel any pending hide
     cancelHide();
 
+    // Leaving pinned mode if the user hovered a different skill cell while
+    // a pinned history is open: clean up before re-rendering.
+    if (pinned) {
+        pinned = false;
+        if (outsideClickHandler) {
+            document.removeEventListener('click', outsideClickHandler);
+            outsideClickHandler = null;
+        }
+        if (closeBtn) closeBtn.style.display = 'none';
+    }
+
     // Initial position
     updatePosition(x, y);
     if (tooltip) tooltip.style.display = 'block';
@@ -267,13 +281,24 @@ export async function showTooltip(x: number, y: number, playerId: number, skillN
  * @param {number} playerId 
  * @param {HTMLElement} targetEl - The element that triggered the tooltip
  */
-export async function showHistoryTooltip(x: number, y: number, playerId: number, targetEl: HTMLElement): Promise<void> {
+export async function showHistoryTooltip(
+    x: number,
+    y: number,
+    playerId: number,
+    targetEl: HTMLElement,
+    opts?: { pinned?: boolean }
+): Promise<void> {
     const loadId = ++activeTooltipLoadId;
 
     if (!tooltip) createTooltip();
 
     // Cancel any pending hide
     cancelHide();
+
+    if (opts?.pinned) {
+        pinned = true;
+        attachPinnedBehavior();
+    }
 
     // Initial position
     updatePosition(x, y);
@@ -510,6 +535,7 @@ export function hideTooltip(): void {
  * Allows user to move mouse over the tooltip.
  */
 export function scheduleHide(): void {
+    if (pinned) return;
     if (hideTimeout) window.clearTimeout(hideTimeout);
     hideTimeout = window.setTimeout(() => {
         hideTooltip();
@@ -610,7 +636,7 @@ function createZoomModal(dataPoints: Array<{ week: number, value: number }>, ski
 
 /**
  * Filter history to remove "Naive Backfills" based on static Form.
- * @param {Array<any>} history 
+ * @param {Array<any>} history
  * @returns {Array<any>}
  */
 function filterHistoryData(history: any[]): any[] {
@@ -625,4 +651,74 @@ function filterHistoryData(history: any[]): any[] {
         }
     }
     return history;
+}
+
+/**
+ * Makes the tooltip behave in "pinned" mode: auto-hide is suppressed, a close
+ * button is shown, and clicks outside the tooltip close it.
+ */
+function attachPinnedBehavior(): void {
+    if (!tooltip) return;
+
+    ensureCloseButton();
+
+    // Remove any stale handler before binding a fresh one.
+    if (outsideClickHandler) {
+        document.removeEventListener('click', outsideClickHandler);
+        outsideClickHandler = null;
+    }
+
+    outsideClickHandler = (e: MouseEvent) => {
+        if (!tooltip) return;
+        const target = e.target as Node | null;
+        if (target && tooltip.contains(target)) return;
+        unpinAndHide();
+    };
+
+    // Defer attachment to the next tick so the click event that TRIGGERED
+    // the pin doesn't immediately fire this outside-click handler.
+    setTimeout(() => {
+        if (outsideClickHandler) {
+            document.addEventListener('click', outsideClickHandler);
+        }
+    }, 0);
+}
+
+function ensureCloseButton(): void {
+    if (!tooltip) return;
+    if (!closeBtn) {
+        closeBtn = document.createElement('div');
+        closeBtn.innerText = '\u00d7'; // "×" multiplication sign
+        closeBtn.title = 'Close';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '2px';
+        closeBtn.style.right = '6px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.fontSize = '16px';
+        closeBtn.style.lineHeight = '1';
+        closeBtn.style.color = '#fff';
+        closeBtn.style.opacity = '0.8';
+        closeBtn.style.pointerEvents = 'auto';
+        closeBtn.style.padding = '2px 6px';
+        closeBtn.style.borderRadius = '3px';
+        closeBtn.style.userSelect = 'none';
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            unpinAndHide();
+        });
+        tooltip.appendChild(closeBtn);
+    }
+    closeBtn.style.display = 'block';
+    // Hide the zoom button while pinned — it would overlap with close.
+    if (zoomBtn) zoomBtn.style.display = 'none';
+}
+
+function unpinAndHide(): void {
+    pinned = false;
+    if (outsideClickHandler) {
+        document.removeEventListener('click', outsideClickHandler);
+        outsideClickHandler = null;
+    }
+    if (closeBtn) closeBtn.style.display = 'none';
+    hideTooltip();
 }
