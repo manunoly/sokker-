@@ -25,3 +25,21 @@ export function findWeekGaps(
     }
     return gaps;
 }
+
+/**
+ * Conservative injury inference for a gap week N. Returns:
+ *  - true  when prev (N-1) had daysRemaining >= 7 (the injury covered N),
+ *          or next (N+1) has any active injury (>0 days remaining).
+ *  - undefined otherwise. Never returns false: absence of evidence is not
+ *    evidence of absence.
+ */
+export function inferInjury(
+    prev: PlayerHistoryEntry | undefined,
+    next: PlayerHistoryEntry | undefined
+): boolean | undefined {
+    const prevDays = prev?.injury?.daysRemaining ?? 0;
+    if (prevDays >= 7) return true;
+    const nextDays = next?.injury?.daysRemaining ?? 0;
+    if (nextDays > 0) return true;
+    return undefined;
+}

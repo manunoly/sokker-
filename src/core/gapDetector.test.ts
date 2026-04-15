@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findWeekGaps } from './gapDetector';
+import { findWeekGaps, inferInjury } from './gapDetector';
 import { PlayerHistoryEntry, Skills } from '../types/index';
 
 const baseSkills: Skills = {
@@ -46,5 +46,38 @@ describe('findWeekGaps', () => {
     it('considers carried-over entries as filled (so they are not re-detected)', () => {
         const history = [entry(10), entry(11, 'carried-over'), entry(12)];
         expect(findWeekGaps(history, 13)).toEqual([]);
+    });
+});
+
+function entryWithInjury(week: number, days: number, severe = false): PlayerHistoryEntry {
+    return {
+        ...entry(week),
+        injury: { daysRemaining: days, severe },
+        injured: days > 0
+    };
+}
+
+describe('inferInjury', () => {
+    it('returns true when previous week had daysRemaining >= 7', () => {
+        expect(inferInjury(entryWithInjury(9, 7), undefined)).toBe(true);
+        expect(inferInjury(entryWithInjury(9, 10), undefined)).toBe(true);
+    });
+
+    it('returns true when next week has daysRemaining > 0', () => {
+        expect(inferInjury(entry(9), entryWithInjury(11, 3))).toBe(true);
+        expect(inferInjury(undefined, entryWithInjury(11, 1))).toBe(true);
+    });
+
+    it('returns undefined when previous has daysRemaining < 7 and no next evidence', () => {
+        expect(inferInjury(entryWithInjury(9, 3), entry(11))).toBeUndefined();
+    });
+
+    it('returns undefined when there is no injury info anywhere', () => {
+        expect(inferInjury(entry(9), entry(11))).toBeUndefined();
+        expect(inferInjury(undefined, undefined)).toBeUndefined();
+    });
+
+    it('prev has priority over next (both positive)', () => {
+        expect(inferInjury(entryWithInjury(9, 7), entryWithInjury(11, 2))).toBe(true);
     });
 });
