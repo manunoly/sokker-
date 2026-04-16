@@ -43,6 +43,27 @@ export interface Skills {
 
 export type SnapshotSource = 'training' | 'carried-over' | 'roster-fallback';
 
+export type TrainingKind = 'individual' | 'formation' | 'missing';
+export type TrainingSkill =
+    | 'general'
+    | 'stamina'
+    | 'keeper'
+    | 'playmaking'
+    | 'passing'
+    | 'technique'
+    | 'defending'
+    | 'striker'
+    | 'pace';
+export type TrainingPosition = 'GK' | 'DEF' | 'MID' | 'ATT';
+
+export interface TrainingReport {
+    kind: TrainingKind;
+    skill: TrainingSkill;
+    position: TrainingPosition | null;
+    intensity: number; // 0-100
+    minutes: number;   // minutesOfficial + minutesFriendly + minutesNational
+}
+
 export interface Injury {
     daysRemaining: number;
     severe: boolean;
@@ -57,6 +78,7 @@ export interface PlayerHistoryEntry {
     injured?: boolean;
     injury?: Injury;
     reason?: 'missing-report';
+    training?: TrainingReport;
 }
 
 export interface PlayerData {

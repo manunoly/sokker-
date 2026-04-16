@@ -30,10 +30,24 @@ Aquí te explicamos por qué Sokker++ destaca sobre cualquier otra alternativa:
     ![Subida de Habilidad](PlayerUp.png)
 
     *   **NUEVO: Historial de Habilidades (General Skills):**
-    *   Pasa el ratón sobre el **nombre del jugador** para ver una tabla completa con la evolución semanal de todas las habilidades.
+    *   Pasa el ratón sobre el **nombre del jugador** para ver una tabla completa con la evolución semanal de todas las habilidades, el tipo de entrenamiento recibido, la posición asignada y la efectividad.
     *   Los cambios se resaltan automáticamente: **Verde** para mejoras, **Rojo** para bajadas.
     
-    ![Historial de Entrenamiento](trainHistory.png)
+    ![Historial de Entrenamiento y Skills](Skills_train.png)
+
+    *   **NUEVO: Detector de huecos en reportes de entrenamiento:**
+    *   A veces un jugador se queda sin reporte semanal (lesión, bug del endpoint, venta a mitad de semana). Sokker++ detecta esos huecos y los rellena automáticamente clonando los valores de la semana anterior, para que tus gráficas semanales y los cálculos de "quién subió esta semana" sigan siendo consistentes.
+    *   Una **columna de estado (⚑)** en la tabla de General Skills explica cada fila: vacío para un reporte real de entrenamiento, **🩹** cuando el hueco es probablemente por lesión (inferido a partir de las semanas adyacentes), y **⏸** cuando la causa es desconocida.
+    *   En el mini gráfico, los segmentos que tocan un punto inferido se dibujan con **línea gris punteada** para distinguir de un vistazo el progreso real del dato rellenado.
+    *   Re-ejecútalo cuando quieras con el nuevo botón **"Reparar Historial"** del popup — también corre automáticamente después de cada sync y al entrar a la vista de plantilla.
+
+    *   **NUEVO: Entrenamiento recibido por semana:**
+    *   Tres nuevas columnas en la tabla de General Skills te dicen qué pasó cada semana de entrenamiento:
+        *   **Kind** — tipo de entrenamiento: 🎯 avanzado (intensivo), 📋 formación (moderado), o **—** si no hubo entreno.
+        *   **Skill @ Pos** — habilidad entrenada y posición asignada (ej. `striker @ ATT`). La posición se muestra con un **badge de color por rol**: 🔵 GK, 🟢 DEF, 🟡 MID, 🔴 ATT. Si el plan del equipo no tiene skill asignada, se muestra `general`.
+        *   **Eff** — efectividad del entrenamiento (0–100%) con un **semáforo**: verde (≥80%), amarillo (50–79%), rojo (<50%). Detecta semanas desperdiciadas de un vistazo.
+    *   Confirma que cada jugador joven está recibiendo el entrenamiento que le toca y que jugó los minutos necesarios en la posición correcta.
+    *   El botón **Export CSV** ahora incluye las columnas Kind, Skill, Position, Intensity y Minutes para análisis externo en hojas de cálculo.
 
 *   **Diseño Nativo:** La estética respeta al 100% el estilo de Sokker. **No sentirás que es un plugin, sentirás que el juego ha evolucionado.**
 

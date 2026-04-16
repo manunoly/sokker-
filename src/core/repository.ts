@@ -4,6 +4,7 @@
  */
 
 import { PlayerData, PlayerHistoryEntry, SnapshotSource } from '../types/index';
+import { extractTrainingReport } from './trainingReport';
 
 const DB_NAME = 'SokkerTalentTrackerDB';
 const DB_VERSION = 2; // Incremented version for new store
@@ -152,18 +153,14 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
         playersDataFromArray.forEach((entry: any) => {
             const playerId = entry.id;
 
-            // Strict Data Extraction
-            // Fix: Do NOT fallback to entry.player.skills (current) if report.skills is missing.
-            // This prevents backfilling history with current values for old weeks.
-            // Fix 2: Ignore players marked as "missing" (kind code 3), as they were not in the team/did not train.
             const report = entry.report;
             if (!report || !report.skills || (report.kind && (report.kind.name === 'missing' || report.kind.code === 3))) {
-                // No training data for this week, or player missing (sold/not bought yet).
                 return;
             }
 
             const injury = entry.player.injury;
             const injuryDays = typeof injury?.daysRemaining === 'number' ? injury.daysRemaining : 0;
+            const training = extractTrainingReport(report);
             const weekStats: PlayerHistoryEntry = {
                 week: week,
                 date: report.day?.date?.value || new Date().toISOString().slice(0, 10),
@@ -171,7 +168,8 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
                 value: entry.player.value.value,
                 source: 'training',
                 injured: injuryDays > 0,
-                ...(injury ? { injury } : {})
+                ...(injury ? { injury } : {}),
+                ...(training ? { training } : {})
             };
 
             const getRequest = playerStore.get(playerId);
