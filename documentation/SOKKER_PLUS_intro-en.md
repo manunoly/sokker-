@@ -30,10 +30,10 @@ Here's why Sokker++ stands out from any other alternative:
     ![Skill Rise](PlayerUp.png)
 
     *   **NEW: Skills History (General Skills):**
-    *   Hover over the **player's name** to see a full table with the weekly evolution of all skills.
+    *   Hover over the **player's name** to see a full table with the weekly evolution of all skills, the training type received, the assigned position, and the effectiveness.
     *   Changes are automatically highlighted: **Green** for improvements, **Red** for drops.
     
-    ![Training History](trainHistory.png)
+    ![Training History and Skills](Skills_train.png)
 
     *   **NEW: Gap Detector for missing training reports:**
     *   Players sometimes miss a weekly training report (injury, API glitch, mid-week sale). Sokker++ now detects those gaps and fills them automatically by carrying forward the values from the previous week, so your weekly charts and "who improved this week" calculations stay consistent.

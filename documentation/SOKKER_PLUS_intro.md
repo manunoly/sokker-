@@ -30,10 +30,10 @@ Aquí te explicamos por qué Sokker++ destaca sobre cualquier otra alternativa:
     ![Subida de Habilidad](PlayerUp.png)
 
     *   **NUEVO: Historial de Habilidades (General Skills):**
-    *   Pasa el ratón sobre el **nombre del jugador** para ver una tabla completa con la evolución semanal de todas las habilidades.
+    *   Pasa el ratón sobre el **nombre del jugador** para ver una tabla completa con la evolución semanal de todas las habilidades, el tipo de entrenamiento recibido, la posición asignada y la efectividad.
     *   Los cambios se resaltan automáticamente: **Verde** para mejoras, **Rojo** para bajadas.
     
-    ![Historial de Entrenamiento](trainHistory.png)
+    ![Historial de Entrenamiento y Skills](Skills_train.png)
 
     *   **NUEVO: Detector de huecos en reportes de entrenamiento:**
     *   A veces un jugador se queda sin reporte semanal (lesión, bug del endpoint, venta a mitad de semana). Sokker++ detecta esos huecos y los rellena automáticamente clonando los valores de la semana anterior, para que tus gráficas semanales y los cálculos de "quién subió esta semana" sigan siendo consistentes.
