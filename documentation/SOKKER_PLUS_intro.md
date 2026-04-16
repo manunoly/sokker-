@@ -42,8 +42,12 @@ Aquí te explicamos por qué Sokker++ destaca sobre cualquier otra alternativa:
     *   Re-ejecútalo cuando quieras con el nuevo botón **"Reparar Historial"** del popup — también corre automáticamente después de cada sync y al entrar a la vista de plantilla.
 
     *   **NUEVO: Entrenamiento recibido por semana:**
-    *   Tres nuevas columnas en la tabla de General Skills te dicen qué pasó cada semana: **Kind** (🎯 avanzado / 📋 formación / — sin entreno), **Skill @ Pos** (habilidad entrenada y posición: `striker @ ATT`), y **Eff** (efectividad del entrenamiento 0–100% con semáforo rojo/amarillo/verde).
-    *   Así detectas de un vistazo semanas desperdiciadas (intensidad baja) y confirmas que cada jugador joven está recibiendo el entrenamiento que le toca.
+    *   Tres nuevas columnas en la tabla de General Skills te dicen qué pasó cada semana de entrenamiento:
+        *   **Kind** — tipo de entrenamiento: 🎯 avanzado (intensivo), 📋 formación (moderado), o **—** si no hubo entreno.
+        *   **Skill @ Pos** — habilidad entrenada y posición asignada (ej. `striker @ ATT`). La posición se muestra con un **badge de color por rol**: 🔵 GK, 🟢 DEF, 🟡 MID, 🔴 ATT. Si el plan del equipo no tiene skill asignada, se muestra `general`.
+        *   **Eff** — efectividad del entrenamiento (0–100%) con un **semáforo**: verde (≥80%), amarillo (50–79%), rojo (<50%). Detecta semanas desperdiciadas de un vistazo.
+    *   Confirma que cada jugador joven está recibiendo el entrenamiento que le toca y que jugó los minutos necesarios en la posición correcta.
+    *   El botón **Export CSV** ahora incluye las columnas Kind, Skill, Position, Intensity y Minutes para análisis externo en hojas de cálculo.
 
 *   **Diseño Nativo:** La estética respeta al 100% el estilo de Sokker. **No sentirás que es un plugin, sentirás que el juego ha evolucionado.**
 

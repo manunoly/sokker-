@@ -42,8 +42,12 @@ Here's why Sokker++ stands out from any other alternative:
     *   Run it yourself with the new **"Repair History"** button in the popup — it also runs automatically after every sync and every time you enter the squad view.
 
     *   **NEW: Training received per week:**
-    *   Three new columns in the General Skills table tell you what happened each week: **Kind** (🎯 advanced / 📋 formation / — no training), **Skill @ Pos** (skill trained and position, e.g. `striker @ ATT`), and **Eff** (training effectiveness 0–100% with a red/yellow/green heatmap).
-    *   Spot wasted weeks (low intensity) at a glance and confirm every young player is actually getting the training you planned.
+    *   Three new columns in the General Skills table tell you what happened each training week:
+        *   **Kind** — training type: 🎯 advanced (intense), 📋 formation (moderate), or **—** if no training occurred.
+        *   **Skill @ Pos** — skill trained and assigned position (e.g. `striker @ ATT`). The position is shown as a **color-coded badge by role**: 🔵 GK, 🟢 DEF, 🟡 MID, 🔴 ATT. If the team plan has no specific skill assigned, it shows `general`.
+        *   **Eff** — training effectiveness (0–100%) with a **heatmap**: green (≥80%), yellow (50–79%), red (<50%). Spot wasted weeks at a glance.
+    *   Confirm every young player is actually getting the training you planned and played enough minutes in the right position.
+    *   The **Export CSV** button now includes Kind, Skill, Position, Intensity and Minutes columns for external analysis in spreadsheets.
 
 *   **Native Design:** The aesthetics respect the Sokker style 100%. **You won't feel like it's a plugin; you'll feel like the game has evolved.**
 
