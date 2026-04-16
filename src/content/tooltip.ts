@@ -800,6 +800,7 @@ function positionBadgeColor(position: TrainingPosition | null | undefined): stri
 function intensityCellStyle(training: TrainingReport | undefined, rowBgColor: string): { text: string; bg: string } {
     if (!training) return { text: '—', bg: rowBgColor };
     const i = training.intensity;
+    if (!Number.isFinite(i)) return { text: '—', bg: rowBgColor };
     if (i >= 80) return { text: `${i}%`, bg: '#2e5e32' };
     if (i >= 50) return { text: `${i}%`, bg: '#8a6d1c' };
     return { text: `${i}%`, bg: '#6e2a2a' };
