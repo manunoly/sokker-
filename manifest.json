@@ -3,9 +3,6 @@
   "name": "Sokker++",
   "version": "0.1.0",
   "description": "Tracks skill improvements and estimates player talent on Sokker.org",
-  "permissions": [
-    "storage"
-  ],
   "host_permissions": [
     "*://sokker.org/*",
     "*://api.sokker.org/*"

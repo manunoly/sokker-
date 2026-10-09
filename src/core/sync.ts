@@ -23,8 +23,6 @@ export async function syncData(): Promise<SyncResult> {
         const currentWeek = await fetchCurrentWeek();
         const lastSyncWeek = await getLastSyncWeek();
 
-        // console.log(`Sync Check: Current Week ${currentWeek}, Last Synced ${lastSyncWeek}`);
-
         // Logic:
         // 1. We want to sync up to MAX_WEEKS_TO_FETCH weeks back from currentWeek.
         // 2. We do NOT want to overwrite or re-fetch weeks we already have (isWeekSynced).
@@ -33,11 +31,9 @@ export async function syncData(): Promise<SyncResult> {
         // 1. Refresh Last Stored Week (if it exists and is < currentWeek)
         // This ensures the baseline is up-to-date (e.g., Thursday update for previous week)
         if (lastSyncWeek && lastSyncWeek < currentWeek) {
-            // console.log(`Refreshing baseline week: ${lastSyncWeek}`);
             const baselineData = await fetchTrainingData(lastSyncWeek);
             if (baselineData && baselineData.length > 0) {
                 await saveWeekData(lastSyncWeek, baselineData);
-                // console.log(`Refreshed baseline week ${lastSyncWeek}`);
             }
         }
 
@@ -70,7 +66,6 @@ export async function syncData(): Promise<SyncResult> {
             const playersData = await fetchTrainingData(week);
             if (playersData && playersData.length > 0) {
                 await saveWeekData(week, playersData);
-                // console.log(`Synced week ${week}: ${playersData.length} players`);
             } else {
                 console.warn(`No data found for week ${week}`);
             }
