@@ -1,71 +1,77 @@
 # ⚽ Sokker++
 
-Sokker++ es una extensión ultraligera para Google Chrome diseñada para inyectar analíticas avanzadas, seguimiento de habilidades y estimación de talento directamente en la interfaz de [Sokker.org](https://sokker.org). 
+**English** · [Español](readme.es.md)
 
-El proyecto rinde homenaje a C++ en su nombre, reflejando su filosofía principal: **máximo rendimiento, control absoluto del estado y cero dependencias innecesarias.**
+Sokker++ is an ultra-light Google Chrome extension that injects advanced analytics, skill tracking and talent estimation straight into the [Sokker.org](https://sokker.org) interface.
 
-## 🚀 Características Principales
+Its name is a nod to C++ and to its core philosophy: **maximum performance, full control over state and zero unnecessary dependencies.**
 
-* **Seguimiento Histórico (Skill Tracker):** Rastrea las subidas y bajadas de habilidades de los jugadores semana a semana.
-* **Inyección UI No Invasiva:** Colorea dinámicamente las celdas de la tabla de la plantilla (`/app/squad/`) en verde (subida) o rojo (bajada).
-* **Gráficos Nativos:** Tooltips flotantes con gráficas de progresión dibujadas 100% con la API nativa de `<canvas>`, sin librerías externas pesadas.
-* **Smart Sync:** Intercepta la API nativa de Sokker para conocer la semana actual (`today.week`) y solo descarga el delta de semanas faltantes, evitando saturar los servidores del juego.
-* **Gestor de Backups:** Base de datos local con opción de importar/exportar la historia completa en formato JSON.
+## 🚀 Key Features
 
-## 🛠️ Arquitectura y Filosofía Técnica
+* **History Tracking (Skill Tracker):** Tracks players' skill increases and decreases week by week.
+* **Non-Invasive UI Injection:** Dynamically colors the squad table cells (`/app/squad/`) green (increase) or red (decrease).
+* **Native Charts:** Floating tooltips with progression charts drawn 100% with the native `<canvas>` API, no heavy external libraries.
+* **Smart Sync:** Reads Sokker's own API to get the current week (`today.week`) and only downloads the missing weeks, so the game servers are not flooded.
+* **Talent Summary:** In the General Skills ++ panel, counts each skill's advanced trainings since its last increase and estimates the player's talent ([rules](documentation/TALENT_SUMMARY.md)).
+* **Backup Manager:** Local database with import/export of the full history as JSON.
 
-Sokker++ está construido siguiendo las mejores prácticas de **ECMAScript (ES2026+)** bajo un paradigma estrictamente **Funcional**. 
+## 🛠️ Architecture and Technical Philosophy
 
-**Reglas del Repositorio:**
-1.  **Cero Clases (`class`):** El estado se encapsula utilizando cierres (*closures*) y módulos (*ESM*).
-2.  **Cero Dependencias (Vanilla JS):** No React, no Chart.js, no librerías de estado. Todo se resuelve con APIs nativas del navegador (IndexedDB, Canvas, Fetch, MutationObserver).
-3.  **Separación de Efectos (Side-Effects):** * La manipulación del DOM (`ui.ts`, `observer.ts`) está aislada.
-    * Las peticiones de red (`api.ts`) son funciones puramente asíncronas.
-    * La persistencia (`repository.ts`) abstrae IndexedDB sin exponer su API interna.
+Sokker++ follows **ECMAScript (ES2026+)** best practices under a strictly **functional** paradigm.
 
-## 📁 Estructura del Proyecto
+**Repository Rules:**
+1.  **Zero Classes (`class`):** State is encapsulated with closures and modules (*ESM*).
+2.  **Zero Dependencies (Vanilla JS):** No React, no Chart.js, no state libraries. Everything uses native browser APIs (IndexedDB, Canvas, Fetch, MutationObserver).
+3.  **Side-Effect Separation:**
+    * DOM manipulation (`ui.ts`, `observer.ts`) is isolated.
+    * Network requests (`api.ts`) are purely asynchronous functions.
+    * Persistence (`repository.ts`) abstracts IndexedDB without exposing its internal API.
 
-El código fuente está dividido para maximizar la testabilidad y la separación de responsabilidades:
+## 📁 Project Structure
+
+The source code is split to maximize testability and separation of concerns:
 
 ```text
 sokker-plus-plus/
-├── manifest.json              # Configuración Manifest V3
-├── popup/                     # UI de la extensión (Import/Export/Sync manual)
+├── manifest.json              # Manifest V3 configuration
+├── popup/                     # Extension UI (Import/Export/manual Sync)
 └── src/
-    ├── content/               # Interacción con el DOM (Side Effects)
-    │   ├── main.ts            # Entry point del Content Script
-    │   ├── observer.ts        # MutationObserver para la SPA de Sokker
-    │   ├── ui.ts              # Mutaciones visuales de la tabla
-    │   ├── tooltip.ts         # Lógica de los tooltips flotantes
-    │   └── i18n.ts            # Textos traducidos
-    ├── core/                  # Lógica de Negocio y Datos
-    │   ├── api.ts             # Fetchers puros hacia api.sokker.org
-    │   ├── repository.ts      # Wrapper funcional de IndexedDB (Closures)
-    │   ├── sync.ts            # Orquestador: compara semanas y decide el fetch
-    │   ├── gapDetector.ts     # Detección de semanas faltantes en la historia
-    │   └── trainingReport.ts  # Informe de entrenamiento por jugador
-    ├── types/                 # Tipos compartidos de TypeScript
-    ├── ui-components/         # Presentación Pura
-    │   └── canvas.ts          # Función pura para dibujar la gráfica (Canvas API)
-    └── utils/                 # Utilidades
-        ├── scheduleIdle.ts    # Planificación de trabajo en tiempo ocioso
-        └── escapeHtml.ts      # Escapado de valores renderizados como HTML
+    ├── content/               # DOM interaction (side effects)
+    │   ├── main.ts            # Content script entry point
+    │   ├── observer.ts        # MutationObserver for the Sokker SPA
+    │   ├── ui.ts              # Visual table mutations
+    │   ├── tooltip.ts         # Floating tooltip logic
+    │   └── i18n.ts            # Translated texts
+    ├── core/                  # Business logic and data
+    │   ├── api.ts             # Pure fetchers for sokker.org/api (same origin)
+    │   ├── repository.ts      # Functional IndexedDB wrapper (closures)
+    │   ├── sync.ts            # Orchestrator: compares weeks and decides what to fetch
+    │   ├── gapDetector.ts     # Detects missing weeks in the history
+    │   ├── talent.ts          # Talent summary (direct training since last increase)
+    │   └── trainingReport.ts  # Per-player training report
+    ├── types/                 # Shared TypeScript types
+    ├── ui-components/         # Pure presentation
+    │   └── canvas.ts          # Pure function that draws the chart (Canvas API)
+    └── utils/                 # Utilities
+        ├── scheduleIdle.ts    # Schedules work during idle time
+        └── escapeHtml.ts      # Escapes values rendered as HTML
 ```
 
-## 🧑‍💻 Desarrollo
+## 🧑‍💻 Development
 
 ```bash
-npm ci            # instalar dependencias
-npm run dev       # build en modo watch
-npm run build     # genera dist/ (cargar como "unpacked" en chrome://extensions)
+npm ci            # install dependencies
+npm run dev       # build in watch mode
+npm run build     # generates dist/ (load it as "unpacked" in chrome://extensions)
+npm run package   # build + zip dist/ into store/sokker-plus-plus.zip
 npx vitest run    # tests
 npx tsc --noEmit  # typecheck
 ```
 
-## 📚 Documentación
+## 📚 Documentation
 
-* [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sincronización, gráficas y detección de subidas.
-* [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): reglas del resumen de talento (entreno directo sin subir) del panel General Skills ++.
-* [PRIVACY.md](PRIVACY.md): política de privacidad (datos solo en tu navegador).
-* [store/](store/LISTING.md): ficha y checklist de envío a la Chrome Web Store.
-* Instalación: [español](documentation/INSTALL-es.md) · [English](documentation/INSTALL-en.md).
+* [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sync, charts and skill increase detection.
+* [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): talent summary rules (direct training since last increase) for the General Skills ++ panel.
+* [PRIVACY.md](PRIVACY.md): privacy policy (data stays in your browser).
+* [store/](store/LISTING.md): Chrome Web Store listing and submission checklist.
+* Installation: [English](documentation/INSTALL-en.md) · [Español](documentation/INSTALL-es.md).
