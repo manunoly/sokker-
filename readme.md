@@ -19,28 +19,45 @@ Sokker++ está construido siguiendo las mejores prácticas de **ECMAScript (ES20
 **Reglas del Repositorio:**
 1.  **Cero Clases (`class`):** El estado se encapsula utilizando cierres (*closures*) y módulos (*ESM*).
 2.  **Cero Dependencias (Vanilla JS):** No React, no Chart.js, no librerías de estado. Todo se resuelve con APIs nativas del navegador (IndexedDB, Canvas, Fetch, MutationObserver).
-3.  **Separación de Efectos (Side-Effects):** * La manipulación del DOM (`ui.js`, `observer.js`) está aislada.
-    * Las peticiones de red (`api.js`) son funciones puramente asíncronas.
-    * La persistencia (`repository.js`) abstrae IndexedDB sin exponer su API interna.
+3.  **Separación de Efectos (Side-Effects):** * La manipulación del DOM (`ui.ts`, `observer.ts`) está aislada.
+    * Las peticiones de red (`api.ts`) son funciones puramente asíncronas.
+    * La persistencia (`repository.ts`) abstrae IndexedDB sin exponer su API interna.
 
 ## 📁 Estructura del Proyecto
 
 El código fuente está dividido para maximizar la testabilidad y la separación de responsabilidades:
 
 ```text
-sokker-talent-tracker/
+sokker-plus-plus/
 ├── manifest.json              # Configuración Manifest V3
 ├── popup/                     # UI de la extensión (Import/Export/Sync manual)
 └── src/
     ├── content/               # Interacción con el DOM (Side Effects)
-    │   ├── main.js            # Entry point del Content Script
-    │   ├── observer.js        # MutationObserver para la SPA de Sokker
-    │   ├── ui.js              # Mutaciones visuales de la tabla
-    │   └── tooltip.js         # Lógica de los tooltips flotantes
+    │   ├── main.ts            # Entry point del Content Script
+    │   ├── observer.ts        # MutationObserver para la SPA de Sokker
+    │   ├── ui.ts              # Mutaciones visuales de la tabla
+    │   ├── tooltip.ts         # Lógica de los tooltips flotantes
+    │   └── i18n.ts            # Textos traducidos
     ├── core/                  # Lógica de Negocio y Datos
-    │   ├── api.js             # Fetchers puros hacia api.sokker.org
-    │   ├── repository.js      # Wrapper funcional de IndexedDB (Closures)
-    │   └── sync.js            # Orquestador: compara semanas y decide el fetch
+    │   ├── api.ts             # Fetchers puros hacia api.sokker.org
+    │   ├── repository.ts      # Wrapper funcional de IndexedDB (Closures)
+    │   ├── sync.ts            # Orquestador: compara semanas y decide el fetch
+    │   ├── gapDetector.ts     # Detección de semanas faltantes en la historia
+    │   └── trainingReport.ts  # Informe de entrenamiento por jugador
+    ├── types/                 # Tipos compartidos de TypeScript
     ├── ui-components/         # Presentación Pura
-    │   └── canvas.js          # Función pura para dibujar la gráfica (Canvas API)
-    └── utils/                 # Utilidades (JSON a Blob, etc.)
+    │   └── canvas.ts          # Función pura para dibujar la gráfica (Canvas API)
+    └── utils/                 # Utilidades
+        ├── scheduleIdle.ts    # Planificación de trabajo en tiempo ocioso
+        └── escapeHtml.ts      # Escapado de valores renderizados como HTML
+```
+
+## 🧑‍💻 Desarrollo
+
+```bash
+npm ci            # instalar dependencias
+npm run dev       # build en modo watch
+npm run build     # genera dist/ (cargar como "unpacked" en chrome://extensions)
+npx vitest run    # tests
+npx tsc --noEmit  # typecheck
+```

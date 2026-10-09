@@ -1,8 +1,7 @@
 {
-  "name": "sokkerai",
-  "version": "1.0.0",
-  "description": "Sokker++ es una extensión ultraligera para Google Chrome diseñada para inyectar analíticas avanzadas, seguimiento de habilidades y estimación de talento directamente en la interfaz de [Sokker.org](https://sokker.org).",
-  "main": "index.js",
+  "name": "sokker-plus-plus",
+  "version": "0.1.0",
+  "description": "Sokker++ Chrome extension",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
