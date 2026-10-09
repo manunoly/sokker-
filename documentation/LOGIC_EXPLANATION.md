@@ -59,3 +59,7 @@ The extension compares a "Current" value against a "Previous" value. The selecti
 ### **Display Logic:**
 -   **English Interface**: The arrow is appended **inside** the skill link tag (e.g., `<a>Stamina ▲</a>`) to ensure it flows with the text.
 -   **Spanish Interface**: The arrow is appended to the table cell (`td`), positioned after the text.
+
+## 4. Talent Summary (`src/core/talent.ts`)
+
+The direct-training counters and talent estimate shown above the **General Skills ++** table are documented (rules R1–R8, presentation, limitations) in [TALENT_SUMMARY.md](TALENT_SUMMARY.md).
