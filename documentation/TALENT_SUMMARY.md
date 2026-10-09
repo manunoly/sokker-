@@ -30,7 +30,7 @@ Una semana cuenta como **entreno directo** para la skill X si y solo si se cumpl
 | Efectividad | `training.intensity >= 50` |
 
 - Los **minutos jugados no cuentan**: un jugador con 0 minutos puede recibir el 50 % del entreno en la intensidad, y eso es válido.
-- Las semanas sin `training` (entradas *carry-over* o *roster-fallback*) no cuentan.
+- Las semanas *carry-over* (sin `training`) no suman entrenos directos, pero son semanas conocidas: no invalidan el tramo.
 - Las semanas sin datos de entreno que no son *carry-over* (legacy, anteriores a 2026-04-15) son "desconocidas": no suman directos y hacen el tramo incompleto. Las *carry-over* son conocidas (sin informe = 0 directos).
 - Una semana que no cumple las condiciones no suma, pero tampoco reinicia el contador.
 
