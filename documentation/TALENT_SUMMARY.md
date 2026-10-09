@@ -5,7 +5,9 @@ Bloque que aparece encima de la tabla del panel **General Skills ++** (history t
 - Cálculo: `src/core/talent.ts` → `computeTalentSummary(history)` (función pura, sin DOM ni red).
 - Render: `src/content/tooltip.ts` → `renderTalentSummary(summary)`.
 - Tests: `src/core/talent.test.ts`, `src/content/tooltip.test.ts`.
-- Datos: el historial semanal ya guardado en IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`). No hace llamadas nuevas a la API.
+- Datos: el historial semanal ya guardado en IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`, `source`). No hace llamadas nuevas a la API.
+- Historial: la sincronización rellena hasta 25 semanas la primera vez; después el historial crece sin límite. Los datos de entreno (tipo/skill/intensidad) solo existen para semanas guardadas desde 2026-04-15; las anteriores tienen skills pero no entreno.
+- `computeTalentSummary` espera como máximo una entrada por semana (el llamador deduplica).
 
 ## Conceptos de Sokker
 
@@ -29,6 +31,7 @@ Una semana cuenta como **entreno directo** para la skill X si y solo si se cumpl
 
 - Los **minutos jugados no cuentan**: un jugador con 0 minutos puede recibir el 50 % del entreno en la intensidad, y eso es válido.
 - Las semanas sin `training` (entradas *carry-over* o *roster-fallback*) no cuentan.
+- Las semanas sin datos de entreno que no son *carry-over* (legacy, anteriores a 2026-04-15) son "desconocidas": no suman directos y hacen el tramo incompleto. Las *carry-over* son conocidas (sin informe = 0 directos).
 - Una semana que no cumple las condiciones no suma, pero tampoco reinicia el contador.
 
 ### R2 — Subida (pop)
@@ -37,6 +40,7 @@ Hay **subida** de la skill X en la semana W cuando `skills[X]` de W es mayor que
 
 - El valor de W ya incluye el entreno de W. Por eso, si W fue un entreno directo, ese entreno cuenta para el tramo que termina en esa subida.
 - Es la misma detección que pinta en verde las celdas de la tabla.
+- Una bajada no es una subida y no reinicia el contador.
 
 ### R3 — Reinicio del contador
 
@@ -46,7 +50,7 @@ Hay **subida** de la skill X en la semana W cuando `skills[X]` de W es mayor que
 
 `sinceLastPop` = entrenos directos acumulados desde la última subida de esa skill.
 
-- Si no hay ninguna subida de esa skill en el historial, el contador es un mínimo y se muestra como `≥ N`, porque el historial solo cubre unas 25 semanas.
+- Se muestra `≥ N` (el contador es un mínimo) cuando no se ha observado ninguna subida, o cuando hay una semana con datos de entreno desconocidos desde la última subida.
 
 ### R5 — Tramos completos
 
@@ -54,6 +58,8 @@ Un **tramo** es el número de entrenos directos entre dos subidas consecutivas o
 
 - El tramo anterior a la **primera** subida observada es incompleto (no se sabe cuándo empezó) y **no se usa**.
 - Los tramos con **0 entrenos directos** (subida solo por GT) **no se usan** para el talento, para no rebajarlo artificialmente.
+- Los tramos que contienen una semana con datos de entreno desconocidos (legacy) **no se usan**.
+- Los tramos que contienen una bajada de la skill **no se usan** (bajar y recuperar no cuenta como un nivel completo).
 
 ### R6 — Talento por skill
 
@@ -82,11 +88,11 @@ Un **tramo** es el número de entrenos directos entre dos subidas consecutivas o
 | Elemento | Significado |
 |---|---|
 | `2 / ~5` | contador (R4) / talento de la skill (R6) |
-| `≥ 0` | sin subida en el historial: el contador es un mínimo |
+| `≥ 0` | el contador es un mínimo (R4): sin subida observada, o con semanas de entreno desconocido desde la última subida |
 | `?` | talento desconocido (no hay tramos completos) |
 | Barra `■□` | progreso del contador hacia el talento de la skill. Si la skill no tiene talento propio, usa el global (R7). Si no hay ninguno, no se pinta. Se redondea al entero más cercano. |
 | `last pop wk W · after N` | semana de la última subida y entrenos directos del tramo que terminó en ella (se omite `after` si fue la primera subida observada) |
-| `▲?` | subida probable: el contador ya alcanzó el talento estimado |
+| `▲?` | el contador alcanzó el tamaño de la barra (talento de la skill, o el talento global cuando la skill no tiene) |
 | `Est. talent ≈ X` | talento global del jugador (R7) |
 
 - El texto del panel está en inglés, como el resto del tooltip.
@@ -94,6 +100,6 @@ Un **tramo** es el número de entrenos directos entre dos subidas consecutivas o
 
 ## Limitaciones conocidas
 
-- El historial cubre como máximo ~25 semanas. Con poco historial, el talento será `?` o se basará en pocos tramos.
+- Las semanas legacy (anteriores a 2026-04-15) no tienen datos de entreno y no se vuelven a descargar: los tramos que las cruzan se excluyen y los contadores pueden ser un mínimo. Con poco historial útil, el talento será `?` o se basará en pocos tramos.
 - El talento real cambia con la edad: una media de tramos antiguos puede sobrestimar la velocidad de un jugador que ha envejecido.
 - Si el historial tiene semanas faltantes rellenadas como *carry-over*, esas semanas no suman entrenos directos. El contador puede quedar por debajo del real.

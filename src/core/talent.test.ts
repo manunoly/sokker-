@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeTalentSummary, TalentSkill, TalentSummary } from './talent';
-import { Skills, TrainingReport } from '../types/index';
+import { PlayerHistoryEntry, Skills, TrainingReport } from '../types/index';
 
 const BASE: Skills = {
     stamina: 10, keeper: 1, playmaking: 10, passing: 10, technique: 10, defending: 10,
@@ -13,7 +13,13 @@ const wk = (week: number, skills: Partial<Skills>, training?: Partial<TrainingRe
     training: training
         ? ({ kind: 'individual', skill: 'pace', position: 'MID', intensity: 100, minutes: 90, ...training } as TrainingReport)
         : undefined,
+    source: 'training' as PlayerHistoryEntry['source'],
 });
+
+// Known week without training (carry-over: no report means 0 directs).
+const co = (week: number, skills: Partial<Skills>) => ({ ...wk(week, skills), source: 'carried-over' as PlayerHistoryEntry['source'] });
+// Legacy week (stored before training reports existed): no training, not carry-over.
+const legacy = (week: number, skills: Partial<Skills>) => ({ ...wk(week, skills), source: 'training' as PlayerHistoryEntry['source'] });
 
 const row = (s: TalentSummary, skill: TalentSkill) => s.rows.find((r) => r.skill === skill)!;
 
@@ -25,7 +31,7 @@ describe('computeTalentSummary', () => {
             wk(3, {}, { skill: 'passing' }),                // other skill
             wk(4, {}, { intensity: 49 }),                   // too weak
             wk(5, {}, { intensity: 50, minutes: 0 }),       // direct
-            wk(6, {}),                                      // no training (carry-over)
+            co(6, {}),                                      // no training (carry-over)
         ]);
         expect(row(s, 'pace')).toMatchObject({ sinceLastPop: 2, hasPop: false, lastPopWeek: null, talent: null });
         expect(row(s, 'passing').sinceLastPop).toBe(1);
@@ -38,7 +44,7 @@ describe('computeTalentSummary', () => {
             wk(7, { pace: 12 }, {}), wk(8, { pace: 12 }, {}),
         ];
         const s = computeTalentSummary([...history].reverse());
-        expect(row(s, 'pace')).toEqual({ skill: 'pace', sinceLastPop: 2, hasPop: true, lastPopWeek: 6, lastPopAfter: 4, talent: 4 });
+        expect(row(s, 'pace')).toEqual({ skill: 'pace', sinceLastPop: 2, hasPop: true, lastPopWeek: 6, lastPopAfter: 4, talent: 4, exact: true });
     });
 
     it('resets on a GT-only pop without lowering talent', () => {
@@ -54,8 +60,8 @@ describe('computeTalentSummary', () => {
 
     it('computes overall talent across skills weighted by interval', () => {
         const s = computeTalentSummary([
-            wk(1, { pace: 10, playmaking: 10 }),
-            wk(2, { pace: 11, playmaking: 11 }),                                         // first pops
+            co(1, { pace: 10, playmaking: 10 }),
+            co(2, { pace: 11, playmaking: 11 }),                                         // first pops
             wk(3, { pace: 11, playmaking: 11 }, {}), wk(4, { pace: 11, playmaking: 11 }, {}),
             wk(5, { pace: 11, playmaking: 11 }, {}), wk(6, { pace: 12, playmaking: 11 }, {}), // pace: 4
             wk(7, { pace: 12, playmaking: 11 }, { skill: 'playmaking' }),
@@ -82,5 +88,42 @@ describe('computeTalentSummary', () => {
         const s = computeTalentSummary([]);
         expect(s.overallTalent).toBeNull();
         expect(s.rows.every((r) => r.sinceLastPop === 0 && r.talent === null && !r.hasPop)).toBe(true);
+    });
+
+    it('legacy week makes the interval incomplete', () => {
+        const base = [
+            legacy(1, { pace: 10 }), legacy(2, { pace: 11 }), legacy(3, { pace: 11 }),
+            wk(4, { pace: 11 }, {}), wk(5, { pace: 12 }, {}),
+        ];
+        expect(row(computeTalentSummary(base), 'pace')).toMatchObject({
+            talent: null, lastPopAfter: null, lastPopWeek: 5, sinceLastPop: 0, exact: true,
+        });
+        const more = [...base, wk(6, { pace: 12 }, {}), wk(7, { pace: 12 }, {}), wk(8, { pace: 13 }, {})];
+        expect(row(computeTalentSummary(more), 'pace')).toMatchObject({ talent: 3, lastPopAfter: 3, exact: true });
+    });
+
+    it('legacy week after the last pop makes the counter a minimum', () => {
+        const s = computeTalentSummary([
+            wk(1, { pace: 10 }, {}), wk(2, { pace: 11 }, {}), legacy(3, { pace: 11 }), wk(4, { pace: 11 }, {}),
+        ]);
+        expect(row(s, 'pace')).toMatchObject({ sinceLastPop: 1, exact: false, hasPop: true });
+    });
+
+    it('carry-over week is known and keeps the interval complete', () => {
+        const s = computeTalentSummary([
+            wk(1, { pace: 10 }, {}), wk(2, { pace: 11 }, {}), co(3, { pace: 11 }),
+            wk(4, { pace: 11 }, {}), wk(5, { pace: 12 }, {}),
+        ]);
+        expect(row(s, 'pace')).toMatchObject({ talent: 2, exact: true });
+    });
+
+    it('drop then recovery is excluded and a drop does not reset the counter', () => {
+        const history = [
+            wk(1, { pace: 12 }, {}), wk(2, { pace: 13 }, {}), wk(3, { pace: 13 }, {}),
+            wk(4, { pace: 12 }, {}), wk(5, { pace: 12 }, {}),
+        ];
+        expect(row(computeTalentSummary(history), 'pace').sinceLastPop).toBe(3);
+        const s = computeTalentSummary([...history, wk(6, { pace: 13 }, {})]);
+        expect(row(s, 'pace')).toMatchObject({ talent: null, lastPopAfter: null, lastPopWeek: 6 });
     });
 });

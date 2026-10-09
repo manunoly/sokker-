@@ -1,7 +1,7 @@
 import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
 import { escapeHtml } from '../utils/escapeHtml';
-import { computeTalentSummary, TalentSkill, TalentSummary } from '../core/talent';
+import { computeTalentSummary, MIN_DIRECT_INTENSITY, TalentSkill, TalentSummary } from '../core/talent';
 import { TrainingKind, TrainingPosition, TrainingReport } from '../types/index';
 
 let tooltip: HTMLElement | null = null;
@@ -819,14 +819,14 @@ export function renderTalentSummary(summary: TalentSummary): string {
         const cells = target !== null ? Math.round(target) : 0;
         const filled = Math.min(r.sinceLastPop, cells);
         const bar = '■'.repeat(filled) + '□'.repeat(cells - filled);
-        const count = r.hasPop ? `${r.sinceLastPop}` : `≥ ${r.sinceLastPop}`;
+        const count = r.exact ? `${r.sinceLastPop}` : `≥ ${r.sinceLastPop}`;
         const talent = r.talent !== null ? `~${talentFormat.format(r.talent)}` : '?';
-        const soon = target !== null && r.sinceLastPop >= target ? '▲?' : '';
+        const soon = cells > 0 && r.sinceLastPop >= cells ? '▲?' : '';
         const detail = r.lastPopWeek === null
             ? 'no pop in history'
             : `last pop wk ${r.lastPopWeek}${r.lastPopAfter !== null ? ` · after ${r.lastPopAfter}` : ''}`;
         const label = TALENT_LABELS[r.skill];
-        return `<tr title="Advanced trainings (intensity ≥ 50%) since the last ${label} pop">`
+        return `<tr title="Advanced trainings (intensity ≥ ${MIN_DIRECT_INTENSITY}%) since the last ${label} pop">`
             + `<td style="padding:2px 6px;text-align:left;color:#fff;">${label}</td>`
             + `<td aria-hidden="true" style="padding:2px 6px;text-align:left;color:#8fbf8f;letter-spacing:1px;">${bar}</td>`
             + `<td style="padding:2px 6px;text-align:right;color:#fff;">${count} / ${talent}</td>`

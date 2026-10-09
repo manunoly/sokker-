@@ -190,7 +190,7 @@ describe('renderSkillAtPosCell', () => {
 });
 
 describe('renderTalentSummary', () => {
-    const base = { hasPop: true, lastPopWeek: 1176, lastPopAfter: 4 };
+    const base = { hasPop: true, exact: true, lastPopWeek: 1176, lastPopAfter: 4 };
 
     it('renders progress bar and soon marker when counter reaches talent', () => {
         const html = renderTalentSummary({
@@ -205,13 +205,31 @@ describe('renderTalentSummary', () => {
 
     it('shows ≥ and ? without bar when there is no pop and no talent', () => {
         const html = renderTalentSummary({
-            rows: [{ skill: 'technique', sinceLastPop: 1, hasPop: false, lastPopWeek: null, lastPopAfter: null, talent: null }],
+            rows: [{ skill: 'technique', sinceLastPop: 1, hasPop: false, exact: false, lastPopWeek: null, lastPopAfter: null, talent: null }],
             overallTalent: null,
         });
         expect(html).toContain('≥ 1 / ?');
         expect(html).toContain('no pop in history');
         expect(html).not.toContain('■');
         expect(html).not.toContain('▲?');
+    });
+
+    it('shows ≥ when the counter is not exact even with a pop', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'pace', sinceLastPop: 2, talent: 5, exact: false }],
+            overallTalent: 5,
+        } as TalentSummary);
+        expect(html).toContain('≥ 2 / ~5');
+    });
+
+    it('bar and soon marker agree on the rounded bar size', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'pace', sinceLastPop: 4, talent: 4.4 }],
+            overallTalent: 4.4,
+        } as TalentSummary);
+        expect(html).toContain('■■■■');
+        expect(html).not.toContain('□');
+        expect(html).toContain('▲?');
     });
 
     it('falls back to overall talent for the bar', () => {
