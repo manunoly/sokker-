@@ -17,7 +17,7 @@ export default defineConfig({
             plugins: [
                 copy({
                     targets: [
-                        { src: 'assets', dest: 'dist' }
+                        { src: 'assets/icons/icon-*.png', dest: 'dist/assets/icons' }
                     ],
                     hook: 'writeBundle' // Copy after bundle is written
                 })
