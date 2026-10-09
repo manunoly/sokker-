@@ -6,7 +6,7 @@ import { getAllData, restoreData, getLastSyncWeek, clearDatabase } from '../core
 
 async function main() {
     // Attempt auto-sync on load
-    syncData().then(res => { /* console.log('Auto Sync result:', res) */ }).catch(err => console.error(err));
+    syncData().catch(err => console.error(err));
 
     initObserver(processSquadTable, processPlayerPage, () => {
         reconcileGaps().catch((err) => console.warn('reconcileGaps on squad failed:', err));
@@ -48,9 +48,9 @@ async function main() {
         }
 
         if (request.action === 'CHECK_STATUS') {
-            getLastSyncWeek().then(week => {
-                sendResponse({ status: 'alive', lastWeek: week });
-            });
+            getLastSyncWeek()
+                .then(week => sendResponse({ status: 'alive', lastWeek: week }))
+                .catch(err => sendResponse({ status: 'error', message: err instanceof Error ? err.message : String(err) }));
             return true;
         }
 

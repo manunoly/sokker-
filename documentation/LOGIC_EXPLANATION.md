@@ -12,7 +12,7 @@ The synchronization process (`syncData`) ensures that the local database has up-
 3.  **Baseline Refresh**:
     -   If the `Last Synced Week` is older than the current week, it re-fetches data for that specific week. This ensures that any late-week training updates (e.g., typically Thursday/Friday) are captured for the previous week before moving forward.
 4.  **Gap Filling**:
-    -   The system calculates a range of weeks to sync, looking back up to **25 weeks**.
+    -   The system calculates a range of weeks to sync, looking back up to **30 weeks**. Past weeks that return no data are marked as checked (`{ week, empty: true }` in the `weeks` store) and are not requested again. Verified 2026-10-09: the Sokker API only returns the last 10 weeks; longer history accumulates while the extension stays installed.
     -   It iterates from the past to the present.
     -   **Current Week**: Always fetched to capture real-time changes.
     -   **Past Weeks**: Only fetched if they are missing from the local database.
@@ -59,3 +59,7 @@ The extension compares a "Current" value against a "Previous" value. The selecti
 ### **Display Logic:**
 -   **English Interface**: The arrow is appended **inside** the skill link tag (e.g., `<a>Stamina ▲</a>`) to ensure it flows with the text.
 -   **Spanish Interface**: The arrow is appended to the table cell (`td`), positioned after the text.
+
+## 4. Talent Summary (`src/core/talent.ts`)
+
+The direct-training counters and talent estimate shown above the **General Skills ++** table are documented (rules R1–R8, presentation, limitations) in [TALENT_SUMMARY.md](TALENT_SUMMARY.md).

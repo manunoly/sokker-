@@ -1,9 +1,9 @@
 import { fetchCurrentWeek, fetchTrainingData } from './api';
-import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced } from './repository';
+import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced, markWeekEmpty } from './repository';
 import { reconcileGaps } from './gapDetector';
 import { scheduleIdle } from '../utils/scheduleIdle';
 
-const MAX_WEEKS_TO_FETCH = 25;
+export const MAX_WEEKS_TO_FETCH = 30;
 
 interface SyncResult {
     status: 'synced' | 'up-to-date' | 'error';
@@ -23,8 +23,6 @@ export async function syncData(): Promise<SyncResult> {
         const currentWeek = await fetchCurrentWeek();
         const lastSyncWeek = await getLastSyncWeek();
 
-        // console.log(`Sync Check: Current Week ${currentWeek}, Last Synced ${lastSyncWeek}`);
-
         // Logic:
         // 1. We want to sync up to MAX_WEEKS_TO_FETCH weeks back from currentWeek.
         // 2. We do NOT want to overwrite or re-fetch weeks we already have (isWeekSynced).
@@ -33,11 +31,9 @@ export async function syncData(): Promise<SyncResult> {
         // 1. Refresh Last Stored Week (if it exists and is < currentWeek)
         // This ensures the baseline is up-to-date (e.g., Thursday update for previous week)
         if (lastSyncWeek && lastSyncWeek < currentWeek) {
-            // console.log(`Refreshing baseline week: ${lastSyncWeek}`);
             const baselineData = await fetchTrainingData(lastSyncWeek);
             if (baselineData && baselineData.length > 0) {
                 await saveWeekData(lastSyncWeek, baselineData);
-                // console.log(`Refreshed baseline week ${lastSyncWeek}`);
             }
         }
 
@@ -70,7 +66,9 @@ export async function syncData(): Promise<SyncResult> {
             const playersData = await fetchTrainingData(week);
             if (playersData && playersData.length > 0) {
                 await saveWeekData(week, playersData);
-                // console.log(`Synced week ${week}: ${playersData.length} players`);
+            } else if (week < currentWeek) {
+                // Past weeks never gain data later: remember them so we stop re-requesting them.
+                await markWeekEmpty(week);
             } else {
                 console.warn(`No data found for week ${week}`);
             }

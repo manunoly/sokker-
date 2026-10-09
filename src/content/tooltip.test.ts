@@ -1,6 +1,8 @@
 
 import { describe, it, expect } from 'vitest';
-import { prepareChartData } from './tooltip';
+import { formatHistoryRange, prepareChartData, renderSkillAtPosCell, renderTalentSummary } from './tooltip';
+import { TrainingReport } from '../types/index';
+import { TalentSummary } from '../core/talent';
 
 describe('prepareChartData', () => {
     // Helper to create history entry
@@ -147,5 +149,112 @@ describe('prepareChartData preserves source and injured metadata', () => {
         expect(w100?.source).toBe('training');
         expect(w101?.source).toBe('carried-over');
         expect(w101?.injured).toBe(true);
+    });
+});
+
+describe('renderSkillAtPosCell', () => {
+    it('escapes HTML coming from stored training data', () => {
+        const training = {
+            kind: 'individual',
+            skill: '<img src=x onerror=alert(1)>',
+            position: '<b>',
+            intensity: 90,
+            minutes: 90,
+        } as unknown as TrainingReport;
+
+        const html = renderSkillAtPosCell(training);
+
+        expect(html).not.toContain('<img');
+        expect(html).not.toContain('<b>');
+        expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    });
+
+    it('renders the position badge before the skill', () => {
+        const training: TrainingReport = { kind: 'individual', skill: 'passing', position: 'MID', intensity: 90, minutes: 90 };
+
+        const html = renderSkillAtPosCell(training);
+
+        expect(html.indexOf('MID')).toBeGreaterThan(-1);
+        expect(html.indexOf('MID')).toBeLessThan(html.indexOf('passing'));
+    });
+
+    it('keeps a same-width badge slot when there is no position, so skills stay aligned', () => {
+        const withPos = renderSkillAtPosCell({ kind: 'individual', skill: 'passing', position: 'MID', intensity: 90, minutes: 90 });
+        const withoutPos = renderSkillAtPosCell({ kind: 'formation', skill: 'general', position: null, intensity: 60, minutes: 90 });
+
+        const slotWidth = /width:\s*(\d+)px/;
+        expect(withoutPos.match(slotWidth)?.[1]).toBeDefined();
+        expect(withoutPos.match(slotWidth)?.[1]).toBe(withPos.match(slotWidth)?.[1]);
+        expect(withoutPos).toContain('general');
+    });
+});
+
+describe('renderTalentSummary', () => {
+    const base = { hasPop: true, exact: true, lastPopWeek: 1176, lastPopAfter: 4 };
+
+    it('renders progress bar and soon marker when counter reaches talent', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'pace', sinceLastPop: 4, talent: 4 }],
+            overallTalent: 4,
+        } as TalentSummary);
+        expect(html).toContain('Pc');
+        expect(html).toContain('■■■■');
+        expect(html).toContain('▲?');
+        expect(html).toContain('last pop wk 1176 · after 4');
+    });
+
+    it('shows ≥ and ? without bar when there is no pop and no talent', () => {
+        const html = renderTalentSummary({
+            rows: [{ skill: 'technique', sinceLastPop: 1, hasPop: false, exact: false, lastPopWeek: null, lastPopAfter: null, talent: null }],
+            overallTalent: null,
+        });
+        expect(html).toContain('≥ 1 / ?');
+        expect(html).toContain('no pop in history');
+        expect(html).not.toContain('■');
+        expect(html).not.toContain('▲?');
+    });
+
+    it('shows ≥ when the counter is not exact even with a pop', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'pace', sinceLastPop: 2, talent: 5, exact: false }],
+            overallTalent: 5,
+        } as TalentSummary);
+        expect(html).toContain('≥ 2 / ~5');
+    });
+
+    it('bar and soon marker agree on the rounded bar size', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'pace', sinceLastPop: 4, talent: 4.4 }],
+            overallTalent: 4.4,
+        } as TalentSummary);
+        expect(html).toContain('■■■■');
+        expect(html).not.toContain('□');
+        expect(html).toContain('▲?');
+    });
+
+    it('falls back to overall talent for the bar', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'passing', sinceLastPop: 2, talent: null }],
+            overallTalent: 5,
+        } as TalentSummary);
+        expect(html).toContain('■■□□□');
+        expect(html).toContain('2 / ?');
+        expect(html).toContain('Est. talent ≈ 5');
+    });
+});
+
+describe('formatHistoryRange', () => {
+    const weeks = (...ws: number[]) => ws.map((week) => ({ week }));
+
+    it('shows how many weeks back the data goes, from oldest to newest', () => {
+        expect(formatHistoryRange(weeks(1184, 1180, 1175, 1179))).toBe('History: 10 wks (1175–1184)');
+    });
+
+    it('uses singular for a single week', () => {
+        expect(formatHistoryRange(weeks(1184))).toBe('History: 1 wk (1184)');
+    });
+
+    it('returns empty text when there is no history', () => {
+        expect(formatHistoryRange([])).toBe('');
     });
 });

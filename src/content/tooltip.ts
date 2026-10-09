@@ -1,6 +1,7 @@
 import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
-import { formatSkillAtPosition } from '../core/trainingReport';
+import { escapeHtml } from '../utils/escapeHtml';
+import { computeTalentSummary, MIN_DIRECT_INTENSITY, TalentSkill, TalentSummary } from '../core/talent';
 import { TrainingKind, TrainingPosition, TrainingReport } from '../types/index';
 
 let tooltip: HTMLElement | null = null;
@@ -428,12 +429,13 @@ export async function showHistoryTooltip(
         <h3 style="margin: 0 0 10px 0; font-size: 14px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 5px; color: #fff;">
             General Skills ++
         </h3>
+        ${renderTalentSummary(computeTalentSummary(rows))}
         <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 420px;">
             <thead>
                 <tr style="border-bottom: 1px solid #555;">
                     <th style="padding: 6px 4px;" title="Source of the data">⚑</th>
                     <th style="padding: 6px 4px;" title="Training kind: 🎯 advanced, 📋 formation, — none">Kind</th>
-                    <th style="padding: 6px 4px; text-align: left;" title="Skill trained at assigned position">Skill @ Pos</th>
+                    <th style="padding: 6px 4px; text-align: left;" title="Assigned position and trained skill">Pos / Skill</th>
                     <th style="padding: 6px 4px;" title="Training effectiveness (intensity)">Eff</th>
                     <th style="padding: 6px 4px;">Week</th>
                     ${skillsOrder.map(s => `<th style="padding: 6px 4px;">${s.label}</th>`).join('')}
@@ -476,7 +478,7 @@ export async function showHistoryTooltip(
         html += `<td style="padding: 6px 4px; color: #fff; background-color: ${rowBgColor};" title="${kindTitle}">${kindIcon}</td>`;
         html += `<td style="padding: 6px 4px; text-align: left; color: #fff; background-color: ${rowBgColor};">${skillAtPos}</td>`;
         html += `<td style="padding: 6px 4px; color: #fff; background-color: ${eff.bg};">${eff.text}</td>`;
-        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${row.week}</td>`;
+        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${escapeHtml(row.week)}</td>`;
 
         skillsOrder.forEach(skill => {
             const val = row.skills[skill.key];
@@ -492,7 +494,7 @@ export async function showHistoryTooltip(
                 }
             }
 
-            html += `<td style="padding: 6px 4px; background-color: ${bgColor}; color: ${color};">${val !== undefined ? val : '-'}</td>`;
+            html += `<td style="padding: 6px 4px; background-color: ${bgColor}; color: ${color};">${val !== undefined ? escapeHtml(val) : '-'}</td>`;
         });
 
         html += `</tr>`;
@@ -502,7 +504,8 @@ export async function showHistoryTooltip(
 
     // Add Copy/Export button
     html += `
-        <div style="margin-top: 10px; text-align: right;">
+        <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span title="Oldest and newest week stored for this player" style="color: #888; font-size: 10px; font-variant-numeric: tabular-nums;"><span aria-hidden="true">ⓘ</span> ${formatHistoryRange(rows)}</span>
             <button id="sokkerpp-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
         </div>
     `;
@@ -806,15 +809,64 @@ function intensityCellStyle(training: TrainingReport | undefined, rowBgColor: st
     return { text: `${i}%`, bg: '#6e2a2a' };
 }
 
-function renderSkillAtPosCell(training: TrainingReport | undefined): string {
+const TALENT_LABELS: Record<TalentSkill, string> = {
+    keeper: 'Kp', pace: 'Pc', technique: 'Tec', passing: 'Pas', defending: 'Def', playmaking: 'Plm', striker: 'Str',
+};
+const talentFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+
+export function renderTalentSummary(summary: TalentSummary): string {
+    const rowsHtml = summary.rows.map((r) => {
+        const target = r.talent ?? summary.overallTalent;
+        const cells = target !== null ? Math.round(target) : 0;
+        const filled = Math.min(r.sinceLastPop, cells);
+        const bar = '■'.repeat(filled) + '□'.repeat(cells - filled);
+        const count = r.exact ? `${r.sinceLastPop}` : `≥ ${r.sinceLastPop}`;
+        const talent = r.talent !== null ? `~${talentFormat.format(r.talent)}` : '?';
+        const soon = cells > 0 && r.sinceLastPop >= cells ? '▲?' : '';
+        const detail = r.lastPopWeek === null
+            ? 'no pop in history'
+            : `last pop wk ${r.lastPopWeek}${r.lastPopAfter !== null ? ` · after ${r.lastPopAfter}` : ''}`;
+        const label = TALENT_LABELS[r.skill];
+        return `<tr title="Advanced trainings (intensity ≥ ${MIN_DIRECT_INTENSITY}%) since the last ${label} pop">`
+            + `<td style="padding:2px 6px;text-align:left;color:#fff;">${label}</td>`
+            + `<td aria-hidden="true" style="padding:2px 6px;text-align:left;color:#8fbf8f;letter-spacing:1px;">${bar}</td>`
+            + `<td style="padding:2px 6px;text-align:right;color:#fff;">${count} / ${talent}</td>`
+            + `<td style="padding:2px 6px;text-align:left;color:#aaa;">${detail}</td>`
+            + `<td style="padding:2px 6px;color:#e0c060;">${soon}</td>`
+            + `</tr>`;
+    }).join('');
+    const overall = summary.overallTalent !== null ? `≈ ${talentFormat.format(summary.overallTalent)}` : '?';
+    return `<div style="margin:0 0 10px 0;padding:6px 8px;background:#2a2a2a;border:1px solid #444;border-radius:4px;font-size:11px;font-variant-numeric:tabular-nums;">`
+        + `<div style="display:flex;justify-content:space-between;color:#aaa;margin-bottom:4px;">`
+        + `<span>DIRECT TRAINING SINCE LAST POP</span>`
+        + `<span title="Average advanced trainings per pop, all skills">Est. talent ${overall}</span>`
+        + `</div>`
+        + `<table style="border-collapse:collapse;width:100%;">${rowsHtml}</table>`
+        + `</div>`;
+}
+
+/**
+ * Footer text for the history table: how far back the stored data goes.
+ * Counts the span from oldest to newest week (gaps included).
+ */
+export function formatHistoryRange(rows: Array<{ week: number }>): string {
+    if (rows.length === 0) return '';
+    const weeks = rows.map((r) => r.week);
+    const oldest = Math.min(...weeks);
+    const newest = Math.max(...weeks);
+    const span = newest - oldest + 1;
+    const range = oldest === newest ? `${oldest}` : `${oldest}–${newest}`;
+    return `History: ${span} ${span === 1 ? 'wk' : 'wks'} (${range})`;
+}
+
+export function renderSkillAtPosCell(training: TrainingReport | undefined): string {
     if (!training) {
         return '<span style="color:#888;">—</span>';
     }
-    const label = formatSkillAtPosition(training);
-    if (!training.position) {
-        return `<span>${label}</span>`;
-    }
-    const [skillPart] = label.split(' @ ');
-    const bg = positionBadgeColor(training.position);
-    return `${skillPart} <span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${bg};color:#fff;font-size:10px;margin-left:4px;">${training.position}</span>`;
+    // Fixed-width badge slot (empty when there is no position) keeps skill names left-aligned across rows.
+    const badgeStyle = 'display:inline-block;box-sizing:border-box;width:32px;text-align:center;padding:1px 0;border-radius:3px;color:#fff;font-size:10px;margin-right:6px;';
+    const badge = training.position
+        ? `<span style="${badgeStyle}background:${positionBadgeColor(training.position)};">${escapeHtml(training.position)}</span>`
+        : `<span style="${badgeStyle}"></span>`;
+    return `${badge}<span>${escapeHtml(training.skill)}</span>`;
 }
