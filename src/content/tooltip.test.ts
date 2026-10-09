@@ -167,4 +167,23 @@ describe('renderSkillAtPosCell', () => {
         expect(html).not.toContain('<b>');
         expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
     });
+
+    it('renders the position badge before the skill', () => {
+        const training: TrainingReport = { kind: 'individual', skill: 'passing', position: 'MID', intensity: 90, minutes: 90 };
+
+        const html = renderSkillAtPosCell(training);
+
+        expect(html.indexOf('MID')).toBeGreaterThan(-1);
+        expect(html.indexOf('MID')).toBeLessThan(html.indexOf('passing'));
+    });
+
+    it('keeps a same-width badge slot when there is no position, so skills stay aligned', () => {
+        const withPos = renderSkillAtPosCell({ kind: 'individual', skill: 'passing', position: 'MID', intensity: 90, minutes: 90 });
+        const withoutPos = renderSkillAtPosCell({ kind: 'formation', skill: 'general', position: null, intensity: 60, minutes: 90 });
+
+        const slotWidth = /width:\s*(\d+)px/;
+        expect(withoutPos.match(slotWidth)?.[1]).toBeDefined();
+        expect(withoutPos.match(slotWidth)?.[1]).toBe(withPos.match(slotWidth)?.[1]);
+        expect(withoutPos).toContain('general');
+    });
 });

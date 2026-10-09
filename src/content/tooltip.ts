@@ -1,6 +1,5 @@
 import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
-import { formatSkillAtPosition } from '../core/trainingReport';
 import { escapeHtml } from '../utils/escapeHtml';
 import { TrainingKind, TrainingPosition, TrainingReport } from '../types/index';
 
@@ -434,7 +433,7 @@ export async function showHistoryTooltip(
                 <tr style="border-bottom: 1px solid #555;">
                     <th style="padding: 6px 4px;" title="Source of the data">⚑</th>
                     <th style="padding: 6px 4px;" title="Training kind: 🎯 advanced, 📋 formation, — none">Kind</th>
-                    <th style="padding: 6px 4px; text-align: left;" title="Skill trained at assigned position">Skill @ Pos</th>
+                    <th style="padding: 6px 4px; text-align: left;" title="Assigned position and trained skill">Pos / Skill</th>
                     <th style="padding: 6px 4px;" title="Training effectiveness (intensity)">Eff</th>
                     <th style="padding: 6px 4px;">Week</th>
                     ${skillsOrder.map(s => `<th style="padding: 6px 4px;">${s.label}</th>`).join('')}
@@ -811,11 +810,10 @@ export function renderSkillAtPosCell(training: TrainingReport | undefined): stri
     if (!training) {
         return '<span style="color:#888;">—</span>';
     }
-    const label = formatSkillAtPosition(training);
-    if (!training.position) {
-        return `<span>${escapeHtml(label)}</span>`;
-    }
-    const [skillPart] = label.split(' @ ');
-    const bg = positionBadgeColor(training.position);
-    return `${escapeHtml(skillPart)} <span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${bg};color:#fff;font-size:10px;margin-left:4px;">${escapeHtml(training.position)}</span>`;
+    // Fixed-width badge slot (empty when there is no position) keeps skill names left-aligned across rows.
+    const badgeStyle = 'display:inline-block;box-sizing:border-box;width:32px;text-align:center;padding:1px 0;border-radius:3px;color:#fff;font-size:10px;margin-right:6px;';
+    const badge = training.position
+        ? `<span style="${badgeStyle}background:${positionBadgeColor(training.position)};">${escapeHtml(training.position)}</span>`
+        : `<span style="${badgeStyle}"></span>`;
+    return `${badge}<span>${escapeHtml(training.skill)}</span>`;
 }
