@@ -72,12 +72,37 @@ function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function isValidBackupData(data: unknown): data is { players?: unknown[]; metadata?: unknown[]; weeks?: unknown[] } {
-    if (!isObject(data)) return false;
-    if (data.players !== undefined && !Array.isArray(data.players)) return false;
-    if (data.metadata !== undefined && !Array.isArray(data.metadata)) return false;
-    if (data.weeks !== undefined && !Array.isArray(data.weeks)) return false;
-    return true;
+export interface BackupData {
+    players?: PlayerData[];
+    metadata?: Array<{ key: string } & Record<string, unknown>>;
+    weeks?: Array<{ week: number } & Record<string, unknown>>;
+}
+
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+function isValidHistoryEntry(value: unknown): boolean {
+    return isObject(value)
+        && isFiniteNumber(value.week)
+        && isObject(value.skills)
+        && Object.values(value.skills).every(isFiniteNumber);
+}
+
+function isValidPlayerRecord(value: unknown): boolean {
+    return isObject(value)
+        && isFiniteNumber(value.id)
+        && typeof value.name === 'string'
+        && Array.isArray(value.history)
+        && value.history.every(isValidHistoryEntry);
+}
+
+const isArrayOf = (value: unknown, check: (item: unknown) => boolean): boolean =>
+    value === undefined || (Array.isArray(value) && value.every(check));
+
+export function isValidBackupData(data: unknown): data is BackupData {
+    return isObject(data)
+        && isArrayOf(data.players, isValidPlayerRecord)
+        && isArrayOf(data.metadata, (m) => isObject(m) && typeof m.key === 'string')
+        && isArrayOf(data.weeks, (w) => isObject(w) && isFiniteNumber(w.week));
 }
 
 /**
@@ -308,19 +333,13 @@ export const restoreData = async (data: unknown): Promise<void> => {
         const transaction = db.transaction([STORE_PLAYERS, STORE_META, STORE_WEEKS], 'readwrite');
 
         const playerStore = transaction.objectStore(STORE_PLAYERS);
-        if (data.players) {
-            data.players.forEach((p: any) => playerStore.put(p));
-        }
+        data.players?.forEach((p) => playerStore.put(p));
 
         const metaStore = transaction.objectStore(STORE_META);
-        if (data.metadata) {
-            data.metadata.forEach((m: any) => metaStore.put(m));
-        }
+        data.metadata?.forEach((m) => metaStore.put(m));
 
         const weekStore = transaction.objectStore(STORE_WEEKS);
-        if (data.weeks) {
-            data.weeks.forEach((w: any) => weekStore.put(w));
-        }
+        data.weeks?.forEach((w) => weekStore.put(w));
 
         transaction.oncomplete = () => resolve();
         transaction.onerror = (e) => reject((e.target as IDBTransaction).error);

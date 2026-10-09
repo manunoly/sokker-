@@ -207,4 +207,24 @@ describe('isValidBackupData', () => {
         expect(isValidBackupData({ players: [], metadata: [], weeks: [] })).toBe(true);
         expect(isValidBackupData({ players: {} })).toBe(false);
     });
+    it('accepts a player record produced by upsertPlayerWeekRecord', () => {
+        const player = upsertPlayerWeekRecord(undefined, 1, 'Test', makeWeekStats(10, 5));
+        expect(isValidBackupData({ players: [player], metadata: [{ key: 'lastSyncWeek', value: 10 }], weeks: [{ week: 10 }] })).toBe(true);
+    });
+
+    it('rejects players whose skills are not numbers', () => {
+        const player = upsertPlayerWeekRecord(undefined, 1, 'Test', makeWeekStats(10, 5));
+        const bad = { ...player, history: [{ ...player.history[0], skills: { ...player.history[0].skills, pace: '<img src=x>' } }] };
+        expect(isValidBackupData({ players: [bad] })).toBe(false);
+    });
+
+    it('rejects players without numeric id or history array', () => {
+        expect(isValidBackupData({ players: [{ id: '1', name: 'x', history: [] }] })).toBe(false);
+        expect(isValidBackupData({ players: [{ id: 1, name: 'x' }] })).toBe(false);
+    });
+
+    it('rejects metadata without key and weeks without numeric week', () => {
+        expect(isValidBackupData({ metadata: [{ value: 1 }] })).toBe(false);
+        expect(isValidBackupData({ weeks: [{ week: 'x' }] })).toBe(false);
+    });
 });
