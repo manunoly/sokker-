@@ -128,3 +128,6 @@ extract_skills.js
 extract_skills.cjs
 requerimientos.text
 estructura-directorio
+
+# Chrome Web Store package (npm run package)
+store/*.zip

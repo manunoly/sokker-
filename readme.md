@@ -66,4 +66,6 @@ npx tsc --noEmit  # typecheck
 
 * [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sincronización, gráficas y detección de subidas.
 * [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): reglas del resumen de talento (entreno directo sin subir) del panel General Skills ++.
+* [PRIVACY.md](PRIVACY.md): política de privacidad (datos solo en tu navegador).
+* [store/](store/LISTING.md): ficha y checklist de envío a la Chrome Web Store.
 * Instalación: [español](documentation/INSTALL-es.md) · [English](documentation/INSTALL-en.md).

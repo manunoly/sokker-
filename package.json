@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build && node --eval \"const fs=require('node:fs');fs.copyFileSync('manifest.json','dist/manifest.json')\"",
-    "test": "vitest"
+    "test": "vitest",
+    "package": "npm run build && mkdir -p store && rm -f store/sokker-plus-plus.zip && cd dist && zip -qr ../store/sokker-plus-plus.zip . -x '.*'"
   },
   "keywords": [],
   "author": "",
