@@ -1,6 +1,7 @@
 import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
 import { escapeHtml } from '../utils/escapeHtml';
+import { computeTalentSummary, TalentSkill, TalentSummary } from '../core/talent';
 import { TrainingKind, TrainingPosition, TrainingReport } from '../types/index';
 
 let tooltip: HTMLElement | null = null;
@@ -428,6 +429,7 @@ export async function showHistoryTooltip(
         <h3 style="margin: 0 0 10px 0; font-size: 14px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 5px; color: #fff;">
             General Skills ++
         </h3>
+        ${renderTalentSummary(computeTalentSummary(rows))}
         <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 420px;">
             <thead>
                 <tr style="border-bottom: 1px solid #555;">
@@ -804,6 +806,42 @@ function intensityCellStyle(training: TrainingReport | undefined, rowBgColor: st
     if (i >= 80) return { text: `${i}%`, bg: '#2e5e32' };
     if (i >= 50) return { text: `${i}%`, bg: '#8a6d1c' };
     return { text: `${i}%`, bg: '#6e2a2a' };
+}
+
+const TALENT_LABELS: Record<TalentSkill, string> = {
+    keeper: 'Kp', pace: 'Pc', technique: 'Tec', passing: 'Pas', defending: 'Def', playmaking: 'Plm', striker: 'Str',
+};
+const talentFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+
+export function renderTalentSummary(summary: TalentSummary): string {
+    const rowsHtml = summary.rows.map((r) => {
+        const target = r.talent ?? summary.overallTalent;
+        const cells = target !== null ? Math.round(target) : 0;
+        const filled = Math.min(r.sinceLastPop, cells);
+        const bar = '■'.repeat(filled) + '□'.repeat(cells - filled);
+        const count = r.hasPop ? `${r.sinceLastPop}` : `≥ ${r.sinceLastPop}`;
+        const talent = r.talent !== null ? `~${talentFormat.format(r.talent)}` : '?';
+        const soon = target !== null && r.sinceLastPop >= target ? '▲?' : '';
+        const detail = r.lastPopWeek === null
+            ? 'no pop in history'
+            : `last pop wk ${r.lastPopWeek}${r.lastPopAfter !== null ? ` · after ${r.lastPopAfter}` : ''}`;
+        const label = TALENT_LABELS[r.skill];
+        return `<tr title="Advanced trainings (intensity ≥ 50%) since the last ${label} pop">`
+            + `<td style="padding:2px 6px;text-align:left;color:#fff;">${label}</td>`
+            + `<td aria-hidden="true" style="padding:2px 6px;text-align:left;color:#8fbf8f;letter-spacing:1px;">${bar}</td>`
+            + `<td style="padding:2px 6px;text-align:right;color:#fff;">${count} / ${talent}</td>`
+            + `<td style="padding:2px 6px;text-align:left;color:#aaa;">${detail}</td>`
+            + `<td style="padding:2px 6px;color:#e0c060;">${soon}</td>`
+            + `</tr>`;
+    }).join('');
+    const overall = summary.overallTalent !== null ? `≈ ${talentFormat.format(summary.overallTalent)}` : '?';
+    return `<div style="margin:0 0 10px 0;padding:6px 8px;background:#2a2a2a;border:1px solid #444;border-radius:4px;font-size:11px;font-variant-numeric:tabular-nums;">`
+        + `<div style="display:flex;justify-content:space-between;color:#aaa;margin-bottom:4px;">`
+        + `<span>DIRECT TRAINING SINCE LAST POP</span>`
+        + `<span title="Average advanced trainings per pop, all skills">Est. talent ${overall}</span>`
+        + `</div>`
+        + `<table style="border-collapse:collapse;width:100%;">${rowsHtml}</table>`
+        + `</div>`;
 }
 
 export function renderSkillAtPosCell(training: TrainingReport | undefined): string {

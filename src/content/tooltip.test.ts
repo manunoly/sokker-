@@ -1,7 +1,8 @@
 
 import { describe, it, expect } from 'vitest';
-import { prepareChartData, renderSkillAtPosCell } from './tooltip';
+import { prepareChartData, renderSkillAtPosCell, renderTalentSummary } from './tooltip';
 import { TrainingReport } from '../types/index';
+import { TalentSummary } from '../core/talent';
 
 describe('prepareChartData', () => {
     // Helper to create history entry
@@ -185,5 +186,41 @@ describe('renderSkillAtPosCell', () => {
         expect(withoutPos.match(slotWidth)?.[1]).toBeDefined();
         expect(withoutPos.match(slotWidth)?.[1]).toBe(withPos.match(slotWidth)?.[1]);
         expect(withoutPos).toContain('general');
+    });
+});
+
+describe('renderTalentSummary', () => {
+    const base = { hasPop: true, lastPopWeek: 1176, lastPopAfter: 4 };
+
+    it('renders progress bar and soon marker when counter reaches talent', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'pace', sinceLastPop: 4, talent: 4 }],
+            overallTalent: 4,
+        } as TalentSummary);
+        expect(html).toContain('Pc');
+        expect(html).toContain('■■■■');
+        expect(html).toContain('▲?');
+        expect(html).toContain('last pop wk 1176 · after 4');
+    });
+
+    it('shows ≥ and ? without bar when there is no pop and no talent', () => {
+        const html = renderTalentSummary({
+            rows: [{ skill: 'technique', sinceLastPop: 1, hasPop: false, lastPopWeek: null, lastPopAfter: null, talent: null }],
+            overallTalent: null,
+        });
+        expect(html).toContain('≥ 1 / ?');
+        expect(html).toContain('no pop in history');
+        expect(html).not.toContain('■');
+        expect(html).not.toContain('▲?');
+    });
+
+    it('falls back to overall talent for the bar', () => {
+        const html = renderTalentSummary({
+            rows: [{ ...base, skill: 'passing', sinceLastPop: 2, talent: null }],
+            overallTalent: 5,
+        } as TalentSummary);
+        expect(html).toContain('■■□□□');
+        expect(html).toContain('2 / ?');
+        expect(html).toContain('Est. talent ≈ 5');
     });
 });
