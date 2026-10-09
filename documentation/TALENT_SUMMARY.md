@@ -6,7 +6,7 @@ Bloque que aparece encima de la tabla del panel **General Skills ++** (history t
 - Render: `src/content/tooltip.ts` → `renderTalentSummary(summary)`.
 - Tests: `src/core/talent.test.ts`, `src/content/tooltip.test.ts`.
 - Datos: el historial semanal ya guardado en IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`, `source`). No hace llamadas nuevas a la API.
-- Historial: la sincronización intenta rellenar hasta 30 semanas atrás la primera vez (las semanas pasadas que llegan vacías no se vuelven a pedir); después el historial crece sin límite. Los datos de entreno (tipo/skill/intensidad) solo existen para semanas guardadas desde 2026-04-15; las anteriores tienen skills pero no entreno.
+- Historial: la sincronización intenta rellenar hasta 30 semanas atrás la primera vez (las semanas pasadas que llegan vacías no se vuelven a pedir). Comprobado el 2026-10-09: la API de Sokker solo devuelve las últimas 10 semanas, así que un historial más largo solo se consigue manteniendo la extensión instalada; después el historial crece sin límite. Los datos de entreno (tipo/skill/intensidad) solo existen para semanas guardadas desde 2026-04-15; las anteriores tienen skills pero no entreno.
 - `computeTalentSummary` espera como máximo una entrada por semana (el llamador deduplica).
 
 ## Conceptos de Sokker

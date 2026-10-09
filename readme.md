@@ -61,3 +61,9 @@ npm run build     # genera dist/ (cargar como "unpacked" en chrome://extensions)
 npx vitest run    # tests
 npx tsc --noEmit  # typecheck
 ```
+
+## 📚 Documentación
+
+* [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sincronización, gráficas y detección de subidas.
+* [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): reglas del resumen de talento (entreno directo sin subir) del panel General Skills ++.
+* Instalación: [español](documentation/INSTALL-es.md) · [English](documentation/INSTALL-en.md).
