@@ -1,82 +1,84 @@
-# Resumen de talento (entreno directo sin subir)
+# Talent summary (direct training since last pop)
 
-Bloque que aparece encima de la tabla del panel **General Skills ++** (history tooltip, `#sokkerpp-history-tooltip`). Para cada skill muestra cuántos entrenos directos lleva el jugador desde su última subida y estima su **talento**: cada cuántos entrenos directos sube.
+**English** · [Español](TALENT_SUMMARY.es.md)
 
-- Cálculo: `src/core/talent.ts` → `computeTalentSummary(history)` (función pura, sin DOM ni red).
-- Render: `src/content/tooltip.ts` → `renderTalentSummary(summary)`.
+Block shown above the table of the **General Skills ++** panel (history tooltip, `#sokkerpp-history-tooltip`). For each skill it shows how many direct trainings the player has received since that skill's last pop, and estimates the player's **talent**: how many direct trainings a skill needs to go up one level.
+
+- Calculation: `src/core/talent.ts` → `computeTalentSummary(history)` (pure function, no DOM or network).
+- Rendering: `src/content/tooltip.ts` → `renderTalentSummary(summary)`.
 - Tests: `src/core/talent.test.ts`, `src/content/tooltip.test.ts`.
-- Datos: el historial semanal ya guardado en IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`, `source`). No hace llamadas nuevas a la API.
-- Historial: la sincronización intenta rellenar hasta 30 semanas atrás la primera vez (las semanas pasadas que llegan vacías no se vuelven a pedir). Comprobado el 2026-10-09: la API de Sokker solo devuelve las últimas 10 semanas, así que un historial más largo solo se consigue manteniendo la extensión instalada; después el historial crece sin límite. Los datos de entreno (tipo/skill/intensidad) solo existen para semanas guardadas desde 2026-04-15; las anteriores tienen skills pero no entreno.
-- `computeTalentSummary` espera como máximo una entrada por semana (el llamador deduplica).
+- Data: the weekly history already stored in IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`, `source`). It makes no new API calls.
+- History: the first sync tries to backfill up to 30 weeks (past weeks that come back empty are not requested again). Verified on 2026-10-09: the Sokker API only returns the last 10 weeks, so a longer history only builds up by keeping the extension installed; after that the history grows without limit. Training data (kind/skill/intensity) only exists for weeks stored since 2026-04-15; older weeks have skills but no training.
+- `computeTalentSummary` expects at most one entry per week (the caller dedupes).
 
-## Conceptos de Sokker
+## Sokker concepts
 
-- **Entreno avanzado** (`kind: 'individual'`, 🎯 en la tabla): entrena una skill concreta. Es el único que se usa para medir el talento.
-- **Entreno de formación** (`kind: 'formation'`, 📋): se considera **entreno general (GT)**. Nunca cuenta como directo.
-- **Talento**: número aproximado de entrenos directos que necesita una skill para subir un nivel. No es exacto:
-  - varía con la edad (los jóvenes suben más rápido; los mayores necesitan más entrenos);
-  - cada skill tiene su propio ritmo (p. ej. Pace cada ~5, Playmaking cada ~4).
+- **Advanced training** (`kind: 'individual'`, 🎯 in the table): trains one specific skill. It is the only training used to measure talent.
+- **Formation training** (`kind: 'formation'`, 📋): treated as **general training (GT)**. It never counts as direct.
+- **Talent**: approximate number of direct trainings a skill needs to go up one level. It is not exact:
+  - it changes with age (young players improve faster; older players need more trainings);
+  - each skill has its own pace (e.g. Pace every ~5, Playmaking every ~4).
 
-## Reglas
+## Rules
 
-### R1 — Entreno directo
+### R1 — Direct training
 
-Una semana cuenta como **entreno directo** para la skill X si y solo si se cumplen las tres condiciones:
+A week counts as **direct training** for skill X if and only if all three conditions hold:
 
-| Condición | Valor |
+| Condition | Value |
 |---|---|
-| Tipo de entreno | `training.kind === 'individual'` |
-| Skill entrenada | `training.skill === X` |
-| Efectividad | `training.intensity >= 50` |
+| Training kind | `training.kind === 'individual'` |
+| Trained skill | `training.skill === X` |
+| Effectiveness | `training.intensity >= 50` |
 
-- Los **minutos jugados no cuentan**: un jugador con 0 minutos puede recibir el 50 % del entreno en la intensidad, y eso es válido.
-- Las semanas *carry-over* (sin `training`) no suman entrenos directos, pero son semanas conocidas: no invalidan el tramo.
-- Las semanas sin datos de entreno que no son *carry-over* (legacy, anteriores a 2026-04-15) son "desconocidas": no suman directos y hacen el tramo incompleto. Las *carry-over* son conocidas (sin informe = 0 directos).
-- Una semana que no cumple las condiciones no suma, pero tampoco reinicia el contador.
+- **Minutes played do not matter**: a player with 0 minutes can still get 50% of the training in the intensity, and that counts.
+- *Carry-over* weeks (no `training`) add no direct trainings, but they are known weeks: they do not invalidate the interval.
+- Weeks without training data that are not *carry-over* (legacy, before 2026-04-15) are "unknown": they add no direct trainings and make the interval incomplete. *Carry-over* weeks are known (no report = 0 direct trainings).
+- A week that does not meet the conditions adds nothing, but does not reset the counter either.
 
-### R2 — Subida (pop)
+### R2 — Pop
 
-Hay **subida** de la skill X en la semana W cuando `skills[X]` de W es mayor que el de la entrada anterior del historial, con el historial ordenado por `week` ascendente.
+Skill X **pops** in week W when `skills[X]` in W is greater than in the previous history entry, with the history sorted by `week` ascending.
 
-- El valor de W ya incluye el entreno de W. Por eso, si W fue un entreno directo, ese entreno cuenta para el tramo que termina en esa subida.
-- Es la misma detección que pinta en verde las celdas de la tabla.
-- Una bajada no es una subida y no reinicia el contador.
+- The value in W already includes W's training. So if W was a direct training, that training counts toward the interval that ends at that pop.
+- It is the same detection that paints table cells green.
+- A decrease is not a pop and does not reset the counter.
 
-### R3 — Reinicio del contador
+### R3 — Counter reset
 
-**Cualquier subida reinicia el contador a 0**, venga del entreno directo o del GT.
+**Any pop resets the counter to 0**, whether it came from direct training or from GT.
 
-### R4 — Contador "sin subir"
+### R4 — "Since last pop" counter
 
-`sinceLastPop` = entrenos directos acumulados desde la última subida de esa skill.
+`sinceLastPop` = direct trainings accumulated since that skill's last pop.
 
-- Se muestra `≥ N` (el contador es un mínimo) cuando no se ha observado ninguna subida, o cuando hay una semana con datos de entreno desconocidos desde la última subida.
+- It is shown as `≥ N` (the counter is a minimum) when no pop has been observed, or when there is a week with unknown training data since the last pop.
 
-### R5 — Tramos completos
+### R5 — Complete intervals
 
-Un **tramo** es el número de entrenos directos entre dos subidas consecutivas observadas.
+An **interval** is the number of direct trainings between two consecutive observed pops.
 
-- El tramo anterior a la **primera** subida observada es incompleto (no se sabe cuándo empezó) y **no se usa**.
-- Los tramos con **0 entrenos directos** (subida solo por GT) **no se usan** para el talento, para no rebajarlo artificialmente.
-- Los tramos que contienen una semana con datos de entreno desconocidos (legacy) **no se usan**.
-- Los tramos que contienen una bajada de la skill **no se usan** (bajar y recuperar no cuenta como un nivel completo).
+- The interval before the **first** observed pop is incomplete (its start is unknown) and **is not used**.
+- Intervals with **0 direct trainings** (pop from GT only) **are not used** for talent, so they do not lower it artificially.
+- Intervals that contain a week with unknown training data (legacy) **are not used**.
+- Intervals that contain a skill decrease **are not used** (dropping and recovering does not count as a full level).
 
-### R6 — Talento por skill
+### R6 — Talent per skill
 
-`talent` = media de los tramos completos de esa skill (R5). Si no hay ninguno, el talento es desconocido (`?`).
+`talent` = average of that skill's complete intervals (R5). If there are none, talent is unknown (`?`).
 
-### R7 — Talento global del jugador
+### R7 — Overall player talent
 
-`overallTalent` = suma de todos los tramos usados de todas las skills ÷ número de esos tramos. Pondera cada subida por igual. Si no hay tramos, es desconocido (`?`).
+`overallTalent` = sum of all used intervals across all skills ÷ number of those intervals. Each pop weighs the same. If there are no intervals, it is unknown (`?`).
 
-### R8 — Skills que se listan y orden
+### R8 — Listed skills and order
 
-1. **Kp (keeper)** primero, solo si el último valor de keeper del historial es **mayor que 6**. Así se considera que el jugador es portero. Con 6 o menos no aparece.
-2. Después, siempre en este orden: **Pc** (pace), **Tec** (technique), **Pas** (passing), **Def** (defending), **Plm** (playmaking), **Str** (striker).
-3. **Stamina nunca aparece.**
-4. Se muestran todas las skills de la lista aunque tengan 0 entrenos, para que el bloque tenga siempre la misma forma.
+1. **Kp (keeper)** first, only if the latest keeper value in the history is **greater than 6**; the player is then considered a goalkeeper. With 6 or less it is not shown.
+2. Then, always in this order: **Pc** (pace), **Tec** (technique), **Pas** (passing), **Def** (defending), **Plm** (playmaking), **Str** (striker).
+3. **Stamina is never shown.**
+4. Every listed skill is shown even with 0 trainings, so the block always has the same shape.
 
-## Presentación
+## Presentation
 
 ```
  DIRECT TRAINING SINCE LAST POP                    Est. talent ≈ 4.5
@@ -85,22 +87,22 @@ Un **tramo** es el número de entrenos directos entre dos subidas consecutivas o
   Plm   ■■■■□   4 / ~4    last pop wk 1176 · after 4             ▲?
 ```
 
-| Elemento | Significado |
+| Element | Meaning |
 |---|---|
-| `2 / ~5` | contador (R4) / talento de la skill (R6) |
-| `≥ 0` | el contador es un mínimo (R4): sin subida observada, o con semanas de entreno desconocido desde la última subida |
-| `?` | talento desconocido (no hay tramos completos) |
-| Barra `■□` | progreso del contador hacia el talento de la skill. Si la skill no tiene talento propio, usa el global (R7). Si no hay ninguno, no se pinta. Se redondea al entero más cercano. |
-| `last pop wk W · after N` | semana de la última subida y entrenos directos del tramo que terminó en ella (se omite `after` si fue la primera subida observada) |
-| `▲?` | el contador alcanzó el tamaño de la barra (talento de la skill, o el talento global cuando la skill no tiene) |
-| `Est. talent ≈ X` | talento global del jugador (R7) |
+| `2 / ~5` | counter (R4) / skill talent (R6) |
+| `≥ 0` | the counter is a minimum (R4): no pop observed, or weeks with unknown training since the last pop |
+| `?` | unknown talent (no complete intervals) |
+| `■□` bar | counter progress toward the skill's talent. If the skill has no talent of its own, the overall talent (R7) is used. If there is neither, no bar is drawn. Rounded to the nearest integer. |
+| `last pop wk W · after N` | week of the last pop and direct trainings in the interval that ended there (`after` is omitted if it was the first observed pop) |
+| `▲?` | the counter reached the bar size (the skill's talent, or the overall talent when the skill has none) |
+| `Est. talent ≈ X` | overall player talent (R7) |
 
-- El texto del panel está en inglés, como el resto del tooltip.
-- Números con `font-variant-numeric: tabular-nums`. La barra es decorativa (`aria-hidden="true"`). Cada fila tiene un `title` que explica el cálculo.
+- The panel text is in English, like the rest of the tooltip.
+- The panel footer shows `History: N wks (A–B)`: how far back the player's stored history goes, from the oldest (A) to the newest (B) week, gaps included.
+- Numbers use `font-variant-numeric: tabular-nums`. The bar is decorative (`aria-hidden="true"`). Each row has a `title` explaining the calculation.
 
-## Limitaciones conocidas
+## Known limitations
 
-- Las semanas legacy (anteriores a 2026-04-15) no tienen datos de entreno y no se vuelven a descargar: los tramos que las cruzan se excluyen y los contadores pueden ser un mínimo. Con poco historial útil, el talento será `?` o se basará en pocos tramos.
-- El talento real cambia con la edad: una media de tramos antiguos puede sobrestimar la velocidad de un jugador que ha envejecido.
-- Si el historial tiene semanas faltantes rellenadas como *carry-over*, esas semanas no suman entrenos directos. El contador puede quedar por debajo del real.
-- El pie del panel muestra `History: N wks (A–B)`: cuántas semanas atrás llega el historial guardado de ese jugador, de la más antigua (A) a la más reciente (B), con huecos incluidos.
+- Legacy weeks (before 2026-04-15) have no training data and are not downloaded again: intervals that cross them are excluded and counters may be a minimum. With little usable history, talent will be `?` or based on few intervals.
+- Real talent changes with age: an average of old intervals may overestimate how fast a player who has aged improves.
+- If the history has missing weeks filled in as *carry-over*, those weeks add no direct trainings. The counter may be lower than the real one.

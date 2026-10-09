@@ -136,7 +136,7 @@ Screenshot 05: Compare tracked skills across the squad.
 - `src/core/trainingReport.ts:23-51` — kind, skill, position, intensity, and minutes extracted from training reports.
 - `src/content/ui.ts:216-251` — skill comparison and rendered up/down arrows; `documentation/LOGIC_EXPLANATION.md:41-61` — arrow behavior on player and squad views.
 - `src/content/tooltip.ts:420-439,471-508` — “General Skills ++” table, training columns, and history range footer.
-- `src/content/tooltip.ts:817-842` and `documentation/TALENT_SUMMARY.md:1-18,22-35,64-77` — advanced training count and estimated talent summary.
+- `src/content/tooltip.ts:817-842` and `documentation/TALENT_SUMMARY.md` (Rules R1–R8, Presentation) — advanced training count and estimated talent summary.
 - `popup/index.html:68-82` and `popup/popup.ts:37-53,57-75,78-97,99-115,118-151` — sync, repair, JSON export/import, and clear controls.
 - `src/core/repository.ts:306-357` — data export, restore, and database clearing.
-- `readme.md:3-13,65-69` — project purpose, features, and open source documentation.
+- `readme.md` (Key Features, Documentation) — project purpose, features, and open source documentation.
