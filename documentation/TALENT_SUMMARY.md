@@ -6,7 +6,7 @@ Bloque que aparece encima de la tabla del panel **General Skills ++** (history t
 - Render: `src/content/tooltip.ts` → `renderTalentSummary(summary)`.
 - Tests: `src/core/talent.test.ts`, `src/content/tooltip.test.ts`.
 - Datos: el historial semanal ya guardado en IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`, `source`). No hace llamadas nuevas a la API.
-- Historial: la sincronización rellena hasta 25 semanas la primera vez; después el historial crece sin límite. Los datos de entreno (tipo/skill/intensidad) solo existen para semanas guardadas desde 2026-04-15; las anteriores tienen skills pero no entreno.
+- Historial: la sincronización intenta rellenar hasta 30 semanas atrás la primera vez (las semanas pasadas que llegan vacías no se vuelven a pedir); después el historial crece sin límite. Los datos de entreno (tipo/skill/intensidad) solo existen para semanas guardadas desde 2026-04-15; las anteriores tienen skills pero no entreno.
 - `computeTalentSummary` espera como máximo una entrada por semana (el llamador deduplica).
 
 ## Conceptos de Sokker
@@ -103,3 +103,4 @@ Un **tramo** es el número de entrenos directos entre dos subidas consecutivas o
 - Las semanas legacy (anteriores a 2026-04-15) no tienen datos de entreno y no se vuelven a descargar: los tramos que las cruzan se excluyen y los contadores pueden ser un mínimo. Con poco historial útil, el talento será `?` o se basará en pocos tramos.
 - El talento real cambia con la edad: una media de tramos antiguos puede sobrestimar la velocidad de un jugador que ha envejecido.
 - Si el historial tiene semanas faltantes rellenadas como *carry-over*, esas semanas no suman entrenos directos. El contador puede quedar por debajo del real.
+- El pie del panel muestra `History: N wks (A–B)`: cuántas semanas atrás llega el historial guardado de ese jugador, de la más antigua (A) a la más reciente (B), con huecos incluidos.

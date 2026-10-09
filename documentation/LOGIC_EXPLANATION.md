@@ -12,7 +12,7 @@ The synchronization process (`syncData`) ensures that the local database has up-
 3.  **Baseline Refresh**:
     -   If the `Last Synced Week` is older than the current week, it re-fetches data for that specific week. This ensures that any late-week training updates (e.g., typically Thursday/Friday) are captured for the previous week before moving forward.
 4.  **Gap Filling**:
-    -   The system calculates a range of weeks to sync, looking back up to **25 weeks**.
+    -   The system calculates a range of weeks to sync, looking back up to **30 weeks**. Past weeks that return no data are marked as checked (`{ week, empty: true }` in the `weeks` store) and are not requested again.
     -   It iterates from the past to the present.
     -   **Current Week**: Always fetched to capture real-time changes.
     -   **Past Weeks**: Only fetched if they are missing from the local database.

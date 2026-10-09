@@ -213,6 +213,21 @@ export const saveWeekData = async (week: number, playersDataFromArray: any[]): P
 };
 
 /**
+ * Records a past week that returned no training data, so sync stops re-requesting it.
+ * Does not touch lastSyncWeek or player records.
+ */
+export const markWeekEmpty = async (week: number): Promise<void> => {
+    if (!db) await initDB();
+    return new Promise((resolve, reject) => {
+        if (!db) return reject(new Error('DB not initialized'));
+        const transaction = db.transaction([STORE_WEEKS], 'readwrite');
+        transaction.objectStore(STORE_WEEKS).put({ week, syncedAt: new Date().toISOString(), empty: true });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
+};
+
+/**
  * Retrieves the last synchronized week number.
  * @returns {Promise<number|null>}
  */

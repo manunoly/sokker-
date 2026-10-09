@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest';
-import { prepareChartData, renderSkillAtPosCell, renderTalentSummary } from './tooltip';
+import { formatHistoryRange, prepareChartData, renderSkillAtPosCell, renderTalentSummary } from './tooltip';
 import { TrainingReport } from '../types/index';
 import { TalentSummary } from '../core/talent';
 
@@ -240,5 +240,21 @@ describe('renderTalentSummary', () => {
         expect(html).toContain('■■□□□');
         expect(html).toContain('2 / ?');
         expect(html).toContain('Est. talent ≈ 5');
+    });
+});
+
+describe('formatHistoryRange', () => {
+    const weeks = (...ws: number[]) => ws.map((week) => ({ week }));
+
+    it('shows how many weeks back the data goes, from oldest to newest', () => {
+        expect(formatHistoryRange(weeks(1184, 1180, 1175, 1179))).toBe('History: 10 wks (1175–1184)');
+    });
+
+    it('uses singular for a single week', () => {
+        expect(formatHistoryRange(weeks(1184))).toBe('History: 1 wk (1184)');
+    });
+
+    it('returns empty text when there is no history', () => {
+        expect(formatHistoryRange([])).toBe('');
     });
 });

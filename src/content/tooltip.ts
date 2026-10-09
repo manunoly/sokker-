@@ -504,7 +504,8 @@ export async function showHistoryTooltip(
 
     // Add Copy/Export button
     html += `
-        <div style="margin-top: 10px; text-align: right;">
+        <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span title="Oldest and newest week stored for this player" style="color: #888; font-size: 10px; font-variant-numeric: tabular-nums;"><span aria-hidden="true">ⓘ</span> ${formatHistoryRange(rows)}</span>
             <button id="sokkerpp-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
         </div>
     `;
@@ -842,6 +843,20 @@ export function renderTalentSummary(summary: TalentSummary): string {
         + `</div>`
         + `<table style="border-collapse:collapse;width:100%;">${rowsHtml}</table>`
         + `</div>`;
+}
+
+/**
+ * Footer text for the history table: how far back the stored data goes.
+ * Counts the span from oldest to newest week (gaps included).
+ */
+export function formatHistoryRange(rows: Array<{ week: number }>): string {
+    if (rows.length === 0) return '';
+    const weeks = rows.map((r) => r.week);
+    const oldest = Math.min(...weeks);
+    const newest = Math.max(...weeks);
+    const span = newest - oldest + 1;
+    const range = oldest === newest ? `${oldest}` : `${oldest}–${newest}`;
+    return `History: ${span} ${span === 1 ? 'wk' : 'wks'} (${range})`;
 }
 
 export function renderSkillAtPosCell(training: TrainingReport | undefined): string {

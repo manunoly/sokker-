@@ -1,9 +1,9 @@
 import { fetchCurrentWeek, fetchTrainingData } from './api';
-import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced } from './repository';
+import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced, markWeekEmpty } from './repository';
 import { reconcileGaps } from './gapDetector';
 import { scheduleIdle } from '../utils/scheduleIdle';
 
-const MAX_WEEKS_TO_FETCH = 25;
+export const MAX_WEEKS_TO_FETCH = 30;
 
 interface SyncResult {
     status: 'synced' | 'up-to-date' | 'error';
@@ -66,6 +66,9 @@ export async function syncData(): Promise<SyncResult> {
             const playersData = await fetchTrainingData(week);
             if (playersData && playersData.length > 0) {
                 await saveWeekData(week, playersData);
+            } else if (week < currentWeek) {
+                // Past weeks never gain data later: remember them so we stop re-requesting them.
+                await markWeekEmpty(week);
             } else {
                 console.warn(`No data found for week ${week}`);
             }
