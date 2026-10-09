@@ -1,6 +1,7 @@
 
 import { describe, it, expect } from 'vitest';
-import { prepareChartData } from './tooltip';
+import { prepareChartData, renderSkillAtPosCell } from './tooltip';
+import { TrainingReport } from '../types/index';
 
 describe('prepareChartData', () => {
     // Helper to create history entry
@@ -147,5 +148,23 @@ describe('prepareChartData preserves source and injured metadata', () => {
         expect(w100?.source).toBe('training');
         expect(w101?.source).toBe('carried-over');
         expect(w101?.injured).toBe(true);
+    });
+});
+
+describe('renderSkillAtPosCell', () => {
+    it('escapes HTML coming from stored training data', () => {
+        const training = {
+            kind: 'individual',
+            skill: '<img src=x onerror=alert(1)>',
+            position: '<b>',
+            intensity: 90,
+            minutes: 90,
+        } as unknown as TrainingReport;
+
+        const html = renderSkillAtPosCell(training);
+
+        expect(html).not.toContain('<img');
+        expect(html).not.toContain('<b>');
+        expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
     });
 });

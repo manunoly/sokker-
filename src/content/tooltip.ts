@@ -1,6 +1,7 @@
 import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
 import { formatSkillAtPosition } from '../core/trainingReport';
+import { escapeHtml } from '../utils/escapeHtml';
 import { TrainingKind, TrainingPosition, TrainingReport } from '../types/index';
 
 let tooltip: HTMLElement | null = null;
@@ -476,7 +477,7 @@ export async function showHistoryTooltip(
         html += `<td style="padding: 6px 4px; color: #fff; background-color: ${rowBgColor};" title="${kindTitle}">${kindIcon}</td>`;
         html += `<td style="padding: 6px 4px; text-align: left; color: #fff; background-color: ${rowBgColor};">${skillAtPos}</td>`;
         html += `<td style="padding: 6px 4px; color: #fff; background-color: ${eff.bg};">${eff.text}</td>`;
-        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${row.week}</td>`;
+        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${escapeHtml(row.week)}</td>`;
 
         skillsOrder.forEach(skill => {
             const val = row.skills[skill.key];
@@ -492,7 +493,7 @@ export async function showHistoryTooltip(
                 }
             }
 
-            html += `<td style="padding: 6px 4px; background-color: ${bgColor}; color: ${color};">${val !== undefined ? val : '-'}</td>`;
+            html += `<td style="padding: 6px 4px; background-color: ${bgColor}; color: ${color};">${val !== undefined ? escapeHtml(val) : '-'}</td>`;
         });
 
         html += `</tr>`;
@@ -806,15 +807,15 @@ function intensityCellStyle(training: TrainingReport | undefined, rowBgColor: st
     return { text: `${i}%`, bg: '#6e2a2a' };
 }
 
-function renderSkillAtPosCell(training: TrainingReport | undefined): string {
+export function renderSkillAtPosCell(training: TrainingReport | undefined): string {
     if (!training) {
         return '<span style="color:#888;">—</span>';
     }
     const label = formatSkillAtPosition(training);
     if (!training.position) {
-        return `<span>${label}</span>`;
+        return `<span>${escapeHtml(label)}</span>`;
     }
     const [skillPart] = label.split(' @ ');
     const bg = positionBadgeColor(training.position);
-    return `${skillPart} <span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${bg};color:#fff;font-size:10px;margin-left:4px;">${training.position}</span>`;
+    return `${escapeHtml(skillPart)} <span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${bg};color:#fff;font-size:10px;margin-left:4px;">${escapeHtml(training.position)}</span>`;
 }
