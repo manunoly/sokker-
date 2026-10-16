@@ -78,7 +78,7 @@ function sourceBadge(row: PlayerTimelineRow, t: PlayerStrings): HTMLElement {
         label = t.sources.reportNoDetail; icon = '▫'; color = '#475569';
     }
     const badge = element('span');
-    badge.style.cssText = `display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:2px 6px;border-radius:5px;background:${color};color:#fff;white-space:normal;text-align:left;line-height:1.2;overflow-wrap:anywhere`;
+    badge.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:5px;background:${color};color:#fff;white-space:nowrap`;
     const mark = element('span', icon);
     mark.setAttribute('aria-hidden', 'true');
     badge.appendChild(mark);
@@ -99,12 +99,10 @@ function sourceBadge(row: PlayerTimelineRow, t: PlayerStrings): HTMLElement {
 
 function positionSkill(training: TrainingReport | undefined): HTMLElement {
     const content = element('span');
-    content.style.cssText = 'display:inline-flex;gap:4px;align-items:center;max-width:100%;overflow-wrap:anywhere';
+    content.style.cssText = 'display:inline-flex;gap:6px;align-items:center;white-space:nowrap';
     const position = element('span', training?.position ?? '');
     position.style.cssText = 'display:inline-block;box-sizing:border-box;width:32px;text-align:center;padding:1px 0;border-radius:3px;background:#475569;font-size:10px';
-    const skill = element('span', training?.skill ?? '—');
-    skill.style.cssText = 'min-width:0;overflow-wrap:anywhere';
-    content.append(position, skill);
+    content.append(position, element('span', training?.skill ?? '—'));
     return content;
 }
 
@@ -127,16 +125,15 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
     const section = element('section');
     section.style.cssText = 'margin-top:12px;border-top:1px solid #475569;padding-top:10px';
     const scroller = element('div');
-    scroller.style.cssText = 'max-height:min(55vh,520px);overflow-x:hidden;overflow-y:auto;border:1px solid #475569;border-radius:6px';
+    scroller.style.cssText = 'max-height:270px;overflow:auto;border:1px solid #475569;border-radius:6px';
     const table = element('table');
-    table.style.cssText = 'border-collapse:collapse;table-layout:fixed;width:100%;font-size:11px;font-variant-numeric:tabular-nums;text-align:center';
+    table.style.cssText = 'border-collapse:collapse;width:100%;min-width:710px;font-size:11px;font-variant-numeric:tabular-nums;text-align:center';
     const head = element('thead');
     const headerRow = element('tr');
-    const headers = [t.record, t.posSkill, t.effectiveness, t.week];
-    const widths = ['29%', '34%', '15%', '22%'];
-    for (const [index, label] of headers.entries()) {
+    const headers = [t.record, t.posSkill, t.effectiveness, t.week, ...tableSkills.map(([, label]) => label)];
+    for (const label of headers) {
         const th = element('th', label);
-        th.style.cssText = `position:sticky;top:0;width:${widths[index]};background:#314156;padding:5px 3px;color:#e2e8f0;overflow-wrap:anywhere`;
+        th.style.cssText = 'position:sticky;top:0;background:#314156;padding:5px 6px;color:#e2e8f0;white-space:nowrap';
         if (label === t.week) th.title = `${t.week}: ${t.observedWeek}`;
         headerRow.appendChild(th);
     }
@@ -148,7 +145,7 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
         tr.style.background = index % 2 ? '#263448' : '#202b3a';
         const addCell = (content: string | Node) => {
             const td = element('td');
-            td.style.cssText = 'padding:5px 3px;border-top:1px solid #405169;overflow-wrap:anywhere';
+            td.style.cssText = 'padding:5px 6px;border-top:1px solid #405169;white-space:nowrap';
             if (typeof content === 'string') td.textContent = content;
             else td.appendChild(content);
             tr.appendChild(td);
@@ -160,37 +157,16 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
         const weekCell = addCell(`${row.reportWeek}${row.dateReliable ? '' : ' ?'}`);
         if (!row.dateReliable) weekCell.title = t.uncertainWeek;
         else if (row.observedWeek !== row.reportWeek) weekCell.title = `${t.observedWeek}: ${row.observedWeek}`;
-        const levelsRow = element('tr');
-        levelsRow.style.background = tr.style.background;
-        const levelsCell = element('td');
-        levelsCell.colSpan = headers.length;
-        levelsCell.style.cssText = 'padding:2px 5px 6px;border-bottom:1px solid #405169';
-        const levelsLayout = element('div');
-        levelsLayout.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0';
-        const levelsLabel = element('span', t.levels);
-        levelsLabel.style.cssText = 'flex:0 0 48px;color:#cbd5e1;text-align:left;font-size:10px';
-        const levels = element('div');
-        levels.dataset.weeklyLevels = 'true';
-        levels.style.cssText = 'display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:2px;min-width:0;flex:1;max-width:800px;margin-left:auto';
-        for (const [skill, label] of tableSkills) {
+        for (const [skill] of tableSkills) {
             const level = row.entry.skills?.[skill];
-            const cell = element('span');
-            cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;min-width:0;padding:1px 2px;border-radius:3px;line-height:1.15';
-            const abbreviation = element('small', label);
-            abbreviation.style.cssText = 'font-size:9px;color:#cbd5e1';
-            cell.append(abbreviation, element('span', Number.isFinite(level) ? String(level) : '—'));
+            const cell = addCell(Number.isFinite(level) ? String(level) : '—');
             const previous = newestFirst[index + 1]?.entry.skills?.[skill];
             if (Number.isFinite(level) && Number.isFinite(previous)) {
                 if (level > previous) cell.style.background = '#245a46';
                 if (level < previous) cell.style.background = '#663239';
             }
-            levels.appendChild(cell);
         }
-        levelsLayout.append(levelsLabel, levels);
-        levelsCell.appendChild(levelsLayout);
-        levelsRow.appendChild(levelsCell);
         body.appendChild(tr);
-        body.appendChild(levelsRow);
     });
     table.append(head, body);
     scroller.appendChild(table);

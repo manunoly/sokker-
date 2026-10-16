@@ -75,11 +75,12 @@ describe('first-team cards', () => {
         expect(table.querySelectorAll('[aria-label="Lesionado en este registro"]')).toHaveLength(2);
         expect(table.textContent).toContain('1210 ?');
         expect([...table.querySelectorAll('th')].filter(th => th.textContent === 'Registro')).toHaveLength(1);
-        expect(table.querySelectorAll('th')).toHaveLength(4);
-        expect(table.querySelectorAll('[data-weekly-levels]')).toHaveLength(rows.length);
-        expect(table.querySelectorAll('tbody tr')).toHaveLength(rows.length * 2);
-        expect(table.style.minWidth).toBe('');
-        expect(table.parentElement?.style.overflowX).toBe('hidden');
+        expect([...table.querySelectorAll('th')].map(th => th.textContent)).toEqual([
+            'Registro', 'Pos / Skill', 'Efect.', 'Semana', 'Sta', 'Pc', 'Tec', 'Pas', 'Kp', 'Def', 'Plm', 'Str', 'Form',
+        ]);
+        expect(table.querySelectorAll('tbody tr')).toHaveLength(rows.length);
+        expect(table.querySelector('tbody tr')?.children).toHaveLength(13);
+        expect(table.style.minWidth).toBe('710px');
         const injuredWithoutTraining = [...table.querySelectorAll('tbody tr')].find(tr => tr.textContent?.includes('1209'))!;
         expect(injuredWithoutTraining.children[0].textContent).toBe('🩹');
         expect(injuredWithoutTraining.children[0].textContent).not.toContain('Formación');

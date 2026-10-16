@@ -103,8 +103,20 @@ describe('first-team hover integration', () => {
         const trigger = anchor();
         await showHistoryTooltip(130, 110, 7, trigger);
         const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
-        expect(card.style.width).toBe('320px');
+        expect(card.style.width).toBe('384px');
         expect(card.style.left).toBe('8px');
         expect(card.style.top).toBe('128px');
+    });
+
+    it('keeps the original table fully visible when a centered desktop name has no wide side', async () => {
+        vi.stubGlobal('innerWidth', 1000);
+        const trigger = anchor();
+        vi.mocked(trigger.getBoundingClientRect).mockReturnValue({
+            left: 450, right: 510, top: 100, bottom: 120, width: 60, height: 20,
+        } as DOMRect);
+        await showHistoryTooltip(480, 110, 7, trigger);
+        const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
+        expect(card.style.width).toBe('800px');
+        expect(card.querySelector('table')?.querySelectorAll('th')).toHaveLength(13);
     });
 });

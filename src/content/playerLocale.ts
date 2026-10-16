@@ -30,7 +30,6 @@ export interface PlayerStrings {
     trend: string;
     observations: string;
     observedLevels: string;
-    levels: string;
     injured: string;
     realReport: string;
     reference: string;
@@ -50,7 +49,7 @@ const translations: Record<string, Text> = {
         noRise: 'no rise observed; the start of this interval is unknown', minimum: 'minimum known; reports or weeks are missing',
         observedPace: 'Observed pace', weeksPerLevel: 'weeks per level', insufficient: 'Insufficient data',
         noProgress: 'No measurable progress', staminaInfo: 'Stamina varies; no pace is estimated.',
-        observed: 'Observed', trend: 'Trend', observations: 'observations', observedLevels: 'Saved weekly levels', levels: 'Levels',
+        observed: 'Observed', trend: 'Trend', observations: 'observations', observedLevels: 'Saved weekly levels',
         injured: 'Injured in this record', realReport: 'Real report', reference: 'reference',
         uncertainWeek: 'Invalid capture date; stored report week used for the curve.',
         sources: { individual: 'Advanced', formation: 'Formation', carriedOver: 'No report', rosterFallback: 'Roster only', reportNoDetail: 'Report without detail' },
@@ -64,7 +63,7 @@ const translations: Record<string, Text> = {
         noRise: 'sin subida observada; se desconoce el inicio del tramo', minimum: 'mínimo conocido; faltan semanas o informes',
         observedPace: 'Ritmo observado', weeksPerLevel: 'semanas por nivel', insufficient: 'Datos insuficientes',
         noProgress: 'Sin progreso medible', staminaInfo: 'La resistencia fluctúa; no se estima un ritmo.',
-        observed: 'Real', trend: 'Tendencia', observations: 'observaciones', observedLevels: 'Niveles semanales guardados', levels: 'Niveles',
+        observed: 'Real', trend: 'Tendencia', observations: 'observaciones', observedLevels: 'Niveles semanales guardados',
         injured: 'Lesionado en este registro', realReport: 'Informe real', reference: 'referencia',
         uncertainWeek: 'Fecha de captura inválida; se usa la semana del informe en la curva.',
         sources: { individual: 'Avanzado', formation: 'Formación', carriedOver: 'Sin informe', rosterFallback: 'Solo plantilla', reportNoDetail: 'Informe sin detalle' },
@@ -78,7 +77,7 @@ const translations: Record<string, Text> = {
         noRise: 'brak wzrostu w historii; początek okresu jest nieznany', minimum: 'znane minimum; brakuje tygodni lub raportów',
         observedPace: 'Zaobserwowane tempo', weeksPerLevel: 'tygodni na poziom', insufficient: 'Za mało danych',
         noProgress: 'Brak mierzalnego postępu', staminaInfo: 'Kondycja się waha; tempo nie jest szacowane.',
-        observed: 'Rzeczywiste', trend: 'Trend', observations: 'obserwacji', observedLevels: 'Zapisane poziomy tygodniowe', levels: 'Poziomy',
+        observed: 'Rzeczywiste', trend: 'Trend', observations: 'obserwacji', observedLevels: 'Zapisane poziomy tygodniowe',
         injured: 'Kontuzja w tym zapisie', realReport: 'Rzeczywisty raport', reference: 'odniesienie',
         uncertainWeek: 'Nieprawidłowa data; na wykresie użyto tygodnia raportu.',
         sources: { individual: 'Zaawansowany', formation: 'Formacja', carriedOver: 'Bez raportu', rosterFallback: 'Tylko skład', reportNoDetail: 'Raport bez szczegółów' },
@@ -92,7 +91,7 @@ const translations: Record<string, Text> = {
         noRise: 'nenhuma subida observada; início do período desconhecido', minimum: 'mínimo conhecido; faltam semanas ou relatórios',
         observedPace: 'Ritmo observado', weeksPerLevel: 'semanas por nível', insufficient: 'Dados insuficientes',
         noProgress: 'Sem progresso mensurável', staminaInfo: 'A resistência varia; não se estima um ritmo.',
-        observed: 'Real', trend: 'Tendência', observations: 'observações', observedLevels: 'Níveis semanais guardados', levels: 'Níveis',
+        observed: 'Real', trend: 'Tendência', observations: 'observações', observedLevels: 'Níveis semanais guardados',
         injured: 'Lesionado neste registo', realReport: 'Relatório real', reference: 'referência',
         uncertainWeek: 'Data inválida; usa-se a semana do relatório no gráfico.',
         sources: { individual: 'Avançado', formation: 'Formação', carriedOver: 'Sem relatório', rosterFallback: 'Só plantel', reportNoDetail: 'Relatório sem detalhe' },
@@ -106,7 +105,7 @@ const translations: Record<string, Text> = {
         noRise: 'nessun aumento osservato; inizio del periodo sconosciuto', minimum: 'minimo noto; mancano settimane o rapporti',
         observedPace: 'Ritmo osservato', weeksPerLevel: 'settimane per livello', insufficient: 'Dati insufficienti',
         noProgress: 'Nessun progresso misurabile', staminaInfo: 'La resistenza varia; nessun ritmo stimato.',
-        observed: 'Reale', trend: 'Tendenza', observations: 'osservazioni', observedLevels: 'Livelli settimanali salvati', levels: 'Livelli',
+        observed: 'Reale', trend: 'Tendenza', observations: 'osservazioni', observedLevels: 'Livelli settimanali salvati',
         injured: 'Infortunato in questo registro', realReport: 'Rapporto reale', reference: 'riferimento',
         uncertainWeek: 'Data non valida; nel grafico viene usata la settimana del rapporto.',
         sources: { individual: 'Avanzato', formation: 'Formazione', carriedOver: 'Senza rapporto', rosterFallback: 'Solo rosa', reportNoDetail: 'Rapporto senza dettagli' },
@@ -120,7 +119,7 @@ const translations: Record<string, Text> = {
         noRise: 'kein Anstieg beobachtet; Beginn des Abschnitts unbekannt', minimum: 'bekanntes Minimum; Wochen oder Berichte fehlen',
         observedPace: 'Beobachtetes Tempo', weeksPerLevel: 'Wochen pro Stufe', insufficient: 'Nicht genügend Daten',
         noProgress: 'Kein messbarer Fortschritt', staminaInfo: 'Kondition schwankt; kein Tempo geschätzt.',
-        observed: 'Beobachtet', trend: 'Trend', observations: 'Beobachtungen', observedLevels: 'Gespeicherte Wochenwerte', levels: 'Stufen',
+        observed: 'Beobachtet', trend: 'Trend', observations: 'Beobachtungen', observedLevels: 'Gespeicherte Wochenwerte',
         injured: 'In diesem Eintrag verletzt', realReport: 'Echter Bericht', reference: 'Referenz',
         uncertainWeek: 'Ungültiges Datum; Berichtswoche für die Kurve verwendet.',
         sources: { individual: 'Intensiv', formation: 'Formation', carriedOver: 'Kein Bericht', rosterFallback: 'Nur Kader', reportNoDetail: 'Bericht ohne Details' },
@@ -134,7 +133,7 @@ const translations: Record<string, Text> = {
         noRise: 'nicio creștere observată; începutul intervalului necunoscut', minimum: 'minim cunoscut; lipsesc săptămâni sau rapoarte',
         observedPace: 'Ritm observat', weeksPerLevel: 'săptămâni pe nivel', insufficient: 'Date insuficiente',
         noProgress: 'Fără progres măsurabil', staminaInfo: 'Rezistența variază; ritmul nu este estimat.',
-        observed: 'Observat', trend: 'Tendință', observations: 'observații', observedLevels: 'Niveluri săptămânale salvate', levels: 'Niveluri',
+        observed: 'Observat', trend: 'Tendință', observations: 'observații', observedLevels: 'Niveluri săptămânale salvate',
         injured: 'Accidentat în această înregistrare', realReport: 'Raport real', reference: 'referință',
         uncertainWeek: 'Dată invalidă; săptămâna raportului este folosită în grafic.',
         sources: { individual: 'Avansat', formation: 'Formare', carriedOver: 'Fără raport', rosterFallback: 'Doar lot', reportNoDetail: 'Raport fără detalii' },
@@ -148,7 +147,7 @@ const translations: Record<string, Text> = {
         noRise: 'artış gözlenmedi; aralığın başlangıcı bilinmiyor', minimum: 'bilinen alt sınır; hafta veya raporlar eksik',
         observedPace: 'Gözlenen hız', weeksPerLevel: 'seviye başına hafta', insufficient: 'Yetersiz veri',
         noProgress: 'Ölçülebilir ilerleme yok', staminaInfo: 'Kondisyon değişkendir; hız tahmin edilmez.',
-        observed: 'Gerçek', trend: 'Eğilim', observations: 'gözlem', observedLevels: 'Kaydedilmiş haftalık seviyeler', levels: 'Seviyeler',
+        observed: 'Gerçek', trend: 'Eğilim', observations: 'gözlem', observedLevels: 'Kaydedilmiş haftalık seviyeler',
         injured: 'Bu kayıtta sakat', realReport: 'Gerçek rapor', reference: 'referans',
         uncertainWeek: 'Geçersiz tarih; grafikte kayıtlı rapor haftası kullanıldı.',
         sources: { individual: 'İleri', formation: 'Formasyon', carriedOver: 'Rapor yok', rosterFallback: 'Yalnız kadro', reportNoDetail: 'Ayrıntısız rapor' },

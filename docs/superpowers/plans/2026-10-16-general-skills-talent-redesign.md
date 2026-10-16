@@ -104,7 +104,7 @@
 ## Execution evidence — 2026-10-16
 
 - Tasks 1–4 and 6, plus the implementation and automated checks in Task 5, are complete on `codex/general-skills-talent`.
-- `npx vitest run`: 25 files, 213 tests passed after the responsive table refinement. `npx tsc --noEmit`, `npm run build`, and `git diff --check` passed.
+- `npx vitest run`: 25 files, 214 tests passed after restoring the original table columns. `npx tsc --noEmit`, `npm run build`, and `git diff --check` passed.
 - A synthetic local preview was inspected at wide and narrow widths for the two-column summary, visible weekly table, and skill chart. Actual Sokker pages with the extension loaded remain for owner validation; this is the outstanding manual part of Task 5, Step 4.
 - Review findings about Escape focus, uncertain dates, minimum-count wording, observed period, and inferred-source labels were fixed and retested. No commit or PR was created.
-- The weekly table now uses two lines per week without horizontal scroll; a zero-effectiveness injured report shows the injury icon instead of a training-kind badge. The summary can use up to 80% of the viewport width, with a wider below-anchor fallback on narrow screens. These changes were inspected in a synthetic browser preview.
+- Owner correction: the weekly table retains its original columns and one row per week. A zero-effectiveness injured report shows the injury icon instead of a training-kind badge. The summary widens to about 80% of the viewport when space permits, falling below the anchor when neither side can hold the table.

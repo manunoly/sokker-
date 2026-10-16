@@ -24,7 +24,7 @@ Observed pace is **not Sokker's hidden talent**. Age, level, coaches, minutes, i
 
 ## Weeks, sources, and exports
 
-Each saved week uses two lines in the table: record, position/skill, effectiveness, and week first, then the nine aligned levels. The card can use up to 80% of the viewport width and the history has more vertical space, without horizontal scrolling inside the table. Injury appears as an icon with an accessible explanation. If a report marks injury and `0` effectiveness, the visible record shows only the injury; CSV retains the original training kind.
+The weekly table keeps one row per report and its original columns. The card widens to about 80% of the viewport when space permits; on narrow screens the table retains its horizontal scrolling. Injury appears as an icon with an accessible explanation. If a report marks injury and `0` effectiveness, the visible record shows only the injury; CSV retains the original training kind.
 
 The weekly table remains open beneath the two-column summary. Its `Week` and CSV `Week` fields retain the stored **report week**. For the curve, a Thursday/Friday capture uses that week; a Saturday–Wednesday capture is placed in the previous **observed week**. Calendar-day parsing is independent of the computer's timezone. An invalid date falls back to the stored week, marked `?` in the table and explained in the skill card and PNG; duplicate observed weeks prefer a real report, then the latest capture. Implausible old-week entries stamped on the latest capture day are excluded from analysis but remain visible in the table. The expanded level list labels carried-over and roster-only values as references.
 
