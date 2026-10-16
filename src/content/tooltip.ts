@@ -1,872 +1,258 @@
-import { ChartPoint, ChartPointSource, drawChart } from '../ui-components/canvas';
 import { getPlayerHistory } from '../core/repository';
-import { escapeHtml } from '../utils/escapeHtml';
-import { computeTalentSummary, MIN_DIRECT_INTENSITY, TalentSkill, TalentSummary } from '../core/talent';
-import { TrainingKind, TrainingPosition, TrainingReport } from '../types/index';
+import { computeSkillProgress } from '../core/talent';
+import { PLAYER_SKILL_COLUMNS, preparePlayerTimeline, type PlayerSkill } from '../core/playerTimeline';
+import { createPlayerSkillContent, createPlayerSummaryContent } from './playerCard';
+import { getPlayerStrings } from './playerLocale';
 
-let tooltip: HTMLElement | null = null;
-let canvas: HTMLCanvasElement | null = null;
-let zoomBtn: HTMLElement | null = null;
-let activeTooltipLoadId = 0;
-let closeBtn: HTMLElement | null = null;
+interface Selection {
+    playerId: number;
+    skill: PlayerSkill | null;
+    anchor: HTMLElement | null;
+    x: number;
+    y: number;
+}
+
+const cardId = 'sokkerpp-history-tooltip';
+const skills = new Set<string>(PLAYER_SKILL_COLUMNS.flat());
+let card: HTMLDivElement | null = null;
+let content: HTMLDivElement | null = null;
+let selection: Selection | null = null;
+let loadId = 0;
+let hideTimer: ReturnType<typeof setTimeout> | null = null;
 let pinned = false;
-let outsideClickHandler: ((e: MouseEvent) => void) | null = null;
+let outsideClickHandler: ((event: MouseEvent) => void) | null = null;
+let keyHandlerBound = false;
+let suppressFocusAnchor: HTMLElement | null = null;
+const keyboardAnchors = new WeakSet<HTMLElement>();
 
-/**
- * creates the tooltip element in the DOM if not exists.
- */
-function createTooltip(): void {
-    if (tooltip) return;
-
-    tooltip = document.createElement('div');
-    tooltip.id = 'sokkerpp-history-tooltip';
-    tooltip.style.position = 'absolute';
-    tooltip.style.zIndex = '9999';
-    tooltip.style.backgroundColor = '#333';
-    tooltip.style.color = '#fff';
-    tooltip.style.padding = '10px';
-    tooltip.style.borderRadius = '5px';
-    tooltip.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
-    tooltip.style.display = 'none';
-    // pointer-events: auto so mouseenter/mouseleave (below) actually fire and
-    // the user can interact with the history table (scroll, click Export CSV).
-    tooltip.style.pointerEvents = 'auto';
-
-    // Canvas container
-    canvas = document.createElement('canvas');
-    canvas.width = 200;
-    canvas.height = 100;
-    tooltip.appendChild(canvas);
-
-    // Zoom Button (Overlay or appended)
-    zoomBtn = document.createElement('div');
-    zoomBtn.innerText = '🔍';
-    zoomBtn.title = 'Zoom Chart';
-    zoomBtn.style.position = 'absolute';
-    zoomBtn.style.top = '5px';
-    zoomBtn.style.right = '5px';
-    zoomBtn.style.cursor = 'pointer';
-    zoomBtn.style.fontSize = '12px';
-    zoomBtn.style.opacity = '0.7';
-    zoomBtn.style.pointerEvents = 'auto'; // Capture clicks
-    tooltip.appendChild(zoomBtn);
-
-    // Keep tooltip open when hovering over it
-    tooltip.addEventListener('mouseenter', () => {
-        cancelHide();
-    });
-
-    tooltip.addEventListener('mouseleave', () => {
-        scheduleHide();
-    });
-
-    document.body.appendChild(tooltip);
+function currentStrings() {
+    return getPlayerStrings(location.pathname, document.documentElement.lang, navigator.language);
 }
 
-/**
- * Shows the tooltip at specific coordinates with data.
- * @param {number} x - pageX
- * @param {number} y - pageY
- * @param {number} playerId 
- * @param {string} skillName 
- */
-/**
- * Pure function to process player history into chart data points.
- * @param {any[]} history 
- * @param {string} skillName 
- * @returns {Array<{ week: number, value: number, date: Date }>}
- */
-export function prepareChartData(
-    history: any[],
-    skillName: string
-): Array<ChartPoint & { date: Date }> {
-    const historyToUse = filterHistoryData(history);
+function clearAnchor(): void {
+    if (!selection?.anchor) return;
+    selection.anchor.removeAttribute('aria-expanded');
+    selection.anchor.removeAttribute('aria-controls');
+    selection.anchor.removeAttribute('aria-keyshortcuts');
+}
 
-    // Prepare and validate data points
-    // Fix: Adjust week based on training day (Thursday) to avoid "extra week" effect for pre-training data.
-    const rawPoints = historyToUse.map((entry: any) => {
-        const date = new Date(entry.date);
-        const day = date.getDay(); // 0=Sun, 1=Mon, ..., 4=Thu, 5=Fri, 6=Sat
-
-        // If it's Thursday(4) or Friday(5), it's the "new" value for this week.
-        // If it's Sat-Wed, it's the "old" value (pre-training).
-        let adjustedWeek = Number(entry.week);
-
-        if (day !== 4 && day !== 5) {
-            adjustedWeek = adjustedWeek - 1;
-        }
-
-        return {
-            week: adjustedWeek,
-            value: entry.skills[skillName],
-            date: date,
-            source: entry.source as ChartPointSource | undefined,
-            injured: entry.injured
-        };
+function bindAnchorKeyboard(anchor: HTMLElement): void {
+    if (keyboardAnchors.has(anchor)) return;
+    keyboardAnchors.add(anchor);
+    anchor.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowDown' || selection?.anchor !== anchor || card?.style.display !== 'block') return;
+        event.preventDefault();
+        card.focus();
     });
+}
 
-    // Deduplicate: If we have multiple entries for the same adjustedWeek, take the LATEST one.
-    const bestPointsMap = new Map<number, { week: number, value: any, date: Date, source?: ChartPointSource, injured?: boolean }>();
+function detachOutsideClick(): void {
+    if (outsideClickHandler) document.removeEventListener('click', outsideClickHandler);
+    outsideClickHandler = null;
+}
 
-    for (const p of rawPoints) {
-        // Fix: Exclude future data points
-        if (p.date > new Date()) continue;
+function createCard(): void {
+    if (card && document.body.contains(card)) return;
+    card = document.createElement('div');
+    card.id = cardId;
+    card.setAttribute('role', 'dialog');
+    card.tabIndex = -1;
+    card.style.cssText = [
+        'position:fixed', 'z-index:10000', 'box-sizing:border-box', 'display:none',
+        'max-width:calc(100vw - 16px)', 'max-height:85vh', 'overflow:auto',
+        'padding:14px', 'border:1px solid #64748b', 'border-radius:10px',
+        'background:#202b3a', 'color:#f8fafc', 'box-shadow:0 12px 28px #0008',
+        'pointer-events:auto'
+    ].join(';');
+    card.style.position = 'fixed';
+    card.addEventListener('mouseenter', cancelHide);
+    card.addEventListener('mouseleave', scheduleHide);
+    card.addEventListener('focusin', cancelHide);
+    card.addEventListener('focusout', scheduleHide);
 
-        if (isNaN(p.week) || p.week <= 0 || p.value === undefined || p.value === null) continue;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '×';
+    close.setAttribute('aria-label', currentStrings().close);
+    close.dataset.closePlayerCard = 'true';
+    close.style.cssText = 'display:none;position:absolute;top:4px;right:5px;z-index:2;border:0;background:transparent;color:#f8fafc;font-size:21px;cursor:pointer';
+    close.addEventListener('click', (event) => { event.stopPropagation(); hideTooltip(); });
+    content = document.createElement('div');
+    card.append(content, close);
+    document.body.appendChild(card);
 
-        const existing = bestPointsMap.get(p.week);
-        if (!existing) {
-            bestPointsMap.set(p.week, p);
+    if (!keyHandlerBound) {
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape' || card?.style.display !== 'block') return;
+            const anchor = selection?.anchor;
+            hideTooltip();
+            if (anchor) {
+                // The focus listener on the source must not reopen the card we just closed.
+                suppressFocusAnchor = anchor;
+                anchor.focus();
+                queueMicrotask(() => {
+                    if (suppressFocusAnchor === anchor) suppressFocusAnchor = null;
+                });
+            }
+        });
+        keyHandlerBound = true;
+    }
+}
+
+function placeCard(): void {
+    if (!card || !selection) return;
+    const edge = 8;
+    const gap = 8;
+    const targetWidth = selection.skill ? 500 : Math.min(1100, Math.floor(window.innerWidth * 0.8));
+    const minimumSideWidth = Math.min(targetWidth, selection.skill ? 320 : 360);
+    const rect = selection.anchor?.getBoundingClientRect();
+    card.style.width = `${targetWidth}px`;
+    let left: number;
+    let top: number;
+    if (rect && (rect.width > 0 || rect.height > 0)) {
+        const rightSpace = window.innerWidth - rect.right - gap - edge;
+        const leftSpace = rect.left - gap - edge;
+        if (rightSpace >= minimumSideWidth && (rightSpace >= leftSpace || leftSpace < minimumSideWidth)) {
+            const width = Math.max(1, Math.min(targetWidth, rightSpace));
+            card.style.width = `${width}px`;
+            left = rect.right + gap;
+            top = rect.top;
+        } else if (leftSpace >= minimumSideWidth) {
+            const width = Math.min(targetWidth, leftSpace);
+            card.style.width = `${width}px`;
+            left = rect.left - gap - width;
+            top = rect.top;
+        } else if (rightSpace >= minimumSideWidth) {
+            const width = Math.min(targetWidth, rightSpace);
+            card.style.width = `${width}px`;
+            left = rect.right + gap;
+            top = rect.top;
         } else {
-            if (p.date > existing.date) {
-                bestPointsMap.set(p.week, p);
-            }
+            // Narrow screens cannot hold a side card; keep the trigger unobscured.
+            card.style.width = `${Math.max(1, Math.min(targetWidth, window.innerWidth - 2 * edge))}px`;
+            left = edge;
+            top = rect.bottom + gap;
         }
-    }
-
-    let sortedPoints = Array.from(bestPointsMap.values())
-        .sort((a, b) => a.week - b.week)
-        .map(p => ({
-            week: p.week,
-            value: p.value,
-            date: p.date,
-            source: p.source,
-            injured: p.injured
-        }));
-
-    // Fix: Detect "Bad Backfill" data.
-    // 1. Date Clustering Check:
-    // If a historical entry (week < latest - 1) has a date very close to the latest entry (same "sync batch"),
-    // but the API failed to provide a real historical date, it's likely a "current data" echo saved into history.
-    if (sortedPoints.length > 1) {
-        const latestPoint = sortedPoints[sortedPoints.length - 1];
-        const latestDate = new Date(latestPoint.date).getTime();
-        const oneDayMs = 24 * 60 * 60 * 1000;
-
-        sortedPoints = sortedPoints.filter(p => {
-            // Keep the latest ones always
-            if (p.week >= latestPoint.week - 1) return true;
-
-            const pDate = new Date(p.date).getTime();
-            const timeDiff = Math.abs(latestDate - pDate);
-
-            if (timeDiff < oneDayMs) {
-                // Suspicious: Historical week with Today's date.
-                // It's a bad backfill.
-                return false;
-            }
-            return true;
-        });
-    }
-
-    const fluctuatingSkills = new Set(['form', 'stamina', 'teamwork', 'tacticaldiscipline']);
-    const normalizedSkillName = skillName.replace(/\s+/g, '').toLowerCase();
-    const isFluctuating = fluctuatingSkills.has(normalizedSkillName);
-
-    // 2. Flatline Check (existing logic, refactored)
-    // Only apply if we still have points and it's not a fluctuating skill
-    if (sortedPoints.length > 2 && !isFluctuating) {
-        const latestVal = sortedPoints[sortedPoints.length - 1].value;
-        let firstValidIndex = 0;
-        let potentialBadSequence = true;
-
-        for (let i = 0; i < sortedPoints.length - 1; i++) {
-            const val = sortedPoints[i].value;
-
-            if (val !== latestVal) {
-                if (val < latestVal) {
-                    firstValidIndex = i;
-                }
-                potentialBadSequence = false;
-                break;
-            }
-        }
-
-        if (!potentialBadSequence) {
-            if (firstValidIndex > 0) {
-                sortedPoints = sortedPoints.slice(firstValidIndex);
-            }
-        }
-    }
-
-    return sortedPoints;
-}
-
-/**
- * Fetches and processes chart data for a player and skill.
- * @param {number} playerId 
- * @param {string} skillName 
- * @returns {Promise<Array<{ week: number, value: number }> | null>}
- */
-async function fetchChartData(playerId: number, skillName: string): Promise<Array<{ week: number, value: number }> | null> {
-    const playerHistory = await getPlayerHistory(playerId);
-
-    if (!playerHistory || !playerHistory.history) return null;
-
-    return prepareChartData(playerHistory.history, skillName);
-}
-
-/**
- * Shows the tooltip at specific coordinates with data.
- * @param {number} x - pageX
- * @param {number} y - pageY
- * @param {number} playerId 
- * @param {string} skillName 
- */
-export async function showTooltip(x: number, y: number, playerId: number, skillName: string): Promise<void> {
-    const loadId = ++activeTooltipLoadId;
-
-    if (!tooltip) createTooltip();
-
-    // Cancel any pending hide
-    cancelHide();
-
-    // Leaving pinned mode if the user hovered a different skill cell while
-    // a pinned history is open: clean up before re-rendering.
-    if (pinned) {
-        pinned = false;
-        if (outsideClickHandler) {
-            document.removeEventListener('click', outsideClickHandler);
-            outsideClickHandler = null;
-        }
-        if (closeBtn) closeBtn.style.display = 'none';
-    }
-
-    // Initial position
-    updatePosition(x, y);
-    if (tooltip) tooltip.style.display = 'block';
-
-    // Reset visibility for Graph Mode
-    if (canvas) canvas.style.display = 'block';
-
-    // Hide history table if present
-    const tableContainer = tooltip?.querySelector('#sokkerpp-history-table') as HTMLElement;
-    if (tableContainer) {
-        tableContainer.style.display = 'none';
-    }
-
-    const dataPoints = await fetchChartData(playerId, skillName);
-    if (loadId !== activeTooltipLoadId) return;
-
-    if (canvas && dataPoints && dataPoints.length > 0) {
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-            drawChart(ctx, dataPoints, canvas.width, canvas.height);
-        }
-
-        // Update Zoom Button
-        if (zoomBtn) {
-            zoomBtn.style.display = 'block';
-            zoomBtn.onclick = (e) => {
-                // e.stopPropagation(); // Not needed since tooltip has pointer-events: none, but button has auto.
-                createZoomModal(dataPoints, skillName);
-            };
-        }
-
-    } else if (canvas) {
-        // Clear canvas or show "No Data"
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#fff';
-            ctx.fillText('No history data', 10, 50);
-        }
-        if (zoomBtn) zoomBtn.style.display = 'none';
-    }
-}
-
-
-
-/**
- * Shows the full history tooltip (HTML Table) for a player.
- * @param {number} x - pageX
- * @param {number} y - pageY
- * @param {number} playerId 
- * @param {HTMLElement} targetEl - The element that triggered the tooltip
- */
-export async function showHistoryTooltip(
-    x: number,
-    y: number,
-    playerId: number,
-    targetEl: HTMLElement,
-    opts?: { pinned?: boolean }
-): Promise<void> {
-    const loadId = ++activeTooltipLoadId;
-
-    console.log('[Sokker++] showHistoryTooltip invoked', {
-        playerId,
-        loadId,
-        pinnedRequested: !!opts?.pinned,
-        currentPinnedState: pinned,
-        tooltipExists: !!tooltip,
-        tooltipVisible: tooltip?.style.display === 'block',
-        tooltipsWithOurIdInDom: document.querySelectorAll('#sokkerpp-history-tooltip').length,
-        foreignSokkerTooltips: document.querySelectorAll('#sokker-plus-tooltip').length,
-        targetTag: targetEl.tagName,
-        targetClass: targetEl.className,
-        stack: new Error().stack?.split('\n').slice(1, 5).join(' | ')
-    });
-
-    // Hide any competing tooltip injected by another Sokker extension using
-    // the legacy id. We don't own it, but when both are displayed at the
-    // same time the UI shows a "double" tooltip. Hiding is non-destructive:
-    // the other extension can reshow on its next event.
-    document.querySelectorAll<HTMLElement>('#sokker-plus-tooltip').forEach((el) => {
-        el.style.setProperty('display', 'none', 'important');
-    });
-
-    if (!tooltip) createTooltip();
-
-    // Cancel any pending hide
-    cancelHide();
-
-    if (opts?.pinned) {
-        pinned = true;
-        attachPinnedBehavior();
-    } else if (pinned) {
-        // Opening in ephemeral (hover) mode — reset any sticky pinned state
-        // left over from a previous "+" click so scheduleHide works again.
-        pinned = false;
-        if (outsideClickHandler) {
-            document.removeEventListener('click', outsideClickHandler);
-            outsideClickHandler = null;
-        }
-        if (closeBtn) closeBtn.style.display = 'none';
-    }
-
-    // Initial position
-    updatePosition(x, y);
-    if (tooltip) {
-        tooltip.style.display = 'block';
-        // Ensure tooltip doesn't overflow screen
-        const rect = tooltip.getBoundingClientRect();
-        if (rect.right > window.innerWidth) {
-            tooltip.style.left = (window.innerWidth - rect.width - 20) + 'px';
-        }
-    }
-
-    // Clear previous content
-    if (canvas) canvas.style.display = 'none';
-    if (zoomBtn) zoomBtn.style.display = 'none';
-
-    // Check if table already exists, if not create container
-    let tableContainer = tooltip?.querySelector('#sokkerpp-history-table') as HTMLElement;
-    if (!tableContainer) {
-        tableContainer = document.createElement('div');
-        tableContainer.id = 'sokkerpp-history-table';
-        tooltip?.appendChild(tableContainer);
-    }
-    tableContainer.style.display = 'block';
-    tableContainer.innerHTML = '<div style="padding:10px;">Loading history...</div>';
-
-    const playerHistory = await getPlayerHistory(playerId);
-    if (loadId !== activeTooltipLoadId) return;
-
-    if (!playerHistory || !playerHistory.history) {
-        tableContainer.innerHTML = '<div style="padding:10px;">No history available.</div>';
-        return;
-    }
-
-    const filteredHistory = filterHistoryData(playerHistory.history);
-
-    if (filteredHistory.length === 0) {
-        tableContainer.innerHTML = '<div style="padding:10px;">No history available.</div>';
-        return;
-    }
-
-    // Process history for table
-    // Sort by week DESC
-    const history = [...filteredHistory].sort((a, b) => {
-        if (a.week !== b.week) return b.week - a.week;
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
-
-    // Deduplicate nicely for the table (one entry per week, prefer latest)
-    const weeklyData = new Map<number, any>();
-    history.forEach(entry => {
-        // Similar adjustment logic as chart? 
-        // For the table, maybe raw week is better, or aligned.
-        // Let's use the same adjustment to match charts.
-        const date = new Date(entry.date);
-        const day = date.getDay();
-        let adjustedWeek = Number(entry.week);
-        if (day !== 4 && day !== 5) {
-            // adjustedWeek = adjustedWeek - 1; // Actually for table listing, using raw week + date might be confusing if we adjust.
-            // But for consistency with chart "current state", let's keep it raw but maybe group by real training week?
-            // User wants to see evolution. Let's just list the rows as they are recorded but filtered.
-        }
-
-        // Simple dedupe: if we have multiple for same week, take latest.
-        if (!weeklyData.has(entry.week)) {
-            weeklyData.set(entry.week, entry);
-        } else {
-            const existing = weeklyData.get(entry.week);
-            if (new Date(entry.date) > new Date(existing.date)) {
-                weeklyData.set(entry.week, entry);
-            }
-        }
-    });
-
-    const rows = Array.from(weeklyData.values()).sort((a, b) => b.week - a.week);
-
-    // Build Table HTML
-    // Columns: Week, Sta, Pc, Tec, Pas, Kp, Def, Plm, Str, Form
-    const skillsOrder = [
-        { key: 'stamina', label: 'Sta' },
-        { key: 'pace', label: 'Pc' },
-        { key: 'technique', label: 'Tec' },
-        { key: 'passing', label: 'Pas' },
-        { key: 'keeper', label: 'Kp' },
-        { key: 'defending', label: 'Def' },
-        { key: 'playmaking', label: 'Plm' },
-        { key: 'striker', label: 'Str' },
-        // Form is usually not in 'skills' object but separate or part of it? 
-        // Looking at interface, it IS in Skills.
-        { key: 'form', label: 'Form' },
-    ];
-
-    let html = `
-        <h3 style="margin: 0 0 10px 0; font-size: 14px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 5px; color: #fff;">
-            General Skills ++
-        </h3>
-        ${renderTalentSummary(computeTalentSummary(rows))}
-        <table style="border-collapse: collapse; font-size: 12px; text-align: center; width: 100%; min-width: 420px;">
-            <thead>
-                <tr style="border-bottom: 1px solid #555;">
-                    <th style="padding: 6px 4px;" title="Source of the data">⚑</th>
-                    <th style="padding: 6px 4px;" title="Training kind: 🎯 advanced, 📋 formation, — none">Kind</th>
-                    <th style="padding: 6px 4px; text-align: left;" title="Assigned position and trained skill">Pos / Skill</th>
-                    <th style="padding: 6px 4px;" title="Training effectiveness (intensity)">Eff</th>
-                    <th style="padding: 6px 4px;">Week</th>
-                    ${skillsOrder.map(s => `<th style="padding: 6px 4px;">${s.label}</th>`).join('')}
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    rows.forEach((row, index) => {
-        // Compare with NEXT row (which is chronologically previous because sorted DESC)
-        const prevRow = rows[index + 1];
-
-        // Apply base background color to override any site-specific styles (like Player Page blue theme)
-        // If improvement/regression, use that color, otherwise use dark gray.
-        const rowBgColor = '#333';
-
-        let statusIcon = '';
-        let statusTitle = 'Training report';
-        if (row.source === 'carried-over') {
-            if (row.injured === true) {
-                statusIcon = '🩹';
-                statusTitle = 'Probably injured — no training report, values carried from previous week';
-            } else {
-                statusIcon = '⏸';
-                statusTitle = 'No training report — values carried from previous week';
-            }
-        } else if (row.source === 'roster-fallback') {
-            statusIcon = '⏸';
-            statusTitle = 'No prior history — values from current roster';
-        }
-
-        const training = row.training as TrainingReport | undefined;
-        const kindIcon = trainingKindIcon(training?.kind);
-        const kindTitle = trainingKindTitle(training?.kind);
-        const eff = intensityCellStyle(training, rowBgColor);
-        const skillAtPos = renderSkillAtPosCell(training);
-
-        html += `<tr style="border-bottom: 1px solid #444; background-color: ${rowBgColor};">`;
-        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};" title="${statusTitle}">${statusIcon}</td>`;
-        html += `<td style="padding: 6px 4px; color: #fff; background-color: ${rowBgColor};" title="${kindTitle}">${kindIcon}</td>`;
-        html += `<td style="padding: 6px 4px; text-align: left; color: #fff; background-color: ${rowBgColor};">${skillAtPos}</td>`;
-        html += `<td style="padding: 6px 4px; color: #fff; background-color: ${eff.bg};">${eff.text}</td>`;
-        html += `<td style="padding: 6px 4px; color: #aaa; background-color: ${rowBgColor};">${escapeHtml(row.week)}</td>`;
-
-        skillsOrder.forEach(skill => {
-            const val = row.skills[skill.key];
-            let bgColor = rowBgColor; // Default to row background
-            let color = '#fff'; // Always white text
-
-            if (prevRow) {
-                const prevVal = prevRow.skills[skill.key];
-                if (val > prevVal) {
-                    bgColor = '#2e5e32'; // Dark Green Background
-                } else if (val < prevVal) {
-                    bgColor = '#6e2a2a'; // Dark Red Background
-                }
-            }
-
-            html += `<td style="padding: 6px 4px; background-color: ${bgColor}; color: ${color};">${val !== undefined ? escapeHtml(val) : '-'}</td>`;
-        });
-
-        html += `</tr>`;
-    });
-
-    html += `</tbody></table>`;
-
-    // Add Copy/Export button
-    html += `
-        <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-            <span title="Oldest and newest week stored for this player" style="color: #888; font-size: 10px; font-variant-numeric: tabular-nums;"><span aria-hidden="true">ⓘ</span> ${formatHistoryRange(rows)}</span>
-            <button id="sokkerpp-export-csv" style="background: #444; color: #fff; border: 1px solid #666; cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 3px;">Export CSV</button>
-        </div>
-    `;
-
-    tableContainer.innerHTML = html;
-
-    // Attach export event
-    const exportBtn = tableContainer.querySelector('#sokkerpp-export-csv');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // prevent click propagation
-            // Generate CSV
-            let csv = 'Source,Kind,Skill,Position,Intensity,Minutes,Week,' + skillsOrder.map(s => s.label).join(',') + '\n';
-            rows.forEach(r => {
-                const sourceLabel = r.source ?? 'training';
-                const t = r.training as TrainingReport | undefined;
-                const kind = t?.kind ?? '';
-                const skill = t?.skill ?? '';
-                const pos = t?.position ?? '';
-                const intensity = t ? String(t.intensity) : '';
-                const minutes = t ? String(t.minutes) : '';
-                csv += `${sourceLabel},${kind},${skill},${pos},${intensity},${minutes},${r.week},` +
-                    skillsOrder.map(s => r.skills[s.key] || '').join(',') + '\n';
-            });
-
-            // Download
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `player_${playerId}_history.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        });
-    }
-}
-
-/**
- * Opens the Zoom Modal directly for a player's skill.
- * @param {number} playerId 
- * @param {string} skillName 
- */
-export async function openZoomChart(playerId: number, skillName: string): Promise<void> {
-    const dataPoints = await fetchChartData(playerId, skillName);
-    if (dataPoints && dataPoints.length > 0) {
-        createZoomModal(dataPoints, skillName);
     } else {
-        alert('No history data available for this skill.');
+        const width = Math.min(targetWidth, window.innerWidth - 2 * edge);
+        card.style.width = `${Math.max(1, width)}px`;
+        left = Math.max(edge, Math.min(selection.x + gap, window.innerWidth - width - edge));
+        top = selection.y + gap;
     }
+    const height = card.getBoundingClientRect().height || 320;
+    card.style.left = `${Math.round(left)}px`;
+    card.style.top = `${Math.max(edge, Math.min(Math.round(top), window.innerHeight - height - edge))}px`;
 }
 
-let hideTimeout: number | null = null;
-
-/**
- * Updates tooltip position.
- * @param {number} x 
- * @param {number} y 
- */
-export function updatePosition(x: number, y: number): void {
-    if (!tooltip) return;
-    // Small offset so the cursor sits just inside the tooltip's hit-box:
-    // the mouseenter on the tooltip fires immediately and the hover-to-keep
-    // logic has a chance to cancel the pending hide before it expires.
-    tooltip.style.left = (x + 4) + 'px';
-    tooltip.style.top = (y + 4) + 'px';
-}
-
-/**
- * Hides the tooltip immediately.
- */
-export function hideTooltip(): void {
-    activeTooltipLoadId++;
-    if (tooltip) {
-        tooltip.style.display = 'none';
-
-        // Reset zoom button state if needed
-        if (zoomBtn) zoomBtn.style.display = 'none';
-    }
-}
-
-/**
- * Schedules hiding the tooltip with a delay.
- * Allows user to move mouse over the tooltip.
- */
-export function scheduleHide(): void {
-    if (pinned) return;
-    if (hideTimeout) window.clearTimeout(hideTimeout);
-    hideTimeout = window.setTimeout(() => {
+function setPinned(value: boolean): void {
+    pinned = value;
+    detachOutsideClick();
+    const close = card?.querySelector<HTMLElement>('[data-close-player-card]');
+    if (close) close.style.display = value ? 'block' : 'none';
+    if (!value) return;
+    outsideClickHandler = (event) => {
+        if (card?.contains(event.target as Node) || selection?.anchor?.contains(event.target as Node)) return;
         hideTooltip();
-    }, 600); // grace period for cursor to travel between trigger and tooltip
-}
-
-/**
- * Cancels a scheduled hide.
- */
-export function cancelHide(): void {
-    if (hideTimeout) {
-        window.clearTimeout(hideTimeout);
-        hideTimeout = null;
-    }
-}
-
-/**
- * Creates and shows a full-screen modal with the zoomed chart.
- * @param {Array<{week: number, value: number}>} dataPoints 
- * @param {string} skillName 
- */
-function createZoomModal(dataPoints: Array<{ week: number, value: number }>, skillName: string): void {
-    const modalId = 'sokkerpp-zoom-modal';
-    let modal = document.getElementById(modalId);
-
-    if (modal) {
-        document.body.removeChild(modal);
-    }
-
-    modal = document.createElement('div');
-    modal.id = modalId;
-    modal.style.position = 'fixed';
-    modal.style.top = '0';
-    modal.style.left = '0';
-    modal.style.width = '100vw';
-    modal.style.height = '100vh';
-    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
-    modal.style.zIndex = '100000';
-    modal.style.display = 'flex';
-    modal.style.justifyContent = 'center';
-    modal.style.alignItems = 'center';
-    modal.style.flexDirection = 'column';
-
-    // Close on click outside
-    modal.onclick = (e) => {
-        if (e.target === modal) document.body.removeChild(modal as HTMLElement);
     };
-
-    const container = document.createElement('div');
-    container.style.backgroundColor = '#222';
-    container.style.padding = '20px';
-    container.style.borderRadius = '8px';
-    container.style.boxShadow = '0 0 20px rgba(0,0,0,0.5)';
-    container.style.textAlign = 'center';
-    container.style.border = '1px solid #444';
-
-    const title = document.createElement('h2');
-    title.innerText = `${skillName.toUpperCase()} - History Detail`;
-    title.style.color = '#fff';
-    title.style.marginBottom = '20px';
-    title.style.marginTop = '0';
-    container.appendChild(title);
-
-    const modalCanvas = document.createElement('canvas');
-    modalCanvas.width = 800;
-    modalCanvas.height = 400;
-    modalCanvas.style.backgroundColor = '#111';
-    modalCanvas.style.border = '1px solid #333';
-    container.appendChild(modalCanvas);
-
-    const closeBtn = document.createElement('button');
-    closeBtn.innerText = 'Close';
-    closeBtn.style.marginTop = '20px';
-    closeBtn.style.padding = '10px 20px';
-    closeBtn.style.backgroundColor = '#444';
-    closeBtn.style.color = '#fff';
-    closeBtn.style.border = 'none';
-    closeBtn.style.borderRadius = '4px';
-    closeBtn.style.cursor = 'pointer';
-    closeBtn.onclick = () => {
-        if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
-    };
-    container.appendChild(closeBtn);
-
-    modal.appendChild(container);
-    document.body.appendChild(modal);
-
-    const ctx = modalCanvas.getContext('2d');
-    if (ctx) {
-        drawChart(ctx, dataPoints, modalCanvas.width, modalCanvas.height, {
-            forceYRange: [0, 18],
-            showAllXLabels: true,
-            showGrid: true
-        });
-    }
-}
-
-
-/**
- * Filter history to remove "Naive Backfills" based on static Form.
- * @param {Array<any>} history
- * @returns {Array<any>}
- */
-function filterHistoryData(history: any[]): any[] {
-    // Heuristic: If 'form' is identical for > 3 weeks, it's fake history.
-    if (history.length > 3) {
-        const latestForm = history[history.length - 1].skills.form;
-        const isFormStatic = history.every((h: any) => h.skills.form === latestForm);
-
-        if (isFormStatic) {
-            // Detected backfill! Truncate to just the latest entry.
-            return [history[history.length - 1]];
-        }
-    }
-    return history;
-}
-
-/**
- * Makes the tooltip behave in "pinned" mode: auto-hide is suppressed, a close
- * button is shown, and clicks outside the tooltip close it.
- */
-function attachPinnedBehavior(): void {
-    if (!tooltip) return;
-
-    ensureCloseButton();
-
-    // Remove any stale handler before binding a fresh one.
-    if (outsideClickHandler) {
-        document.removeEventListener('click', outsideClickHandler);
-        outsideClickHandler = null;
-    }
-
-    outsideClickHandler = (e: MouseEvent) => {
-        if (!tooltip) return;
-        const target = e.target as Node | null;
-        if (target && tooltip.contains(target)) return;
-        unpinAndHide();
-    };
-
-    // Defer attachment to the next tick so the click event that TRIGGERED
-    // the pin doesn't immediately fire this outside-click handler.
+    // The opening click must finish before an outside click can close the card.
     setTimeout(() => {
-        if (outsideClickHandler) {
-            document.addEventListener('click', outsideClickHandler);
-        }
+        if (pinned && outsideClickHandler) document.addEventListener('click', outsideClickHandler);
     }, 0);
 }
 
-function ensureCloseButton(): void {
-    if (!tooltip) return;
-    if (!closeBtn) {
-        closeBtn = document.createElement('div');
-        closeBtn.innerText = '\u00d7'; // "×" multiplication sign
-        closeBtn.title = 'Close';
-        closeBtn.style.position = 'absolute';
-        closeBtn.style.top = '2px';
-        closeBtn.style.right = '6px';
-        closeBtn.style.cursor = 'pointer';
-        closeBtn.style.fontSize = '16px';
-        closeBtn.style.lineHeight = '1';
-        closeBtn.style.color = '#fff';
-        closeBtn.style.opacity = '0.8';
-        closeBtn.style.pointerEvents = 'auto';
-        closeBtn.style.padding = '2px 6px';
-        closeBtn.style.borderRadius = '3px';
-        closeBtn.style.userSelect = 'none';
-        closeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            unpinAndHide();
-        });
-        tooltip.appendChild(closeBtn);
+async function showCard(next: Selection, pin = false): Promise<void> {
+    if (next.anchor && suppressFocusAnchor === next.anchor) return;
+    const currentLoad = ++loadId;
+    createCard();
+    cancelHide();
+    clearAnchor();
+    selection = next;
+    next.anchor?.setAttribute('aria-expanded', 'true');
+    next.anchor?.setAttribute('aria-controls', cardId);
+    next.anchor?.setAttribute('aria-keyshortcuts', 'ArrowDown');
+    if (next.anchor) bindAnchorKeyboard(next.anchor);
+    setPinned(pin);
+    if (!card || !content) return;
+    card.style.display = 'block';
+    card.setAttribute('aria-label', next.skill ? currentStrings().skills[next.skill] : currentStrings().title);
+    card.querySelector<HTMLElement>('[data-close-player-card]')?.setAttribute('aria-label', currentStrings().close);
+    content.textContent = '…';
+    placeCard();
+
+    let player;
+    try {
+        player = await getPlayerHistory(next.playerId);
+    } catch (cause) {
+        if (currentLoad === loadId) {
+            console.warn('Could not read saved player history:', cause);
+            content.textContent = currentStrings().noData;
+        }
+        return;
     }
-    closeBtn.style.display = 'block';
-    // Hide the zoom button while pinned — it would overlap with close.
-    if (zoomBtn) zoomBtn.style.display = 'none';
+    if (currentLoad !== loadId || card.style.display !== 'block') return;
+    if (!player?.history?.length) {
+        content.textContent = currentStrings().noData;
+        return;
+    }
+    const rows = preparePlayerTimeline(player.history);
+    const t = currentStrings();
+    const view = next.skill
+        ? createPlayerSkillContent(player, computeSkillProgress(rows, next.skill), t)
+        : createPlayerSummaryContent(player, rows, PLAYER_SKILL_COLUMNS.flat().map(skill => computeSkillProgress(rows, skill)), t);
+    content.replaceChildren(view);
+    placeCard();
 }
 
-function unpinAndHide(): void {
+/** Open a saved per-skill curve next to its source value. */
+export async function showTooltip(x: number, y: number, playerId: number, skillName: string, anchor?: HTMLElement): Promise<void> {
+    if (!skills.has(skillName)) return;
+    await showCard({ playerId, skill: skillName as PlayerSkill, anchor: anchor ?? null, x, y });
+}
+
+/** Open the two-column summary and the always-visible weekly table. */
+export async function showHistoryTooltip(
+    x: number, y: number, playerId: number, targetEl: HTMLElement, opts?: { pinned?: boolean }
+): Promise<void> {
+    document.querySelectorAll<HTMLElement>('#sokker-plus-tooltip').forEach(node => {
+        node.style.setProperty('display', 'none', 'important');
+    });
+    await showCard({ playerId, skill: null, anchor: targetEl, x, y }, !!opts?.pinned);
+}
+
+/** A skill click pins the same native chart card instead of opening a separate modal. */
+export async function openZoomChart(playerId: number, skillName: string, anchor?: HTMLElement): Promise<void> {
+    if (!skills.has(skillName)) return;
+    const rect = anchor?.getBoundingClientRect();
+    await showCard({ playerId, skill: skillName as PlayerSkill, anchor: anchor ?? null, x: rect?.right ?? 0, y: rect?.top ?? 0 }, true);
+}
+
+export function updatePosition(x: number, y: number): void {
+    if (!selection) return;
+    selection.x = x;
+    selection.y = y;
+    placeCard();
+}
+
+export function hideTooltip(): void {
+    ++loadId;
+    cancelHide();
+    clearAnchor();
+    selection = null;
     pinned = false;
-    if (outsideClickHandler) {
-        document.removeEventListener('click', outsideClickHandler);
-        outsideClickHandler = null;
-    }
-    if (closeBtn) closeBtn.style.display = 'none';
-    hideTooltip();
+    detachOutsideClick();
+    if (card) card.style.display = 'none';
 }
 
-function trainingKindIcon(kind: TrainingKind | undefined): string {
-    if (kind === 'individual') return '🎯';
-    if (kind === 'formation') return '📋';
-    return '—';
+export function scheduleHide(): void {
+    if (pinned) return;
+    cancelHide();
+    hideTimer = setTimeout(() => {
+        if (card?.contains(document.activeElement) || selection?.anchor === document.activeElement) return;
+        hideTooltip();
+    }, 600);
 }
 
-function trainingKindTitle(kind: TrainingKind | undefined): string {
-    if (kind === 'individual') return 'Advanced training (intense)';
-    if (kind === 'formation') return 'Formation training (moderate)';
-    return 'No training recorded for this week';
-}
-
-function positionBadgeColor(position: TrainingPosition | null | undefined): string {
-    if (position === 'GK') return '#2c5aa0';
-    if (position === 'DEF') return '#2e5e32';
-    if (position === 'MID') return '#8a6d1c';
-    if (position === 'ATT') return '#7a2a2a';
-    return '#555';
-}
-
-function intensityCellStyle(training: TrainingReport | undefined, rowBgColor: string): { text: string; bg: string } {
-    if (!training) return { text: '—', bg: rowBgColor };
-    const i = training.intensity;
-    if (!Number.isFinite(i)) return { text: '—', bg: rowBgColor };
-    if (i >= 80) return { text: `${i}%`, bg: '#2e5e32' };
-    if (i >= 50) return { text: `${i}%`, bg: '#8a6d1c' };
-    return { text: `${i}%`, bg: '#6e2a2a' };
-}
-
-const TALENT_LABELS: Record<TalentSkill, string> = {
-    keeper: 'Kp', pace: 'Pc', technique: 'Tec', passing: 'Pas', defending: 'Def', playmaking: 'Plm', striker: 'Str',
-};
-const talentFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
-
-export function renderTalentSummary(summary: TalentSummary): string {
-    const rowsHtml = summary.rows.map((r) => {
-        const target = r.talent ?? summary.overallTalent;
-        const cells = target !== null ? Math.round(target) : 0;
-        const filled = Math.min(r.sinceLastPop, cells);
-        const bar = '■'.repeat(filled) + '□'.repeat(cells - filled);
-        const count = r.exact ? `${r.sinceLastPop}` : `≥ ${r.sinceLastPop}`;
-        const talent = r.talent !== null ? `~${talentFormat.format(r.talent)}` : '?';
-        const soon = cells > 0 && r.sinceLastPop >= cells ? '▲?' : '';
-        const detail = r.lastPopWeek === null
-            ? 'no pop in history'
-            : `last pop wk ${r.lastPopWeek}${r.lastPopAfter !== null ? ` · after ${r.lastPopAfter}` : ''}`;
-        const label = TALENT_LABELS[r.skill];
-        return `<tr title="Advanced trainings (intensity ≥ ${MIN_DIRECT_INTENSITY}%) since the last ${label} pop">`
-            + `<td style="padding:2px 6px;text-align:left;color:#fff;">${label}</td>`
-            + `<td aria-hidden="true" style="padding:2px 6px;text-align:left;color:#8fbf8f;letter-spacing:1px;">${bar}</td>`
-            + `<td style="padding:2px 6px;text-align:right;color:#fff;">${count} / ${talent}</td>`
-            + `<td style="padding:2px 6px;text-align:left;color:#aaa;">${detail}</td>`
-            + `<td style="padding:2px 6px;color:#e0c060;">${soon}</td>`
-            + `</tr>`;
-    }).join('');
-    const overall = summary.overallTalent !== null ? `≈ ${talentFormat.format(summary.overallTalent)}` : '?';
-    return `<div style="margin:0 0 10px 0;padding:6px 8px;background:#2a2a2a;border:1px solid #444;border-radius:4px;font-size:11px;font-variant-numeric:tabular-nums;">`
-        + `<div style="display:flex;justify-content:space-between;color:#aaa;margin-bottom:4px;">`
-        + `<span>DIRECT TRAINING SINCE LAST POP</span>`
-        + `<span title="Average advanced trainings per pop, all skills">Est. talent ${overall}</span>`
-        + `</div>`
-        + `<table style="border-collapse:collapse;width:100%;">${rowsHtml}</table>`
-        + `</div>`;
-}
-
-/**
- * Footer text for the history table: how far back the stored data goes.
- * Counts the span from oldest to newest week (gaps included).
- */
-export function formatHistoryRange(rows: Array<{ week: number }>): string {
-    if (rows.length === 0) return '';
-    const weeks = rows.map((r) => r.week);
-    const oldest = Math.min(...weeks);
-    const newest = Math.max(...weeks);
-    const span = newest - oldest + 1;
-    const range = oldest === newest ? `${oldest}` : `${oldest}–${newest}`;
-    return `History: ${span} ${span === 1 ? 'wk' : 'wks'} (${range})`;
-}
-
-export function renderSkillAtPosCell(training: TrainingReport | undefined): string {
-    if (!training) {
-        return '<span style="color:#888;">—</span>';
-    }
-    // Fixed-width badge slot (empty when there is no position) keeps skill names left-aligned across rows.
-    const badgeStyle = 'display:inline-block;box-sizing:border-box;width:32px;text-align:center;padding:1px 0;border-radius:3px;color:#fff;font-size:10px;margin-right:6px;';
-    const badge = training.position
-        ? `<span style="${badgeStyle}background:${positionBadgeColor(training.position)};">${escapeHtml(training.position)}</span>`
-        : `<span style="${badgeStyle}"></span>`;
-    return `${badge}<span>${escapeHtml(training.skill)}</span>`;
+export function cancelHide(): void {
+    if (hideTimer !== null) clearTimeout(hideTimer);
+    hideTimer = null;
 }

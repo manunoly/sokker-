@@ -1,260 +1,110 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getPlayerHistory } from '../core/repository';
+import type { PlayerData, PlayerHistoryEntry } from '../types/index';
+import { hideTooltip, openZoomChart, scheduleHide, showHistoryTooltip, showTooltip } from './tooltip';
 
-import { describe, it, expect } from 'vitest';
-import { formatHistoryRange, prepareChartData, renderSkillAtPosCell, renderTalentSummary } from './tooltip';
-import { TrainingReport } from '../types/index';
-import { TalentSummary } from '../core/talent';
+vi.mock('../core/repository', () => ({ getPlayerHistory: vi.fn() }));
+vi.mock('../ui-components/playerSkillCanvas', () => ({ drawPlayerSkillChart: vi.fn() }));
 
-describe('prepareChartData', () => {
-    // Helper to create history entry
-    const createEntry = (week: number, dateStr: string, skillVal: number, form: number = 10) => ({
-        week,
-        date: dateStr,
-        skills: {
-            playmaking: skillVal,
-            form: form,
-            stamina: 10,
-            teamwork: 10,
-            tacticalDiscipline: 10
-        }
-    });
+const skills = { stamina: 7, pace: 10, technique: 8, passing: 9, keeper: 0, defending: 6, playmaking: 11, striker: 5, form: 10, teamwork: 8, tacticalDiscipline: 5, experience: 4 };
+const entry = (week: number, level = 10): PlayerHistoryEntry => ({
+    week, date: '2026-10-16', skills: { ...skills, pace: level }, source: 'training', value: 1,
+    training: { kind: 'individual', skill: 'pace', position: 'MID', intensity: 85, minutes: 90 }
+});
+const player = (name = 'Player'): PlayerData => ({ id: 7, name, latest: entry(1214), history: [entry(1211, 9), entry(1212, 9), entry(1213, 10), entry(1214, 10)] });
 
-    it('should adjust weeks for pre-training days (Sat-Wed)', () => {
-        const history = [
-            createEntry(100, '2023-10-21T12:00:00', 5), // Saturday (Week 100) -> Should be Week 99
-            createEntry(100, '2023-10-25T12:00:00', 6), // Wednesday (Week 100) -> Should be Week 99
-            createEntry(100, '2023-10-26T12:00:00', 7), // Thursday (Week 100) -> Should be Week 100
-        ];
+function anchor(): HTMLSpanElement {
+    const node = document.createElement('span');
+    node.tabIndex = 0;
+    node.textContent = 'Player';
+    document.body.appendChild(node);
+    vi.spyOn(node, 'getBoundingClientRect').mockReturnValue({ left: 120, right: 180, top: 100, bottom: 120, width: 60, height: 20 } as DOMRect);
+    return node;
+}
 
-        const result = prepareChartData(history, 'playmaking');
-
-        expect(result).toHaveLength(2);
-
-        const week99 = result.find(p => p.week === 99);
-        expect(week99).toBeDefined();
-        expect(week99?.value).toBe(6); // Wed overrides Sat
-
-        const week100 = result.find(p => p.week === 100);
-        expect(week100).toBeDefined();
-        expect(week100?.value).toBe(7);
-    });
-
-    it('should deduplicate multiple entries for same adjusted week', () => {
-        const history = [
-            createEntry(100, '2023-10-26T10:00:00', 7), // Thu AM
-            createEntry(100, '2023-10-26T12:00:00', 8), // Thu Noon (Latest)
-        ];
-
-        const result = prepareChartData(history, 'playmaking');
-
-        expect(result).toHaveLength(1);
-        expect(result[0].week).toBe(100);
-        expect(result[0].value).toBe(8);
-    });
-
-    it('should remove naive backfills (flatlines > 3 weeks)', () => {
-        // Create 5 weeks of identical data (flatline) to be safe > 3
-        const history = [
-            createEntry(10, '2023-01-01T12:00:00', 5, 5),
-            createEntry(11, '2023-01-08T12:00:00', 5, 5),
-            createEntry(12, '2023-01-15T12:00:00', 5, 5),
-            createEntry(13, '2023-01-22T12:00:00', 5, 5),
-            createEntry(14, '2023-01-29T12:00:00', 5, 5),
-        ];
-
-        const result = prepareChartData(history, 'playmaking');
-
-        expect(result).toHaveLength(1);
-        expect(result[0].week).toBe(13); // Should keep only the latest (Week 14 Sun -> Week 13)
-    });
-
-    it('should NOT remove flatlines if form fluctuates', () => {
-        const history = [
-            createEntry(10, '2023-01-01T12:00:00', 5, 5),
-            createEntry(11, '2023-01-08T12:00:00', 5, 6), // Form changed
-            createEntry(12, '2023-01-15T12:00:00', 5, 5),
-            createEntry(13, '2023-01-22T12:00:00', 5, 5),
-        ];
-
-        const result = prepareChartData(history, 'playmaking');
-
-        expect(result).toHaveLength(4); // Should keep all
-    });
-
-    it('should detect bad backfills based on date clustering', () => {
-        // Use fixed Friday timestamps so week-adjust logic is stable in any execution day.
-        const oneHourAgo = '2023-10-27T11:00:00';
-        const twoHoursAgo = '2023-10-27T10:00:00';
-
-        // Scenario: Week 50 and Week 100 both synchronized "today"
-        // Week 50 is a ghost entry with "today's" date
-        const history = [
-            createEntry(50, twoHoursAgo, 5), // Old week, but recent date
-            createEntry(100, oneHourAgo, 5), // Current week
-        ];
-
-        const result = prepareChartData(history, 'playmaking');
-
-        // Logic: if p.week < latest.week - 1 AND date diff < 1 day -> remove
-        // Week 50 < 99, and date diff is 1 hour. Should be removed.
-
-        expect(result).toHaveLength(1);
-        expect(result[0].week).toBe(100);
-    });
-
-    it('should handle "missing" players gracefully (by not receiving them)', () => {
-        const result = prepareChartData([], 'playmaking');
-        expect(result).toHaveLength(0);
-    });
-
-    it('should process mixed sequence of backfill and valid data', () => {
-        const history = [
-            createEntry(10, '2023-01-01T12:00:00', 5, 10), // Backfill
-            createEntry(11, '2023-01-08T12:00:00', 5, 10), // Backfill
-            createEntry(12, '2023-01-15T12:00:00', 5, 10), // Backfill
-            createEntry(13, '2023-01-22T12:00:00', 6, 11), // Real update
-            createEntry(14, '2023-01-29T12:00:00', 6, 11), // Real update
-        ];
-
-        const result = prepareChartData(history, 'playmaking');
-
-        expect(result).toHaveLength(5);
-        expect(result[result.length - 1].value).toBe(6);
-    });
+beforeEach(() => {
+    document.documentElement.lang = 'es';
+    vi.mocked(getPlayerHistory).mockResolvedValue(player());
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({} as CanvasRenderingContext2D);
 });
 
-describe('prepareChartData preserves source and injured metadata', () => {
-    it('maps source from each history entry to the produced ChartPoint', () => {
-        const history = [
-            {
-                week: 100,
-                date: '2026-02-06T12:00:00', // Friday → keeps week=100 under existing adjustment rules
-                skills: { stamina: 10 },
-                value: 1,
-                source: 'training'
-            },
-            {
-                week: 101,
-                date: '2026-02-13T12:00:00', // Friday → keeps week=101
-                skills: { stamina: 10 },
-                value: 1,
-                source: 'carried-over',
-                injured: true
-            }
-        ];
-
-        const points = prepareChartData(history, 'stamina');
-
-        const w100 = points.find((p) => p.week === 100);
-        const w101 = points.find((p) => p.week === 101);
-        expect(w100?.source).toBe('training');
-        expect(w101?.source).toBe('carried-over');
-        expect(w101?.injured).toBe(true);
-    });
+afterEach(() => {
+    hideTooltip();
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
 });
 
-describe('renderSkillAtPosCell', () => {
-    it('escapes HTML coming from stored training data', () => {
-        const training = {
-            kind: 'individual',
-            skill: '<img src=x onerror=alert(1)>',
-            position: '<b>',
-            intensity: 90,
-            minutes: 90,
-        } as unknown as TrainingReport;
-
-        const html = renderSkillAtPosCell(training);
-
-        expect(html).not.toContain('<img');
-        expect(html).not.toContain('<b>');
-        expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+describe('first-team hover integration', () => {
+    it('reads local history once, shows the two-column summary and no network request', async () => {
+        const trigger = anchor();
+        const network = vi.fn();
+        vi.stubGlobal('fetch', network);
+        await showHistoryTooltip(130, 110, 7, trigger);
+        const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
+        expect(getPlayerHistory).toHaveBeenCalledOnce();
+        expect(network).not.toHaveBeenCalled();
+        expect(card.style.display).toBe('block');
+        expect(card.textContent).toContain('Habilidades generales ++');
+        expect(card.textContent).toContain('Registro');
+        expect(card.querySelectorAll('[data-player-skill-column]')).toHaveLength(2);
+        expect(card.querySelector('table')).not.toBeNull();
+        expect(parseInt(card.style.width, 10)).toBeGreaterThan(630);
     });
 
-    it('renders the position badge before the skill', () => {
-        const training: TrainingReport = { kind: 'individual', skill: 'passing', position: 'MID', intensity: 90, minutes: 90 };
-
-        const html = renderSkillAtPosCell(training);
-
-        expect(html.indexOf('MID')).toBeGreaterThan(-1);
-        expect(html.indexOf('MID')).toBeLessThan(html.indexOf('passing'));
+    it('ignores a stale IndexedDB result after selecting another skill', async () => {
+        let release!: (value: PlayerData) => void;
+        vi.mocked(getPlayerHistory).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }))
+            .mockResolvedValueOnce(player('New player'));
+        const trigger = anchor();
+        const first = showHistoryTooltip(130, 110, 7, trigger);
+        await showTooltip(130, 110, 7, 'pace', trigger);
+        release(player('Old player'));
+        await first;
+        const text = document.querySelector('#sokkerpp-history-tooltip')?.textContent ?? '';
+        expect(text).toContain('New player');
+        expect(text).not.toContain('Old player');
+        expect(text).toContain('Ritmo observado');
     });
 
-    it('keeps a same-width badge slot when there is no position, so skills stay aligned', () => {
-        const withPos = renderSkillAtPosCell({ kind: 'individual', skill: 'passing', position: 'MID', intensity: 90, minutes: 90 });
-        const withoutPos = renderSkillAtPosCell({ kind: 'formation', skill: 'general', position: null, intensity: 60, minutes: 90 });
-
-        const slotWidth = /width:\s*(\d+)px/;
-        expect(withoutPos.match(slotWidth)?.[1]).toBeDefined();
-        expect(withoutPos.match(slotWidth)?.[1]).toBe(withPos.match(slotWidth)?.[1]);
-        expect(withoutPos).toContain('general');
-    });
-});
-
-describe('renderTalentSummary', () => {
-    const base = { hasPop: true, exact: true, lastPopWeek: 1176, lastPopAfter: 4 };
-
-    it('renders progress bar and soon marker when counter reaches talent', () => {
-        const html = renderTalentSummary({
-            rows: [{ ...base, skill: 'pace', sinceLastPop: 4, talent: 4 }],
-            overallTalent: 4,
-        } as TalentSummary);
-        expect(html).toContain('Pc');
-        expect(html).toContain('■■■■');
-        expect(html).toContain('▲?');
-        expect(html).toContain('last pop wk 1176 · after 4');
+    it('keeps the card open while the pointer crosses to it, and Escape closes it', async () => {
+        const trigger = anchor();
+        trigger.addEventListener('focus', () => { void showHistoryTooltip(130, 110, 7, trigger); });
+        await showHistoryTooltip(130, 110, 7, trigger);
+        const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
+        trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        expect(document.activeElement).toBe(card);
+        vi.useFakeTimers();
+        scheduleHide();
+        card.dispatchEvent(new MouseEvent('mouseenter'));
+        vi.advanceTimersByTime(700);
+        expect(card.style.display).toBe('block');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(card.style.display).toBe('none');
+        expect(document.activeElement).toBe(trigger);
+        expect(getPlayerHistory).toHaveBeenCalledOnce();
     });
 
-    it('shows ≥ and ? without bar when there is no pop and no talent', () => {
-        const html = renderTalentSummary({
-            rows: [{ skill: 'technique', sinceLastPop: 1, hasPop: false, exact: false, lastPopWeek: null, lastPopAfter: null, talent: null }],
-            overallTalent: null,
-        });
-        expect(html).toContain('≥ 1 / ?');
-        expect(html).toContain('no pop in history');
-        expect(html).not.toContain('■');
-        expect(html).not.toContain('▲?');
+    it('pins the native skill card on click and places it beside its trigger', async () => {
+        const trigger = anchor();
+        await openZoomChart(7, 'pace', trigger);
+        const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
+        expect(card.style.position).toBe('fixed');
+        expect(card.style.left).toBe('188px');
+        expect(card.textContent).toContain('Ritmo observado');
+        expect(card.querySelector('canvas')).not.toBeNull();
+        expect(card.querySelector('button[aria-label="Descargar PNG"]')).not.toBeNull();
     });
 
-    it('shows ≥ when the counter is not exact even with a pop', () => {
-        const html = renderTalentSummary({
-            rows: [{ ...base, skill: 'pace', sinceLastPop: 2, talent: 5, exact: false }],
-            overallTalent: 5,
-        } as TalentSummary);
-        expect(html).toContain('≥ 2 / ~5');
-    });
-
-    it('bar and soon marker agree on the rounded bar size', () => {
-        const html = renderTalentSummary({
-            rows: [{ ...base, skill: 'pace', sinceLastPop: 4, talent: 4.4 }],
-            overallTalent: 4.4,
-        } as TalentSummary);
-        expect(html).toContain('■■■■');
-        expect(html).not.toContain('□');
-        expect(html).toContain('▲?');
-    });
-
-    it('falls back to overall talent for the bar', () => {
-        const html = renderTalentSummary({
-            rows: [{ ...base, skill: 'passing', sinceLastPop: 2, talent: null }],
-            overallTalent: 5,
-        } as TalentSummary);
-        expect(html).toContain('■■□□□');
-        expect(html).toContain('2 / ?');
-        expect(html).toContain('Est. talent ≈ 5');
-    });
-});
-
-describe('formatHistoryRange', () => {
-    const weeks = (...ws: number[]) => ws.map((week) => ({ week }));
-
-    it('shows how many weeks back the data goes, from oldest to newest', () => {
-        expect(formatHistoryRange(weeks(1184, 1180, 1175, 1179))).toBe('History: 10 wks (1175–1184)');
-    });
-
-    it('uses singular for a single week', () => {
-        expect(formatHistoryRange(weeks(1184))).toBe('History: 1 wk (1184)');
-    });
-
-    it('returns empty text when there is no history', () => {
-        expect(formatHistoryRange([])).toBe('');
+    it('uses the wider below-anchor layout when neither side fits the summary', async () => {
+        vi.stubGlobal('innerWidth', 400);
+        const trigger = anchor();
+        await showHistoryTooltip(130, 110, 7, trigger);
+        const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
+        expect(card.style.width).toBe('320px');
+        expect(card.style.left).toBe('8px');
+        expect(card.style.top).toBe('128px');
     });
 });

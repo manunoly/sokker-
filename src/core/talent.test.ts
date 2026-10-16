@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { computeTalentSummary, TalentSkill, TalentSummary } from './talent';
+import { computeSkillProgress, computeTalentSummary, TalentSkill, TalentSummary } from './talent';
 import { PlayerHistoryEntry, Skills, TrainingReport } from '../types/index';
+import type { PlayerSkill, PlayerTimelineRow } from './playerTimeline';
 
 const BASE: Skills = {
     stamina: 10, keeper: 1, playmaking: 10, passing: 10, technique: 10, defending: 10,
@@ -125,5 +126,122 @@ describe('computeTalentSummary', () => {
         expect(row(computeTalentSummary(history), 'pace').sinceLastPop).toBe(3);
         const s = computeTalentSummary([...history, wk(6, { pace: 13 }, {})]);
         expect(row(s, 'pace')).toMatchObject({ talent: null, lastPopAfter: null, lastPopWeek: 6 });
+    });
+});
+
+const timelineRow = (
+    week: number,
+    level: number,
+    training?: Partial<TrainingReport>,
+    source: PlayerHistoryEntry['source'] = 'training',
+    extras: Partial<PlayerTimelineRow> = {},
+): PlayerTimelineRow => ({
+    entry: {
+        ...wk(week, { pace: level, stamina: level }, training),
+        date: `2026-01-${String(week).padStart(2, '0')}`,
+        value: 0,
+        source,
+    },
+    reportWeek: week,
+    observedWeek: week,
+    source,
+    dateReliable: true,
+    dateEcho: false,
+    ...extras,
+});
+
+describe('computeSkillProgress', () => {
+    it('provides a result for each displayed skill, including stamina and keeper', () => {
+        const skills: PlayerSkill[] = [
+            'stamina', 'pace', 'technique', 'passing',
+            'keeper', 'defending', 'playmaking', 'striker',
+        ];
+        const rows = [timelineRow(1, 10)];
+        expect(skills.map(skill => computeSkillProgress(rows, skill).skill)).toEqual(skills);
+        expect(computeSkillProgress(rows, 'stamina').pace).toBeNull();
+    });
+
+    it('counts only positive-intensity focused reports after the later observation that detects a rise', () => {
+        const rows = [
+            timelineRow(1, 10, { kind: 'individual', skill: 'pace', intensity: 100 }),
+            timelineRow(2, 11, { kind: 'individual', skill: 'passing', intensity: 100 }), // indirect rise
+            timelineRow(3, 11, { kind: 'individual', skill: 'pace', intensity: 1 }),
+            timelineRow(4, 11, { kind: 'formation', skill: 'pace', intensity: 40 }),
+            timelineRow(5, 11, { kind: 'individual', skill: 'pace', intensity: 0 }),
+            timelineRow(6, 11, { kind: 'individual', skill: 'general', intensity: 100 }),
+            timelineRow(7, 11, { kind: 'formation', skill: 'passing', intensity: 100 }),
+        ];
+        expect(computeSkillProgress([...rows].reverse(), 'pace')).toMatchObject({
+            advanced: 1, formation: 1, exact: true, lastRiseReportWeek: 2, riseWeeks: [2],
+        });
+        expect(computeSkillProgress(rows, 'passing')).toMatchObject({ advanced: 1, formation: 1, exact: false });
+    });
+
+    it('treats no observed rise, gaps, carried rows and legacy reports as minimum counts', () => {
+        const noRise = [timelineRow(1, 10, {}), timelineRow(2, 10, {})];
+        expect(computeSkillProgress(noRise, 'pace')).toMatchObject({ advanced: 2, exact: false });
+
+        const base = [timelineRow(1, 10, {}), timelineRow(2, 11, {})];
+        expect(computeSkillProgress([...base, timelineRow(4, 11, {})], 'pace')).toMatchObject({ advanced: 1, exact: false });
+        expect(computeSkillProgress([...base, timelineRow(3, 11, undefined, 'carried-over')], 'pace')).toMatchObject({ advanced: 0, exact: false });
+        expect(computeSkillProgress([...base, timelineRow(3, 11, undefined, 'roster-fallback')], 'pace')).toMatchObject({ advanced: 0, exact: false });
+        expect(computeSkillProgress([...base, timelineRow(3, 11)], 'pace')).toMatchObject({ advanced: 0, exact: false });
+    });
+
+    it('starts counting after the later real report when a rise spans missing weeks', () => {
+        const rows = [
+            timelineRow(1, 10, {}),
+            timelineRow(4, 11, { kind: 'individual', skill: 'pace', intensity: 100 }),
+            timelineRow(5, 11, { kind: 'formation', skill: 'pace', intensity: 100 }),
+        ];
+        expect(computeSkillProgress(rows, 'pace')).toMatchObject({
+            lastRiseReportWeek: 4, riseWeeks: [4], advanced: 0, formation: 1, exact: true,
+        });
+    });
+
+    it('does not count date echoes as reports or let them reset the counter', () => {
+        const rows = [
+            timelineRow(1, 10, {}), timelineRow(2, 11, {}),
+            timelineRow(3, 12, {}, 'training', { dateEcho: true }),
+            timelineRow(4, 11, {}),
+        ];
+        expect(computeSkillProgress(rows, 'pace')).toMatchObject({
+            advanced: 1, lastRiseReportWeek: 2, exact: false, riseWeeks: [2],
+        });
+        const onlyEchoAfterRise = rows.slice(0, 3);
+        expect(computeSkillProgress(onlyEchoAfterRise, 'pace')).toMatchObject({
+            advanced: 0, lastRiseReportWeek: 2, exact: false, riseWeeks: [2],
+        });
+    });
+
+    it('fits a per-skill observed pace and uses only the segment after the last level drop', () => {
+        const sample = [
+            timelineRow(1205, 10), timelineRow(1208, 10),
+            timelineRow(1211, 11), timelineRow(1214, 11),
+        ];
+        const result = computeSkillProgress(sample, 'pace');
+        expect(result.pace?.state).toBe('estimated');
+        expect(result.pace?.weeksPerLevel).toBeCloseTo(7.5, 10);
+        expect(result.trendStartWeek).toBe(1205);
+        expect(result.trendEndWeek).toBe(1214);
+
+        const afterDrop = [...sample, timelineRow(1217, 9), timelineRow(1220, 9), timelineRow(1223, 10)];
+        const dropped = computeSkillProgress(afterDrop, 'pace');
+        expect(dropped.pace?.state).toBe('insufficient');
+        expect(dropped.trendStartWeek).toBe(1217);
+        expect(dropped.trendEndWeek).toBe(1223);
+        expect(dropped.riseWeeks).toEqual([1211, 1223]);
+    });
+
+    it('excludes carried and roster levels from the fitted series while retaining them for display', () => {
+        const rows = [
+            timelineRow(1, 10), timelineRow(2, 10, undefined, 'carried-over'),
+            timelineRow(3, 11), timelineRow(4, 11, undefined, 'roster-fallback'),
+            timelineRow(5, 12),
+        ];
+        const progress = computeSkillProgress(rows, 'pace');
+        expect(progress.points).toHaveLength(5);
+        expect(progress.pace?.state).toBe('insufficient');
+        expect(progress.riseWeeks).toEqual([3, 5]);
     });
 });

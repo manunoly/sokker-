@@ -1,108 +1,51 @@
-# Resumen de talento (entreno directo sin subir)
+# Progreso de las habilidades del primer equipo en General Skills ++
 
 [English](TALENT_SUMMARY.md) · **Español**
 
-Bloque que aparece encima de la tabla del panel **General Skills ++** (history tooltip, `#sokkerpp-history-tooltip`). Para cada skill muestra cuántos entrenos directos lleva el jugador desde su última subida y estima su **talento**: cada cuántos entrenos directos sube.
+General Skills ++ lee el historial del primer equipo ya guardado en IndexedDB. Al pasar el cursor o enfocar el nombre se abre el resumen en dos columnas con la tabla semanal. Al pasar por una habilidad o enfocarla aparece su curva nativa en Canvas; un clic fija la tarjeta. Estas acciones no sincronizan ni consultan la API.
 
-- Cálculo: `src/core/talent.ts` → `computeTalentSummary(history)` (función pura, sin DOM ni red).
-- Render: `src/content/tooltip.ts` → `renderTalentSummary(summary)`.
-- Tests: `src/core/talent.test.ts`, `src/content/tooltip.test.ts`.
-- Datos: el historial semanal ya guardado en IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`, `source`). No hace llamadas nuevas a la API.
-- Historial: la sincronización intenta rellenar hasta 30 semanas atrás la primera vez (las semanas pasadas que llegan vacías no se vuelven a pedir). Comprobado el 2026-10-09: la API de Sokker solo devuelve las últimas 10 semanas, así que un historial más largo solo se consigue manteniendo la extensión instalada; después el historial crece sin límite. Los datos de entreno (tipo/skill/intensidad) solo existen para semanas guardadas desde 2026-04-15; las anteriores tienen skills pero no entreno.
-- `computeTalentSummary` espera como máximo una entrada por semana (el llamador deduplica).
+## Significado de las dos cifras
 
-## Conceptos de Sokker
+Las ocho habilidades siguen el orden de la ficha: Resistencia, Ritmo, Técnica y Pases a la izquierda; Portería, Defensa, Creación y Anotación a la derecha. Cada fila muestra en grande los **avanzados** y en pequeño los entrenos de **formación**. Al pasar o enfocar una cifra aparece su explicación.
 
-- **Entreno avanzado** (`kind: 'individual'`, 🎯 en la tabla): entrena una skill concreta. Es el único que se usa para medir el talento.
-- **Entreno de formación** (`kind: 'formation'`, 📋): se considera **entreno general (GT)**. Nunca cuenta como directo.
-- **Talento**: número aproximado de entrenos directos que necesita una skill para subir un nivel. No es exacto:
-  - varía con la edad (los jóvenes suben más rápido; los mayores necesitan más entrenos);
-  - cada skill tiene su propio ritmo (p. ej. Pace cada ~5, Playmaking cada ~4).
+- Un avanzado cuenta si el informe guardado tiene `training.kind === 'individual'`, la `training.skill` coincide con la habilidad y `training.intensity > 0`.
+- Formación sigue las mismas reglas de habilidad asignada e intensidad positiva con `training.kind === 'formation'`.
+- No se asigna a la habilidad un entreno `general` ni uno de otra habilidad. Una subida observada pudo recibir entrenamiento indirecto; el informe no permite cuantificarlo por habilidad.
+- El contador empieza **después** del informe donde se observa la última subida de esa habilidad. Si no se ha observado ninguna subida o falta algún informe o semana en el tramo, `≥` indica un mínimo conocido. `≥0` no demuestra que el jugador no entrenó.
+- Cada semana de informe suma como máximo una unidad al contador de la habilidad y clase asignadas. El porcentaje de efectividad permanece en la tabla.
 
-## Reglas
+## Significado de la curva
 
-### R1 — Entreno directo
+La tarjeta de cada habilidad dibuja niveles guardados sobre el eje X de semanas del juego y adapta el eje Y a su rango real (0–18). No inventa puntos en semanas ausentes. Los registros de arrastre y los procedentes solo de plantilla pueden verse como referencias tenues, pero solo los informes reales intervienen en la tendencia y en la detección de subidas.
 
-Una semana cuenta como **entreno directo** para la skill X si y solo si se cumplen las tres condiciones:
+Para cualquier habilidad salvo Resistencia, el **ritmo observado** es el inverso de la pendiente de una recta de mínimos cuadrados ajustada a `(semana observada, nivel)`. Se muestra en **semanas por nivel**. Exige al menos cuatro semanas reales distintas y una pendiente positiva. Si baja el nivel, solo se ajusta el tramo iniciado en el valor inferior. Una serie plana o descendente muestra «Sin progreso medible»; si el tramo es demasiado corto, «Datos insuficientes». La tendencia discontinua acaba en la última observación ajustada y no predice niveles futuros. Resistencia conserva su gráfica real, sin tendencia ni cifra de ritmo, porque fluctúa.
 
-| Condición | Valor |
-|---|---|
-| Tipo de entreno | `training.kind === 'individual'` |
-| Skill entrenada | `training.skill === X` |
-| Efectividad | `training.intensity >= 50` |
+El ritmo observado **no es el talento oculto de Sokker**. Influyen edad, nivel, entrenadores, minutos, interrupciones y tipo de entrenamiento. Tampoco equivale a la antigua media de avanzados entre subidas. Ya no se muestran la cifra global, las barras de caracteres ni el marcador de próxima subida.
 
-- Los **minutos jugados no cuentan**: un jugador con 0 minutos puede recibir el 50 % del entreno en la intensidad, y eso es válido.
-- Las semanas *carry-over* (sin `training`) no suman entrenos directos, pero son semanas conocidas: no invalidan el tramo.
-- Las semanas sin datos de entreno que no son *carry-over* (legacy, anteriores a 2026-04-15) son "desconocidas": no suman directos y hacen el tramo incompleto. Las *carry-over* son conocidas (sin informe = 0 directos).
-- Una semana que no cumple las condiciones no suma, pero tampoco reinicia el contador.
+## Semanas, procedencia y exportación
 
-### R2 — Subida (pop)
+La tabla semanal muestra cada informe en dos líneas: primero registro, posición/habilidad, efectividad y semana; debajo, los nueve niveles alineados. La tarjeta puede ocupar hasta el 80 % del ancho de la ventana y el historial dispone de más altura, sin scroll horizontal dentro de la tabla. Una lesión aparece como icono con explicación accesible. Si el informe marca lesión y efectividad `0`, el registro muestra solo la lesión; el CSV conserva el tipo de entrenamiento original.
 
-Hay **subida** de la skill X en la semana W cuando `skills[X]` de W es mayor que el de la entrada anterior del historial, con el historial ordenado por `week` ascendente.
+La tabla semanal sigue abierta bajo el resumen. El campo `Semana` de la tabla y del CSV conserva la **semana del informe** almacenada. En la curva, una captura de jueves o viernes queda en esa semana; una de sábado a miércoles se ubica en la **semana observada** anterior. El día se interpreta sin depender de la zona horaria del ordenador. Una fecha inválida usa la semana guardada, marcada con `?` en la tabla y explicada en la tarjeta y el PNG; si dos entradas caen en la misma semana observada, se prefiere el informe real y después la captura más reciente. Los ecos históricos fechados el mismo día que la captura reciente se excluyen del análisis, pero siguen visibles en la tabla. El listado desplegable de niveles identifica los valores de arrastre y plantilla como referencias.
 
-- El valor de W ya incluye el entreno de W. Por eso, si W fue un entreno directo, ese entreno cuenta para el tramo que termina en esa subida.
-- Es la misma detección que pinta en verde las celdas de la tabla.
-- Una bajada no es una subida y no reinicia el contador.
+La columna localizada **Registro** sustituye a la bandera y a `Kind`:
 
-### R3 — Reinicio del contador
+| Registro | Significado |
+| --- | --- |
+| Avanzado / Formación | Informe real con ese tipo de entrenamiento. |
+| Sin informe | Valores arrastrados desde una semana anterior, sin detalle de entrenamiento conocido. |
+| Solo plantilla | Captura de la plantilla actual sin informe histórico. |
+| Informe sin detalle | Informe real antiguo sin metadatos `training`. |
 
-**Cualquier subida reinicia el contador a 0**, venga del entreno directo o del GT.
+El icono de lesión no afirma que esta haya causado la ausencia del informe. La tabla conserva `Pos / Skill`, efectividad, niveles y exportación CSV. El CSV mantiene los campos de procedencia, tipo, habilidad, posición, intensidad, minutos, semana del informe y niveles. El PNG de la habilidad reutiliza el compositor Canvas compartido, con pie inglés `Skill · N.N weeks/level` cuando hay cifra y `by manuel.team`.
 
-### R4 — Contador "sin subir"
+Los textos nuevos admiten inglés, español, polaco, portugués, italiano, alemán, rumano y turco, con inglés de respaldo. El pie del PNG permanece en inglés.
 
-`sinceLastPop` = entrenos directos acumulados desde la última subida de esa skill.
+## Código y límites
 
-- Se muestra `≥ N` (el contador es un mínimo) cuando no se ha observado ninguna subida, o cuando hay una semana con datos de entreno desconocidos desde la última subida.
+- Línea temporal: `src/core/playerTimeline.ts`.
+- Contadores y ritmo: `src/core/talent.ts` y `src/core/levelTrend.ts`.
+- Gráfica y PNG nativos: `src/ui-components/playerSkillCanvas.ts`, `src/ui-components/playerSkillExport.ts` y el compositor `chartExport.ts`.
+- Tarjetas, traducciones y ciclo de hover: `src/content/playerCard.ts`, `src/content/playerLocale.ts`, `src/content/tooltip.ts` y `src/content/ui.ts`.
 
-### R5 — Tramos completos
-
-Un **tramo** es el número de entrenos directos entre dos subidas consecutivas observadas.
-
-- El tramo anterior a la **primera** subida observada es incompleto (no se sabe cuándo empezó) y **no se usa**.
-- Los tramos con **0 entrenos directos** (subida solo por GT) **no se usan** para el talento, para no rebajarlo artificialmente.
-- Los tramos que contienen una semana con datos de entreno desconocidos (legacy) **no se usan**.
-- Los tramos que contienen una bajada de la skill **no se usan** (bajar y recuperar no cuenta como un nivel completo).
-
-### R6 — Talento por skill
-
-`talent` = media de los tramos completos de esa skill (R5). Si no hay ninguno, el talento es desconocido (`?`).
-
-### R7 — Talento global del jugador
-
-`overallTalent` = suma de todos los tramos usados de todas las skills ÷ número de esos tramos. Pondera cada subida por igual. Si no hay tramos, es desconocido (`?`).
-
-### R8 — Skills que se listan y orden
-
-1. **Kp (keeper)** primero, solo si el último valor de keeper del historial es **mayor que 6**. Así se considera que el jugador es portero. Con 6 o menos no aparece.
-2. Después, siempre en este orden: **Pc** (pace), **Tec** (technique), **Pas** (passing), **Def** (defending), **Plm** (playmaking), **Str** (striker).
-3. **Stamina nunca aparece.**
-4. Se muestran todas las skills de la lista aunque tengan 0 entrenos, para que el bloque tenga siempre la misma forma.
-
-## Presentación
-
-```
- DIRECT TRAINING SINCE LAST POP                    Est. talent ≈ 4.5
-  Pc    ■■□□□   2 / ~5    last pop wk 1182 · after 5
-  Tec   □□□□□   ≥ 0 / ?   no pop in history
-  Plm   ■■■■□   4 / ~4    last pop wk 1176 · after 4             ▲?
-```
-
-| Elemento | Significado |
-|---|---|
-| `2 / ~5` | contador (R4) / talento de la skill (R6) |
-| `≥ 0` | el contador es un mínimo (R4): sin subida observada, o con semanas de entreno desconocido desde la última subida |
-| `?` | talento desconocido (no hay tramos completos) |
-| Barra `■□` | progreso del contador hacia el talento de la skill. Si la skill no tiene talento propio, usa el global (R7). Si no hay ninguno, no se pinta. Se redondea al entero más cercano. |
-| `last pop wk W · after N` | semana de la última subida y entrenos directos del tramo que terminó en ella (se omite `after` si fue la primera subida observada) |
-| `▲?` | el contador alcanzó el tamaño de la barra (talento de la skill, o el talento global cuando la skill no tiene) |
-| `Est. talent ≈ X` | talento global del jugador (R7) |
-
-- El texto del panel está en inglés, como el resto del tooltip.
-- El pie del panel muestra `History: N wks (A–B)`: cuántas semanas atrás llega el historial guardado de ese jugador, de la más antigua (A) a la más reciente (B), con huecos incluidos.
-- Números con `font-variant-numeric: tabular-nums`. La barra es decorativa (`aria-hidden="true"`). Cada fila tiene un `title` que explica el cálculo.
-
-## Limitaciones conocidas
-
-- Las semanas legacy (anteriores a 2026-04-15) no tienen datos de entreno y no se vuelven a descargar: los tramos que las cruzan se excluyen y los contadores pueden ser un mínimo. Con poco historial útil, el talento será `?` o se basará en pocos tramos.
-- El talento real cambia con la edad: una media de tramos antiguos puede sobrestimar la velocidad de un jugador que ha envejecido.
-- Si el historial tiene semanas faltantes rellenadas como *carry-over*, esas semanas no suman entrenos directos. El contador puede quedar por debajo del real.
+El historial antiguo puede contener niveles sin detalle de entrenamiento. Los informes y las semanas ausentes convierten los contadores en mínimos. Una subida entre dos observaciones reales se atribuye al informe posterior solo para definir el tramo del contador; se desconoce el día exacto y su causa. Esta función no necesita capturas privadas de la API.

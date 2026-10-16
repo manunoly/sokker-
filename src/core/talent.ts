@@ -1,4 +1,8 @@
 import { PlayerHistoryEntry, TrainingReport } from '../types/index';
+import { observedSkillPoints } from './playerTimeline';
+import type { PlayerSkill, PlayerSkillPoint, PlayerTimelineRow } from './playerTimeline';
+import { estimateLevelTrend } from './levelTrend';
+import type { LevelTrendEstimate } from './levelTrend';
 
 export type TalentSkill = 'keeper' | 'pace' | 'technique' | 'passing' | 'defending' | 'playmaking' | 'striker';
 
@@ -75,5 +79,86 @@ export function computeTalentSummary(history: HistoryPoint[]): TalentSummary {
     return {
         rows: analyses.map((a) => a.row),
         overallTalent: average(analyses.flatMap((a) => a.intervals)),
+    };
+}
+
+/** Focused reports known since the latest observed increase in this skill. */
+export interface SkillProgress {
+    skill: PlayerSkill;
+    /** All displayable observations, including explicitly marked inferred references. */
+    points: PlayerSkillPoint[];
+    advanced: number;
+    formation: number;
+    /** False means the displayed counters are minimum known counts. */
+    exact: boolean;
+    lastRiseReportWeek: number | null;
+    /** Observed game weeks of increases between real reports. */
+    riseWeeks: number[];
+    trendStartWeek: number | null;
+    trendEndWeek: number | null;
+    /** Stamina has no pace interpretation. */
+    pace: LevelTrendEstimate | null;
+}
+
+/** Analyzes saved history only; it never fills a missing report with assumed training. */
+export function computeSkillProgress(rows: readonly PlayerTimelineRow[], skill: PlayerSkill): SkillProgress {
+    const points = observedSkillPoints(rows, skill);
+    const realPoints = points.filter(point => point.source === 'training');
+    const riseWeeks: number[] = [];
+    let lastRiseReportWeek: number | null = null;
+    let lastDropIndex = 0;
+
+    for (let index = 1; index < realPoints.length; index++) {
+        const current = realPoints[index];
+        const previous = realPoints[index - 1];
+        if (current.level > previous.level) {
+            riseWeeks.push(current.week);
+            lastRiseReportWeek = current.reportWeek;
+        } else if (current.level < previous.level) {
+            // The lower observation is the first point of the new fitted segment.
+            lastDropIndex = index;
+        }
+    }
+
+    const fittingPoints = realPoints.slice(lastDropIndex);
+    const pace = skill === 'stamina'
+        ? null
+        : estimateLevelTrend(fittingPoints.map(point => ({ x: point.week, y: point.level })));
+
+    const windowRows = rows
+        .filter(row => !row.dateEcho && (lastRiseReportWeek === null || row.reportWeek > lastRiseReportWeek))
+        .sort((a, b) => a.reportWeek - b.reportWeek);
+    let advanced = 0;
+    let formation = 0;
+    const lastRise = lastRiseReportWeek;
+    let exact = lastRise !== null
+        && !rows.some(row => row.dateEcho && row.reportWeek > lastRise);
+    let previousWeek = lastRiseReportWeek;
+
+    for (const row of windowRows) {
+        if (previousWeek !== null && row.reportWeek > previousWeek + 1) exact = false;
+        previousWeek = row.reportWeek;
+
+        const training = row.entry.training;
+        if (row.source !== 'training' || !training || (training.kind !== 'individual' && training.kind !== 'formation')) {
+            exact = false;
+            continue;
+        }
+        if (training.skill !== skill || !Number.isFinite(training.intensity) || training.intensity <= 0) continue;
+        if (training.kind === 'individual') advanced++;
+        if (training.kind === 'formation') formation++;
+    }
+
+    return {
+        skill,
+        points,
+        advanced,
+        formation,
+        exact,
+        lastRiseReportWeek,
+        riseWeeks,
+        trendStartWeek: skill === 'stamina' ? null : fittingPoints[0]?.week ?? null,
+        trendEndWeek: skill === 'stamina' ? null : fittingPoints[fittingPoints.length - 1]?.week ?? null,
+        pace,
     };
 }

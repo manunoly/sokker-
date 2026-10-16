@@ -1,6 +1,6 @@
 import { getPlayerHistory } from '../core/repository';
 import { fetchTodayInfo } from '../core/api';
-import { showTooltip, hideTooltip, updatePosition, scheduleHide, openZoomChart, showHistoryTooltip } from './tooltip';
+import { showTooltip, scheduleHide, openZoomChart, showHistoryTooltip } from './tooltip';
 import { PlayerData, Skills } from '../types/index';
 import { mapSkillLabelToKey } from './i18n';
 
@@ -272,16 +272,16 @@ function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: 
         if (!nameLink.dataset.sokkerPlusHoverBound) {
             nameLink.dataset.sokkerPlusHoverBound = 'true';
             nameLink.addEventListener('mouseenter', (e) => {
-                console.log('[Sokker++] hover mouseenter (squad)', {
-                    playerId,
-                    tooltipsInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
-                    otherTooltips: document.querySelectorAll('[id*="tooltip" i], [class*="tooltip" i]').length
-                });
                 showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
+            });
+            nameLink.addEventListener('focus', () => {
+                const rect = nameLink.getBoundingClientRect();
+                showHistoryTooltip(rect.right, rect.top, playerId, nameLink);
             });
             nameLink.addEventListener('mouseleave', () => {
                 scheduleHide();
             });
+            nameLink.addEventListener('blur', scheduleHide);
         }
         // Floating "+" button disabled for now (hover alone is enough).
         // attachFloatingHistoryButton(nameLink, (e) => {
@@ -310,8 +310,22 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
             // Show tooltip
             // const rect = val.getBoundingClientRect();
             // Pass pageX/Y or calculated? Tooltip expects pageX/Y
-            showTooltip(e.pageX, e.pageY, playerId, val.dataset.skillName!);
+            showTooltip(e.pageX, e.pageY, playerId, val.dataset.skillName!, val);
         });
+
+        if (val.dataset.clickable === 'true') {
+            if (val.tabIndex < 0) val.tabIndex = 0;
+            val.addEventListener('focus', () => {
+                const rect = val.getBoundingClientRect();
+                showTooltip(rect.right, rect.top, playerId, val.dataset.skillName!, val);
+            });
+            val.addEventListener('blur', scheduleHide);
+            val.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                openZoomChart(playerId, val.dataset.skillName!, val);
+            });
+        }
 
 
 
@@ -326,7 +340,7 @@ function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
             val.addEventListener('click', (e) => {
                 e.stopPropagation(); // Prevent bubbling if needed
                 e.preventDefault();  // Prevent default link action if any
-                openZoomChart(playerId, val.dataset.skillName!);
+                openZoomChart(playerId, val.dataset.skillName!, val);
             });
         }
     });
@@ -377,18 +391,17 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
             el.dataset.sokkerPlusHoverBound = 'true';
             el.style.cursor = 'help';
             el.addEventListener('mouseenter', (e) => {
-                console.log('[Sokker++] hover mouseenter (player page)', {
-                    pid,
-                    targetTag: el.tagName,
-                    targetClass: el.className,
-                    tooltipsInDom: document.querySelectorAll('#sokker-plus-tooltip').length,
-                    otherTooltips: document.querySelectorAll('[id*="tooltip" i], [class*="tooltip" i]').length
-                });
                 showHistoryTooltip(e.pageX, e.pageY, pid, el);
+            });
+            if (el.tabIndex < 0) el.tabIndex = 0;
+            el.addEventListener('focus', () => {
+                const rect = el.getBoundingClientRect();
+                showHistoryTooltip(rect.right, rect.top, pid, el);
             });
             el.addEventListener('mouseleave', () => {
                 scheduleHide();
             });
+            el.addEventListener('blur', scheduleHide);
         }
         // Floating "+" button disabled for now (hover alone is enough).
         // attachFloatingHistoryButton(el, (e) => {
@@ -451,10 +464,21 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
 
         // Make clickable
         td.style.cursor = 'pointer';
+        td.tabIndex = 0;
+        td.addEventListener('focus', () => {
+            const rect = td.getBoundingClientRect();
+            showTooltip(rect.right, rect.top, playerId, skillKey, td);
+        });
+        td.addEventListener('blur', scheduleHide);
+        td.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            openZoomChart(playerId, skillKey, td);
+        });
         td.addEventListener('click', (e) => {
             // Avoid double trigger if clicking inner elements
             if (e.target !== valEl && e.target !== levelDescEl) {
-                openZoomChart(playerId, skillKey);
+                openZoomChart(playerId, skillKey, td);
             }
         });
 
@@ -463,7 +487,7 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
             valEl.style.cursor = 'pointer';
             valEl.addEventListener('click', (e) => {
                 e.stopPropagation();
-                openZoomChart(playerId, skillKey);
+                openZoomChart(playerId, skillKey, valEl);
             });
         }
 
@@ -472,7 +496,7 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
             levelDescEl.style.cursor = 'pointer';
             levelDescEl.addEventListener('click', (e) => {
                 e.stopPropagation();
-                openZoomChart(playerId, skillKey);
+                openZoomChart(playerId, skillKey, levelDescEl);
             });
         }
 
@@ -518,7 +542,7 @@ function processPlayerPageTable(table: HTMLElement, playerId: number, currentSki
 
         // Hover events for tooltip are attached via class selector on container usually,
         // but here we can attach directly
-        td.addEventListener('mouseenter', (e) => showTooltip(e.pageX, e.pageY, playerId, skillKey));
+        td.addEventListener('mouseenter', (e) => showTooltip(e.pageX, e.pageY, playerId, skillKey, td));
         td.addEventListener('mouseleave', () => scheduleHide());
     });
 }
