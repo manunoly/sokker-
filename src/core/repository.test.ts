@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { isValidBackupData, upsertPlayerWeekRecord } from './repository';
+import { isValidBackupData, mergeRestoredJuniorRecord, upsertPlayerWeekRecord } from './repository';
 import { PlayerData, PlayerHistoryEntry, SnapshotSource } from '../types/index';
+import type { JuniorRecord } from './juniorTypes';
 
 function makeWeekStats(week: number, playmaking: number): PlayerHistoryEntry {
     return {
@@ -226,5 +227,95 @@ describe('isValidBackupData', () => {
     it('rejects metadata without key and weeks without numeric week', () => {
         expect(isValidBackupData({ metadata: [{ value: 1 }] })).toBe(false);
         expect(isValidBackupData({ weeks: [{ week: 'x' }] })).toBe(false);
+    });
+
+    it('accepts a legacy backup with no juvenile section and a valid juvenile backup', () => {
+        expect(isValidBackupData({ players: [], metadata: [], weeks: [] })).toBe(true);
+        expect(isValidBackupData({ juniors: [makeJuniorRecord()] })).toBe(true);
+        expect(isValidBackupData({ juniors: [{ ...makeJuniorRecord(), points: [] }] })).toBe(true);
+    });
+
+    it('rejects malformed juvenile records and duplicate team/id keys', () => {
+        const junior = makeJuniorRecord();
+        expect(isValidBackupData({ juniors: {} })).toBe(false);
+        expect(isValidBackupData({ juniors: [{ ...junior, teamId: '7' }] })).toBe(false);
+        expect(isValidBackupData({ juniors: [{ ...junior, points: [{ ...junior.points[0], y: 19 }] }] })).toBe(false);
+        expect(isValidBackupData({ juniors: [{ ...junior, points: [{ ...junior.points[0], source: 'invented' }] }] })).toBe(false);
+        expect(isValidBackupData({ juniors: [{ ...junior, resolvedWeek: 1213, resolution: null }] })).toBe(false);
+        expect(isValidBackupData({ juniors: [{ ...junior, graphWeek: '1213' }] })).toBe(false);
+        expect(isValidBackupData({ juniors: [{ ...junior, graphWeek: 1213 }] })).toBe(true);
+        expect(isValidBackupData({ juniors: [{ ...junior, weeksLeft: '12' }] })).toBe(false);
+        expect(isValidBackupData({ juniors: [{ ...junior, weeksLeft: 0 }] })).toBe(true);
+        expect(isValidBackupData({ juniors: [junior, { ...junior }] })).toBe(false);
+    });
+});
+
+function makeJuniorRecord(overrides: Partial<JuniorRecord> = {}): JuniorRecord {
+    return {
+        teamId: 7,
+        juniorId: 42,
+        points: [{ x: 100, y: 5, source: 'graph' }],
+        nativeTalent: 4.5,
+        nativeTalentWeek: 1213,
+        resolvedWeek: 1213,
+        resolution: 'graph',
+        ...overrides
+    };
+}
+
+describe('mergeRestoredJuniorRecord', () => {
+    it('restores known weeks from a backup captured in the same week as a legacy local record', () => {
+        const local = makeJuniorRecord({ nativeTalent: 4.2 });
+        const backup = makeJuniorRecord({ nativeTalent: 4.1, weeksLeft: 8 });
+        const result = mergeRestoredJuniorRecord(local, backup);
+        expect(result.nativeTalent).toBe(4.2);
+        expect(result.weeksLeft).toBe(8);
+    });
+
+    it('unites missing points while the local point wins a collision without mutating inputs', () => {
+        const local = makeJuniorRecord({
+            points: [{ x: 100, y: 6, source: 'graph' }, { x: 102, y: 8, source: 'graph' }],
+            nativeTalent: 4,
+            nativeTalentWeek: 1214,
+            graphWeek: 1214,
+            weeksLeft: 12,
+            resolvedWeek: 1214
+        });
+        const backup = makeJuniorRecord({
+            points: [{ x: 99, y: 4, source: 'graph' }, { x: 100, y: 5, source: 'graph' }]
+        });
+        const result = mergeRestoredJuniorRecord(local, backup);
+        expect(result.points.map((point) => [point.x, point.y])).toEqual([[99, 4], [100, 6], [102, 8]]);
+        expect(result.points[1]).not.toBe(local.points[0]);
+        expect(result.nativeTalent).toBe(4);
+        expect(result.nativeTalentWeek).toBe(1214);
+        expect(result.graphWeek).toBe(1214);
+        expect(result.weeksLeft).toBe(12);
+        expect(result.resolvedWeek).toBe(1214);
+        expect(local.points).toHaveLength(2);
+        expect(backup.points).toHaveLength(2);
+    });
+
+    it('keeps a valid imported graph marker only when there is no local record', () => {
+        const backup = makeJuniorRecord({ points: [] });
+        expect(mergeRestoredJuniorRecord(undefined, backup)).toMatchObject({
+            points: [], resolvedWeek: 1213, resolution: 'graph'
+        });
+        const local = makeJuniorRecord({ resolvedWeek: null, resolution: null });
+        expect(mergeRestoredJuniorRecord(local, backup)).toMatchObject({
+            resolvedWeek: null, resolution: null
+        });
+    });
+
+    it('invalidates imported absent and unknown markers while preserving local markers', () => {
+        for (const resolution of ['absent', 'unknown'] as const) {
+            const record = makeJuniorRecord({ resolution });
+            expect(mergeRestoredJuniorRecord(undefined, record)).toMatchObject({
+                resolvedWeek: null, resolution: null
+            });
+            expect(mergeRestoredJuniorRecord(record, makeJuniorRecord())).toMatchObject({
+                resolvedWeek: 1213, resolution
+            });
+        }
     });
 });

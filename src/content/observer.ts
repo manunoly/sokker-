@@ -12,11 +12,13 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
  * @param {Function} onTableFound - Callback when the target table is detected.
  * @param {Function} [onPlayerPageFound] - Callback when the player page is detected.
  * @param {Function} [onSquadReady] - Callback fired (in idle) when the user lands on /app/squad/.
+ * @param {Function} [onJuniorPageChanged] - Callback on each SPA render, independent of squad cooldown.
  */
 export function initObserver(
     onTableFound: (container: HTMLElement) => void,
     onPlayerPageFound?: (container: HTMLElement) => void,
-    onSquadReady?: () => void
+    onSquadReady?: () => void,
+    onJuniorPageChanged?: () => void
 ): void {
     if (observer) return;
 
@@ -29,6 +31,10 @@ export function initObserver(
     const runPageProcessing = () => {
         const currentPath = window.location.href;
         const now = Date.now();
+
+        // Junior rows can arrive incrementally inside the same route. The squad/player
+        // cooldown below must not postpone the discovery of a newly visible junior.
+        onJuniorPageChanged?.();
 
         // SPA frameworks (Vue here) re-render frequently. Without a cooldown,
         // each mutation triggers a new processing pass — hammering network

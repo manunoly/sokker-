@@ -2,7 +2,7 @@
 
 [English](readme.md) · **Español**
 
-Sokker++ es una extensión ultraligera para Google Chrome diseñada para inyectar analíticas avanzadas, seguimiento de habilidades y estimación de talento directamente en la interfaz de [Sokker.org](https://sokker.org). 
+Sokker++ es una extensión ultraligera para Google Chrome diseñada para inyectar analíticas avanzadas, seguimiento de habilidades y estimación de talento directamente en la interfaz de [Sokker.org](https://sokker.org).
 
 El proyecto rinde homenaje a C++ en su nombre, reflejando su filosofía principal: **máximo rendimiento, control absoluto del estado y cero dependencias innecesarias.**
 
@@ -11,13 +11,14 @@ El proyecto rinde homenaje a C++ en su nombre, reflejando su filosofía principa
 * **Seguimiento Histórico (Skill Tracker):** Rastrea las subidas y bajadas de habilidades de los jugadores semana a semana.
 * **Inyección UI No Invasiva:** Colorea dinámicamente las celdas de la tabla de la plantilla (`/app/squad/`) en verde (subida) o rojo (bajada).
 * **Gráficos Nativos:** Tooltips flotantes con gráficas de progresión dibujadas 100% con la API nativa de `<canvas>`, sin librerías externas pesadas.
+* **Talento juvenil:** En los informes de entrenamiento y tu cantera, pasa el cursor sobre el nombre de un juvenil o enfócalo con el teclado para ver niveles observados, tendencia, talento de Sokker y una estimación independiente en semanas por nivel. [Uso y límites](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md).
 * **Smart Sync:** Intercepta la API nativa de Sokker para conocer la semana actual (`today.week`) y solo descarga el delta de semanas faltantes, evitando saturar los servidores del juego.
 * **Resumen de talento:** En el panel General Skills ++, cuenta los entrenos avanzados de cada skill desde su última subida y estima el talento del jugador ([reglas](documentation/TALENT_SUMMARY.es.md)).
-* **Gestor de Backups:** Base de datos local con opción de importar/exportar la historia completa en formato JSON.
+* **Gestor de Backups:** Base de datos local con importación y exportación JSON del historial del primer equipo y de los juveniles.
 
 ## 🛠️ Arquitectura y Filosofía Técnica
 
-Sokker++ está construido siguiendo las mejores prácticas de **ECMAScript (ES2026+)** bajo un paradigma estrictamente **Funcional**. 
+Sokker++ está construido siguiendo las mejores prácticas de **ECMAScript (ES2026+)** bajo un paradigma estrictamente **Funcional**.
 
 **Reglas del Repositorio:**
 1.  **Cero Clases (`class`):** El estado se encapsula utilizando cierres (*closures*) y módulos (*ESM*).
@@ -40,17 +41,24 @@ sokker-plus-plus/
     │   ├── observer.ts        # MutationObserver para la SPA de Sokker
     │   ├── ui.ts              # Mutaciones visuales de la tabla
     │   ├── tooltip.ts         # Lógica de los tooltips flotantes
-    │   └── i18n.ts            # Textos traducidos
+    │   ├── i18n.ts            # Normalización de habilidades entrantes
+    │   ├── juniorPage.ts      # Rutas y activación en nombres juveniles
+    │   ├── juniorCard.ts      # Recuadro con datos locales
+    │   └── juniorLocale.ts    # Ocho idiomas y respaldo en inglés
     ├── core/                  # Lógica de Negocio y Datos
     │   ├── api.ts             # Fetchers puros hacia sokker.org/api (mismo origen)
     │   ├── repository.ts      # Wrapper funcional de IndexedDB (Closures)
     │   ├── sync.ts            # Orquestador: compara semanas y decide el fetch
     │   ├── gapDetector.ts     # Detección de semanas faltantes en la historia
     │   ├── talent.ts          # Resumen de talento (entreno directo sin subir)
+    │   ├── juniorSync.ts      # Cola juvenil y sincronización semanal
+    │   ├── juniorRepository.ts # Juveniles en la misma IndexedDB
+    │   ├── juniorTalent.ts    # Estimación de la curva juvenil
     │   └── trainingReport.ts  # Informe de entrenamiento por jugador
     ├── types/                 # Tipos compartidos de TypeScript
     ├── ui-components/         # Presentación Pura
-    │   └── canvas.ts          # Función pura para dibujar la gráfica (Canvas API)
+    │   ├── canvas.ts          # Gráfica del primer equipo (Canvas API)
+    │   └── juniorCanvas.ts    # Gráfica juvenil (Canvas API)
     └── utils/                 # Utilidades
         ├── scheduleIdle.ts    # Planificación de trabajo en tiempo ocioso
         └── escapeHtml.ts      # Escapado de valores renderizados como HTML
@@ -70,6 +78,7 @@ npx tsc --noEmit  # typecheck
 
 * [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sincronización, gráficas y detección de subidas.
 * [TALENT_SUMMARY.es.md](documentation/TALENT_SUMMARY.es.md): reglas del resumen de talento (entreno directo sin subir) del panel General Skills ++.
+* [Diseño de talento juvenil](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md): páginas admitidas, sincronización, cálculo y límites.
 * [PRIVACY.es.md](PRIVACY.es.md): política de privacidad (datos solo en tu navegador).
 * [store/](store/LISTING.md): ficha y checklist de envío a la Chrome Web Store.
 * Instalación: [español](documentation/INSTALL-es.md) · [English](documentation/INSTALL-en.md).

@@ -3,6 +3,9 @@ import { processSquadTable, processPlayerPage } from './ui';
 import { reconcileGaps } from '../core/gapDetector';
 import { syncData } from '../core/sync';
 import { getAllData, restoreData, getLastSyncWeek, clearDatabase } from '../core/repository';
+import { invalidateJuniorSync } from '../core/juniorSync';
+import { handleJuniorPage, leaveJuniorPage, scanJuniorPage } from './juniorPage';
+import { hideJuniorCard } from './juniorCard';
 
 async function main() {
     // Attempt auto-sync on load
@@ -10,6 +13,13 @@ async function main() {
 
     initObserver(processSquadTable, processPlayerPage, () => {
         reconcileGaps().catch((err) => console.warn('reconcileGaps on squad failed:', err));
+    }, () => {
+        const view = scanJuniorPage(window.location.pathname, document);
+        if (view) {
+            handleJuniorPage(view).catch((err) => console.warn('Junior page sync failed:', err));
+        } else {
+            leaveJuniorPage();
+        }
     });
 
     // Listen for messages from Popup
@@ -34,7 +44,9 @@ async function main() {
         }
 
         if (request.action === 'IMPORT_DATA') {
-            restoreData(request.data)
+            invalidateJuniorSync()
+                .then(() => restoreData(request.data))
+                .then(() => hideJuniorCard())
                 .then(() => sendResponse({ status: 'success' }))
                 .catch(err => sendResponse({ status: 'error', message: err.message }));
             return true;
@@ -55,7 +67,9 @@ async function main() {
         }
 
         if (request.action === 'CLEAR_DATA') {
-            clearDatabase()
+            invalidateJuniorSync()
+                .then(() => clearDatabase())
+                .then(() => hideJuniorCard())
                 .then(() => sendResponse({ status: 'success' }))
                 .catch(err => sendResponse({ status: 'error', message: err.message }));
             return true;

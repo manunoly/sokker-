@@ -119,6 +119,9 @@ dist
 .pnp.*
 
 # Project specific
+.superpowers/
+docs/documentacion-talent/
+docs/juniors/README.md
 api y documentacion/
 analyze_html.py
 Skills.html

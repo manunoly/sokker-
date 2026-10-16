@@ -11,9 +11,10 @@ Its name is a nod to C++ and to its core philosophy: **maximum performance, full
 * **History Tracking (Skill Tracker):** Tracks players' skill increases and decreases week by week.
 * **Non-Invasive UI Injection:** Dynamically colors the squad table cells (`/app/squad/`) green (increase) or red (decrease).
 * **Native Charts:** Floating tooltips with progression charts drawn 100% with the native `<canvas>` API, no heavy external libraries.
+* **Junior Talent:** On training report details and your own junior-team page, hover over or focus a junior's name to see observed levels, their trend, Sokker's talent value and a separate estimate in weeks per level. [Behavior and limits](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md).
 * **Smart Sync:** Reads Sokker's own API to get the current week (`today.week`) and only downloads the missing weeks, so the game servers are not flooded.
 * **Talent Summary:** In the General Skills ++ panel, counts each skill's advanced trainings since its last increase and estimates the player's talent ([rules](documentation/TALENT_SUMMARY.md)).
-* **Backup Manager:** Local database with import/export of the full history as JSON.
+* **Backup Manager:** Local database with JSON import/export of first-team and junior history.
 
 ## 🛠️ Architecture and Technical Philosophy
 
@@ -41,17 +42,24 @@ sokker-plus-plus/
     │   ├── observer.ts        # MutationObserver for the Sokker SPA
     │   ├── ui.ts              # Visual table mutations
     │   ├── tooltip.ts         # Floating tooltip logic
-    │   └── i18n.ts            # Translated texts
+    │   ├── i18n.ts            # Incoming skill-label normalization
+    │   ├── juniorPage.ts      # Eligible routes and junior-name interaction
+    │   ├── juniorCard.ts      # Local-data hover card
+    │   └── juniorLocale.ts    # Eight UI languages with English fallback
     ├── core/                  # Business logic and data
     │   ├── api.ts             # Pure fetchers for sokker.org/api (same origin)
     │   ├── repository.ts      # Functional IndexedDB wrapper (closures)
     │   ├── sync.ts            # Orchestrator: compares weeks and decides what to fetch
     │   ├── gapDetector.ts     # Detects missing weeks in the history
     │   ├── talent.ts          # Talent summary (direct training since last increase)
+    │   ├── juniorSync.ts      # Weekly junior queue and roster decisions
+    │   ├── juniorRepository.ts # Junior records in the shared IndexedDB
+    │   ├── juniorTalent.ts    # Junior curve estimate
     │   └── trainingReport.ts  # Per-player training report
     ├── types/                 # Shared TypeScript types
     ├── ui-components/         # Pure presentation
-    │   └── canvas.ts          # Pure function that draws the chart (Canvas API)
+    │   ├── canvas.ts          # First-team chart (Canvas API)
+    │   └── juniorCanvas.ts    # Junior chart (Canvas API)
     └── utils/                 # Utilities
         ├── scheduleIdle.ts    # Schedules work during idle time
         └── escapeHtml.ts      # Escapes values rendered as HTML
@@ -72,6 +80,7 @@ npx tsc --noEmit  # typecheck
 
 * [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sync, charts and skill increase detection.
 * [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): talent summary rules (direct training since last increase) for the General Skills ++ panel.
+* [Junior talent design](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md): supported pages, weekly sync, curve estimate and known limits.
 * [PRIVACY.md](PRIVACY.md): privacy policy (data stays in your browser).
 * [store/](store/LISTING.md): Chrome Web Store listing and submission checklist.
 * Installation: [English](documentation/INSTALL-en.md) · [Español](documentation/INSTALL-es.md).
