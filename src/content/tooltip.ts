@@ -103,7 +103,7 @@ function placeCard(): void {
     if (!card || !selection) return;
     const edge = 8;
     const gap = 8;
-    const targetWidth = selection.skill ? 500 : Math.min(1100, window.innerWidth - 2 * edge, Math.max(760, Math.floor(window.innerWidth * 0.8)));
+    const targetWidth = selection.skill ? 500 : Math.min(window.innerWidth - 2 * edge, Math.max(760, Math.floor(window.innerWidth * 0.8)));
     const minimumSideWidth = Math.min(targetWidth, selection.skill ? 320 : 760);
     const rect = selection.anchor?.getBoundingClientRect();
     card.style.width = `${targetWidth}px`;

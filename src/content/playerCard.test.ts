@@ -81,6 +81,13 @@ describe('first-team cards', () => {
         expect(table.querySelectorAll('tbody tr')).toHaveLength(rows.length);
         expect(table.querySelector('tbody tr')?.children).toHaveLength(13);
         expect(table.style.minWidth).toBe('710px');
+        expect(table.style.tableLayout).toBe('fixed');
+        expect([...table.querySelectorAll('col')].map(col => col.style.width).slice(0, 4)).toEqual(['100px', '144px', '52px', '56px']);
+        expect(table.querySelector('th:nth-child(2)')?.getAttribute('style')).toContain('text-align: left');
+        expect([...table.querySelectorAll('tbody tr')].every(tr => (tr.children[1] as HTMLElement).style.textAlign === 'left')).toBe(true);
+        expect(table.parentElement?.style.maxHeight).toBe('460px');
+        const longRecord = [...table.querySelectorAll('tbody tr')].find(tr => tr.textContent?.includes('1210'))!;
+        expect(longRecord.querySelector<HTMLElement>('td:first-child > span')?.title).toBe('Informe sin detalle');
         const injuredWithoutTraining = [...table.querySelectorAll('tbody tr')].find(tr => tr.textContent?.includes('1209'))!;
         expect(injuredWithoutTraining.children[0].textContent).toBe('🩹');
         expect(injuredWithoutTraining.children[0].textContent).not.toContain('Formación');

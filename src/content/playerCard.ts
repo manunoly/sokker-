@@ -78,7 +78,7 @@ function sourceBadge(row: PlayerTimelineRow, t: PlayerStrings): HTMLElement {
         label = t.sources.reportNoDetail; icon = '▫'; color = '#475569';
     }
     const badge = element('span');
-    badge.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:5px;background:${color};color:#fff;white-space:nowrap`;
+    badge.style.cssText = `display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;max-width:100%;padding:2px 6px;border-radius:5px;background:${color};color:#fff;white-space:nowrap`;
     const mark = element('span', icon);
     mark.setAttribute('aria-hidden', 'true');
     badge.appendChild(mark);
@@ -86,7 +86,10 @@ function sourceBadge(row: PlayerTimelineRow, t: PlayerStrings): HTMLElement {
         badge.title = t.injured;
         badge.setAttribute('aria-label', t.injured);
     } else {
-        badge.appendChild(element('span', label));
+        const text = element('span', label);
+        text.style.cssText = 'min-width:0;overflow:hidden;text-overflow:ellipsis';
+        badge.title = row.entry.injured ? `${label} · ${t.injured}` : label;
+        badge.appendChild(text);
     }
     if (row.entry.injured && !injuryOnly) {
         const injury = element('span', '🩹');
@@ -99,10 +102,13 @@ function sourceBadge(row: PlayerTimelineRow, t: PlayerStrings): HTMLElement {
 
 function positionSkill(training: TrainingReport | undefined): HTMLElement {
     const content = element('span');
-    content.style.cssText = 'display:inline-flex;gap:6px;align-items:center;white-space:nowrap';
+    content.style.cssText = 'display:inline-flex;gap:6px;align-items:center;max-width:100%;white-space:nowrap';
     const position = element('span', training?.position ?? '');
-    position.style.cssText = 'display:inline-block;box-sizing:border-box;width:32px;text-align:center;padding:1px 0;border-radius:3px;background:#475569;font-size:10px';
-    content.append(position, element('span', training?.skill ?? '—'));
+    position.style.cssText = 'display:inline-block;box-sizing:border-box;flex:0 0 32px;text-align:center;padding:1px 0;border-radius:3px;background:#475569;font-size:10px';
+    const skill = element('span', training?.skill ?? '—');
+    skill.style.cssText = 'min-width:0;overflow:hidden;text-overflow:ellipsis';
+    skill.title = training?.skill ?? '—';
+    content.append(position, skill);
     return content;
 }
 
@@ -125,15 +131,22 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
     const section = element('section');
     section.style.cssText = 'margin-top:12px;border-top:1px solid #475569;padding-top:10px';
     const scroller = element('div');
-    scroller.style.cssText = 'max-height:270px;overflow:auto;border:1px solid #475569;border-radius:6px';
+    scroller.style.cssText = 'max-height:460px;overflow:auto;border:1px solid #475569;border-radius:6px';
     const table = element('table');
-    table.style.cssText = 'border-collapse:collapse;width:100%;min-width:710px;font-size:11px;font-variant-numeric:tabular-nums;text-align:center';
+    table.style.cssText = 'border-collapse:collapse;table-layout:fixed;width:100%;min-width:710px;font-size:11px;font-variant-numeric:tabular-nums;text-align:center';
+    const columns = element('colgroup');
+    for (const width of ['100px', '144px', '52px', '56px', ...Array(tableSkills.length).fill('')]) {
+        const column = element('col');
+        if (width) column.style.width = width;
+        columns.appendChild(column);
+    }
     const head = element('thead');
     const headerRow = element('tr');
     const headers = [t.record, t.posSkill, t.effectiveness, t.week, ...tableSkills.map(([, label]) => label)];
-    for (const label of headers) {
+    for (const [index, label] of headers.entries()) {
         const th = element('th', label);
         th.style.cssText = 'position:sticky;top:0;background:#314156;padding:5px 6px;color:#e2e8f0;white-space:nowrap';
+        if (index === 1) th.style.textAlign = 'left';
         if (label === t.week) th.title = `${t.week}: ${t.observedWeek}`;
         headerRow.appendChild(th);
     }
@@ -152,7 +165,7 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
             return td;
         };
         addCell(sourceBadge(row, t));
-        addCell(positionSkill(row.entry.training));
+        addCell(positionSkill(row.entry.training)).style.textAlign = 'left';
         addCell(Number.isFinite(row.entry.training?.intensity) ? `${row.entry.training!.intensity}%` : '—');
         const weekCell = addCell(`${row.reportWeek}${row.dateReliable ? '' : ' ?'}`);
         if (!row.dateReliable) weekCell.title = t.uncertainWeek;
@@ -168,7 +181,7 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
         }
         body.appendChild(tr);
     });
-    table.append(head, body);
+    table.append(columns, head, body);
     scroller.appendChild(table);
     section.appendChild(scroller);
     const footer = element('div');

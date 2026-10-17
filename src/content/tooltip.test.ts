@@ -119,4 +119,12 @@ describe('first-team hover integration', () => {
         expect(card.style.width).toBe('800px');
         expect(card.querySelector('table')?.querySelectorAll('th')).toHaveLength(13);
     });
+
+    it('allows the summary to use 80 percent of a wide viewport', async () => {
+        vi.stubGlobal('innerWidth', 1920);
+        const trigger = anchor();
+        await showHistoryTooltip(130, 110, 7, trigger);
+        const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
+        expect(card.style.width).toBe('1536px');
+    });
 });
