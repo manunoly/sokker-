@@ -13,7 +13,7 @@ It uses TypeScript, native browser APIs, and local IndexedDB storage. Charts use
 * **Native Charts:** Floating tooltips with progression charts drawn 100% with the native `<canvas>` API, no heavy external libraries.
 * **Junior Talent:** On training report details and your own academy page, hover over or focus a junior's name to see observed levels, a fitted trend, Sokker's talent value and a separate estimate in weeks per level. [Behavior and limits](documentation/JUNIOR_TALENT.md).
 * **Smart Sync:** Reads Sokker's current game week, refreshes the latest stored week at a week change, fetches missing recent report weeks, and refreshes the current report week. Junior data syncs only on eligible junior pages and is reused for the game week.
-* **First-team progress:** General Skills ++ shows assigned advanced and formation training counts since each skill's last observed rise, plus a native chart of observed levels and rises. The weekly table stays visible; [calculation and limits](documentation/TALENT_SUMMARY.md).
+* **First-team progress:** General Skills ++ opens from player names on squad/player pages, training setup, and training report details. It shows assigned advanced and formation training counts since each skill's last observed rise, plus a native chart of observed levels and rises. The weekly table stays visible; [calculation and limits](documentation/TALENT_SUMMARY.md).
 * **Backup Manager:** Local database with JSON import/export of first-team and junior history.
 
 ## 🛠️ Architecture and Technical Philosophy
@@ -82,6 +82,7 @@ npx tsc --noEmit  # typecheck
 * [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sync, charts and skill increase detection.
 * [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): first-team counts, observed skill curves, weekly table, and limits.
 * [Junior talent](documentation/JUNIOR_TALENT.md): supported pages, weekly sync, curve estimate and limits.
+* [Feature screenshots](documentation/SCREENSHOTS.md): examples of General Skills ++ and junior talent charts.
 * [PRIVACY.md](PRIVACY.md): privacy policy (data stays in your browser).
 * [store/](store/LISTING.md): Chrome Web Store listing and submission checklist.
 * Installation: [English](documentation/INSTALL-en.md) · [Español](documentation/INSTALL-es.md).

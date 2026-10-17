@@ -4,6 +4,8 @@
 
 The junior card appears when you hover or focus a junior's name in a training report details page (`/{locale}/app/training/reports/details/{week}/`) or on **your own** `/juniors/teamID/{teamId}/` page. It opens left of the name in a report and right of the name in the academy. The extension checks the current team ID before enabling the academy card. The hover reads IndexedDB; it does not fetch the graph on hover.
 
+See [screenshots of the card and its PNG export](SCREENSHOTS.md#junior-talent-card).
+
 ## Data and weekly synchronization
 
 On an eligible page, the extension obtains the current game week and team from `/api/current`. It reads visible junior IDs, uses `/api/junior?filter[limit]=100` for the current roster, Sokker's own `talent`, and `weeksLeft`, and requests `/api/junior/{id}/graph` for observed level points when needed. Up to three graph requests run at once. Results are saved in the junior store of the same `SokkerTalentTrackerDB` as the first-team history.

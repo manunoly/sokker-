@@ -5,6 +5,7 @@ import { syncData } from '../core/sync';
 import { getAllData, restoreData, getLastSyncWeek, clearDatabase } from '../core/repository';
 import { invalidateJuniorSync } from '../core/juniorSync';
 import { handleJuniorPage, leaveJuniorPage, scanJuniorPage } from './juniorPage';
+import { handleTrainingPlayerPage, leaveTrainingPlayerPage, scanTrainingPlayerPage } from './trainingPlayerPage';
 import { hideJuniorCard } from './juniorCard';
 
 async function main() {
@@ -20,6 +21,9 @@ async function main() {
         } else {
             leaveJuniorPage();
         }
+        const trainingPlayers = scanTrainingPlayerPage(window.location.pathname, document);
+        if (trainingPlayers) handleTrainingPlayerPage(trainingPlayers);
+        else leaveTrainingPlayerPage();
     });
 
     // Listen for messages from Popup

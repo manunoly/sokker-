@@ -2,7 +2,7 @@
 
 ## Package
 
-- [ ] Run `npm ci` and `npm run package` in a POSIX-compatible shell with `zip` installed. Inspect `store/sokker-plus-plus.zip` and confirm `manifest.json` is at its root. The committed `documentation/sokker-plus-plus.zip` is an old build and must not be uploaded.
+- [ ] Run `npm ci` and `npm run package` in a POSIX-compatible shell with `zip` installed. Inspect `store/sokker-plus-plus.zip` and confirm `manifest.json` is at its root. If using the versioned `documentation/sokker-plus-plus.zip` instead, verify it matches the freshly built package; it can become stale after source changes.
 - [ ] Confirm the uploaded build corresponds to the source facts cited in `store/LISTING.md`, especially `manifest.json` host scope and the same-origin API behavior in `src/core/api.ts`.
 - [ ] Store icon: reuse `assets/icons/icon-128.png` (128×128); no replacement icon was created.
 

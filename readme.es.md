@@ -13,7 +13,7 @@ Usa TypeScript, API nativas del navegador y almacenamiento local en IndexedDB. L
 * **Gráficos Nativos:** Tooltips flotantes con gráficas de progresión dibujadas 100% con la API nativa de `<canvas>`, sin librerías externas pesadas.
 * **Talento juvenil:** En los informes de entrenamiento y tu cantera, pasa el cursor sobre el nombre de un juvenil o enfócalo con el teclado para ver niveles observados, tendencia, talento de Sokker y una estimación independiente en semanas por nivel. [Uso y límites](documentation/JUNIOR_TALENT.es.md).
 * **Sincronización:** Consulta la semana actual de Sokker, actualiza la última semana guardada al cambiar de semana, obtiene informes recientes que falten y refresca el informe de la semana actual. Los juveniles solo se sincronizan en sus páginas admitidas y se reutilizan los datos de la semana.
-* **Progreso del primer equipo:** General Skills ++ muestra los entrenos avanzados y de formación asignados desde la última subida observada de cada habilidad y una gráfica nativa de niveles y subidas. La tabla semanal sigue visible; [cálculo y límites](documentation/TALENT_SUMMARY.es.md).
+* **Progreso del primer equipo:** General Skills ++ se abre desde los nombres en la plantilla, la ficha del jugador, la configuración de entrenamiento y el detalle de informes. Muestra los entrenos avanzados y de formación asignados desde la última subida observada de cada habilidad y una gráfica nativa de niveles y subidas. La tabla semanal sigue visible; [cálculo y límites](documentation/TALENT_SUMMARY.es.md).
 * **Gestor de Backups:** Base de datos local con importación y exportación JSON del historial del primer equipo y de los juveniles.
 
 ## 🛠️ Arquitectura y Filosofía Técnica
@@ -82,6 +82,7 @@ npx tsc --noEmit  # typecheck
 * [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sincronización, gráficas y detección de subidas.
 * [TALENT_SUMMARY.es.md](documentation/TALENT_SUMMARY.es.md): contadores, curvas observadas, tabla semanal y límites del primer equipo.
 * [Talento juvenil](documentation/JUNIOR_TALENT.es.md): páginas admitidas, sincronización, cálculo y límites.
+* [Capturas de las funciones](documentation/SCREENSHOTS.md): ejemplos de General Skills ++ y del talento juvenil.
 * [PRIVACY.es.md](PRIVACY.es.md): política de privacidad (datos solo en tu navegador).
 * [store/](store/LISTING.md): ficha y checklist de envío a la Chrome Web Store.
 * Instalación: [español](documentation/INSTALL-es.md) · [English](documentation/INSTALL-en.md).

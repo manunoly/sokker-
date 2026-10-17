@@ -2,7 +2,9 @@
 
 [English](TALENT_SUMMARY.md) · **Español**
 
-General Skills ++ lee el historial del primer equipo ya guardado en IndexedDB. Al pasar el cursor o enfocar el nombre se abre el resumen en dos columnas con la tabla semanal. Al pasar por una habilidad o enfocarla aparece su curva nativa en Canvas; un clic fija la tarjeta. Estas acciones no sincronizan ni consultan la API.
+General Skills ++ lee el historial del primer equipo ya guardado en IndexedDB. Al pasar el cursor o enfocar el nombre en la plantilla, la ficha del jugador, la configuración de entrenamiento o el detalle de un informe, se abre el mismo resumen en dos columnas con la tabla semanal. En los informes se conserva el hover juvenil separado para los nombres de juveniles. Al pasar por una habilidad del primer equipo o enfocarla aparece su curva nativa en Canvas; un clic fija la tarjeta. Estas acciones no sincronizan ni consultan la API.
+
+La [galería de capturas](SCREENSHOTS.md#general-skills-summary) muestra un ejemplo del resumen y la tabla semanal.
 
 ## Significado de las dos cifras
 

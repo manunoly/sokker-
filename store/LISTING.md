@@ -23,7 +23,7 @@ Track Sokker player skill changes, training history, and estimated talent in you
 ```text
 Sokker++ adds player development history to Sokker.org. On squad and player pages, skill changes are marked with up and down arrows so you can spot weekly improvements and declines.
 
-Hover or focus a first-team player's name for “General Skills ++”: assigned advanced and formation training counts since each skill's last observed rise, plus a weekly table with Record, Pos / Skill, Eff, Week, and skill levels. Hover or focus a skill value for its observed-level chart. The table exports CSV and skill charts export PNG. On training report details and your own academy page, hovering or focusing a junior name shows the observed junior curve, Sokker's talent value, and a separate curve estimate when at least four observations exist. Junior charts also export PNG. Use the popup to sync first-team data, repair history gaps, or export/import a JSON backup.
+Hover or focus a first-team player's name on squad/player pages, training setup, or training report details for “General Skills ++”: assigned advanced and formation training counts since each skill's last observed rise, plus a weekly table with Record, Pos / Skill, Eff, Week, and skill levels. Hover or focus a skill value for its observed-level chart. The table exports CSV and skill charts export PNG. On training report details and your own academy page, hovering or focusing a junior name shows the observed junior curve, Sokker's talent value, and a separate curve estimate when at least four observations exist. Junior charts also export PNG. Use the popup to sync first-team data, repair history gaps, or export/import a JSON backup.
 
 Sokker++ automatically syncs when a Sokker.org page loads. It uses your existing Sokker session to request game data and stores the resulting history in IndexedDB on your device. The extension does not send this data to its developer or other third parties.
 
@@ -38,7 +38,7 @@ Support: https://github.com/manunoly/sokker-/issues
 ```text
 Sokker++ añade un historial de desarrollo de jugadores en Sokker.org. En las páginas de plantilla y de cada jugador, marca con flechas hacia arriba y abajo los cambios de habilidades para que puedas identificar las mejoras y bajadas semanales.
 
-Pasa el cursor o enfoca el nombre de un jugador del primer equipo para abrir “General Skills ++”: contadores de entrenos avanzados y de formación asignados desde la última subida observada de cada habilidad y una tabla semanal con Registro, Pos / Skill, efectividad, semana y niveles. Al pasar o enfocar una habilidad aparece su gráfica de niveles observados. La tabla exporta CSV y las gráficas, PNG. En el detalle de informes de entrenamiento y en tu propia cantera, el nombre juvenil abre una curva, el talento informado por Sokker y una estimación independiente cuando hay al menos cuatro observaciones. La gráfica juvenil también exporta PNG. El popup permite sincronizar los datos del primer equipo, reparar huecos y exportar/importar una copia JSON.
+Pasa el cursor o enfoca el nombre de un jugador del primer equipo en la plantilla, la ficha del jugador, la configuración de entrenamiento o el detalle de informes para abrir “General Skills ++”: contadores de entrenos avanzados y de formación asignados desde la última subida observada de cada habilidad y una tabla semanal con Registro, Pos / Skill, efectividad, semana y niveles. Al pasar o enfocar una habilidad aparece su gráfica de niveles observados. La tabla exporta CSV y las gráficas, PNG. En el detalle de informes de entrenamiento y en tu propia cantera, el nombre juvenil abre una curva, el talento informado por Sokker y una estimación independiente cuando hay al menos cuatro observaciones. La gráfica juvenil también exporta PNG. El popup permite sincronizar los datos del primer equipo, reparar huecos y exportar/importar una copia JSON.
 
 Sokker++ sincroniza automáticamente cuando se carga una página de Sokker.org. Usa tu sesión existente de Sokker para solicitar datos del juego y guarda el historial resultante en IndexedDB en tu dispositivo. La extensión no envía estos datos a su desarrollador ni a terceros.
 
@@ -82,7 +82,7 @@ Show Sokker first-team skill history and junior talent charts on Sokker.org usin
 ### Permission justification
 
 ```text
-Host permission https://sokker.org/* and content script match https://sokker.org/*: the content script enhances squad/player, training report details, and own academy pages. It makes same-origin requests to Sokker's current, training, player, junior roster, and junior graph endpoints to build local history. The extension has no permissions entry in its manifest.
+Host permission https://sokker.org/* and content script match https://sokker.org/*: the content script enhances squad/player, training setup, training report details, and own academy pages. It makes same-origin requests to Sokker's current, training, player, junior roster, and junior graph endpoints to build local history. The extension has no permissions entry in its manifest.
 ```
 
 ### Remote code
