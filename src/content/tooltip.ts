@@ -59,12 +59,14 @@ function createCard(): void {
     card.tabIndex = -1;
     card.style.cssText = [
         'position:fixed', 'z-index:10000', 'box-sizing:border-box', 'display:none',
-        'max-width:calc(100vw - 16px)', 'max-height:85vh', 'overflow:auto',
+        'max-width:calc(100vw - 16px)', 'max-height:85vh', 'overflow-x:hidden', 'overflow-y:auto',
         'padding:14px', 'border:1px solid #64748b', 'border-radius:10px',
         'background:#202b3a', 'color:#f8fafc', 'box-shadow:0 12px 28px #0008',
         'pointer-events:auto'
     ].join(';');
     card.style.position = 'fixed';
+    card.style.overflowX = 'hidden';
+    card.style.overflowY = 'auto';
     card.addEventListener('mouseenter', cancelHide);
     card.addEventListener('mouseleave', scheduleHide);
     card.addEventListener('focusin', cancelHide);
@@ -103,8 +105,8 @@ function placeCard(): void {
     if (!card || !selection) return;
     const edge = 8;
     const gap = 8;
-    const targetWidth = selection.skill ? 500 : Math.min(window.innerWidth - 2 * edge, Math.max(760, Math.floor(window.innerWidth * 0.8)));
-    const minimumSideWidth = Math.min(targetWidth, selection.skill ? 320 : 760);
+    const targetWidth = Math.max(1, Math.min(selection.skill ? 720 : 640, window.innerWidth - 2 * edge));
+    const minimumSideWidth = targetWidth;
     const rect = selection.anchor?.getBoundingClientRect();
     card.style.width = `${targetWidth}px`;
     let left: number;
@@ -174,6 +176,8 @@ async function showCard(next: Selection, pin = false): Promise<void> {
     setPinned(pin);
     if (!card || !content) return;
     card.style.display = 'block';
+    card.style.height = next.skill ? '' : '80vh';
+    content.style.height = next.skill ? '' : '100%';
     card.setAttribute('aria-label', next.skill ? currentStrings().skills[next.skill] : currentStrings().title);
     card.querySelector<HTMLElement>('[data-close-player-card]')?.setAttribute('aria-label', currentStrings().close);
     content.textContent = '…';

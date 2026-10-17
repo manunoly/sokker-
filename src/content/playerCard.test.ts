@@ -5,7 +5,7 @@ import type { SkillProgress } from '../core/talent';
 import { createPlayerSkillContent, createPlayerSummaryContent } from './playerCard';
 import { getPlayerStrings } from './playerLocale';
 
-vi.mock('../ui-components/playerSkillCanvas', () => ({ drawPlayerSkillChart: vi.fn() }));
+vi.mock('../ui-components/playerSkillCanvas', () => ({ drawPlayerSkillChart: vi.fn(), PLAYER_SKILL_CHART_WIDTH: 680, PLAYER_SKILL_CHART_HEIGHT: 400 }));
 
 const skills = { stamina: 7, pace: 10, technique: 8, passing: 9, keeper: 0, defending: 6, playmaking: 11, striker: 5, form: 10, teamwork: 8, tacticalDiscipline: 5, experience: 4 };
 const sourceEntry = (week: number, source: PlayerHistoryEntry['source'], training?: PlayerHistoryEntry['training']): PlayerHistoryEntry => ({
@@ -80,12 +80,14 @@ describe('first-team cards', () => {
         ]);
         expect(table.querySelectorAll('tbody tr')).toHaveLength(rows.length);
         expect(table.querySelector('tbody tr')?.children).toHaveLength(13);
-        expect(table.style.minWidth).toBe('710px');
-        expect(table.style.tableLayout).toBe('fixed');
+        expect(table.style.width).toBe('max-content');
+        expect(table.parentElement?.style.width).toBe('max-content');
+        expect(table.parentElement?.style.flex).toBe('1 1 0%');
+        expect(table.parentElement?.parentElement?.style.flex).toBe('1 1 0%');
         expect([...table.querySelectorAll('col')].map(col => col.style.width).slice(0, 4)).toEqual(['100px', '144px', '52px', '56px']);
+        expect((table.querySelector('th:nth-child(5)') as HTMLElement).style.padding).toBe('5px 3px');
         expect(table.querySelector('th:nth-child(2)')?.getAttribute('style')).toContain('text-align: left');
         expect([...table.querySelectorAll('tbody tr')].every(tr => (tr.children[1] as HTMLElement).style.textAlign === 'left')).toBe(true);
-        expect(table.parentElement?.style.maxHeight).toBe('460px');
         const longRecord = [...table.querySelectorAll('tbody tr')].find(tr => tr.textContent?.includes('1210'))!;
         expect(longRecord.querySelector<HTMLElement>('td:first-child > span')?.title).toBe('Informe sin detalle');
         const injuredWithoutTraining = [...table.querySelectorAll('tbody tr')].find(tr => tr.textContent?.includes('1209'))!;
@@ -95,15 +97,16 @@ describe('first-team cards', () => {
         expect(card.querySelector('[data-export-csv]')).not.toBeNull();
     });
 
-    it('labels the skill estimate as observed pace, with no number for stamina', () => {
+    it('shows saved levels without a fitted pace or trend', () => {
         const t = getPlayerStrings('/en/app/player/7/', 'en', 'en');
         const card = createPlayerSkillContent(player, progress[0], t);
-        expect(card.textContent).toContain('Stamina varies');
+        expect(card.textContent).toContain('Stamina 7');
         expect(card.textContent).not.toContain('weeks per level');
         expect(card.querySelector('canvas')).not.toBeNull();
         const pace = createPlayerSkillContent(player, { ...progress[1], pace: { state: 'estimated', slope: 0.2, weeksPerLevel: 5 } }, t);
-        expect(pace.textContent).toContain('Observed pace');
-        expect(pace.textContent).toContain('5 weeks per level');
+        expect(pace.textContent).toContain('Pace 10');
+        expect(pace.textContent).not.toContain('Observed pace');
+        expect(pace.textContent).not.toContain('5 weeks per level');
         const referenced = createPlayerSkillContent(player, {
             ...progress[1], points: [
                 { week: 1213, reportWeek: 1213, level: 9, source: 'carried-over', injured: false },
@@ -112,5 +115,15 @@ describe('first-team cards', () => {
         }, t);
         expect(referenced.textContent).toContain('stored report week used');
         expect(referenced.querySelector('details')?.textContent).toContain('No report · reference');
+    });
+
+    it('fits the full skill history into the card without horizontal scrolling', () => {
+        const t = getPlayerStrings('/en/app/player/7/', 'en', 'en');
+        const card = createPlayerSkillContent(player, progress[1], t);
+        const canvas = card.querySelector('canvas')!;
+        expect(canvas.width).toBe(680);
+        expect(canvas.height).toBe(400);
+        expect(canvas.style.width).toBe('100%');
+        expect(card.querySelector('[role="region"]')).toBeNull();
     });
 });

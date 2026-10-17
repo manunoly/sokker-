@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SkillProgress } from '../core/talent';
-import { drawPlayerSkillChart } from './playerSkillCanvas';
+import { drawPlayerSkillChart, PLAYER_SKILL_CHART_WIDTH } from './playerSkillCanvas';
 
 interface Stroke {
     style: string;
@@ -13,24 +13,22 @@ function context() {
     const labels: Array<{ text: string; x: number; y: number }> = [];
     const dots: Array<{ x: number; y: number; style: string }> = [];
     const squares: Array<{ x: number; y: number; style: string }> = [];
-    const clips: Array<{ x: number; y: number; width: number; height: number }> = [];
     let path: Stroke['path'] = [];
     let dash: number[] = [];
     const ctx = {
         strokeStyle: '', fillStyle: '', lineWidth: 1, font: '', textAlign: 'left', textBaseline: 'alphabetic',
         clearRect: () => {},
         fillRect: (x: number, y: number, width: number, height: number) => squares.push({ x, y, style: ctx.fillStyle }),
-        fill: () => {}, save: () => {}, restore: () => {}, clip: () => {}, closePath: () => {},
+        fill: () => {},
         fillText: (text: string, x: number, y: number) => labels.push({ text, x, y }),
         arc: (x: number, y: number) => dots.push({ x, y, style: ctx.fillStyle }),
-        rect: (x: number, y: number, width: number, height: number) => clips.push({ x, y, width, height }),
         beginPath: () => { path = []; },
         moveTo: (x: number, y: number) => path.push({ op: 'move', x, y }),
         lineTo: (x: number, y: number) => path.push({ op: 'line', x, y }),
         setLineDash: (value: number[]) => { dash = [...value]; },
         stroke: () => strokes.push({ style: ctx.strokeStyle, dash: [...dash], path: [...path] }),
     };
-    return { ctx: ctx as unknown as CanvasRenderingContext2D, strokes, labels, dots, squares, clips };
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, strokes, labels, dots, squares };
 }
 
 const point = (week: number, level: number, source: 'training' | 'carried-over' | 'roster-fallback' = 'training') =>
@@ -53,66 +51,77 @@ function progress(overrides: Partial<SkillProgress> = {}): SkillProgress {
 }
 
 describe('drawPlayerSkillChart', () => {
-    it('uses the displayed levels for the vertical range and keeps a flat series visible', () => {
+    it('uses the full 0–18 skill range and keeps a flat series visible', () => {
         const rising = context();
         drawPlayerSkillChart(rising.ctx, progress(), 260, 140);
-        expect(rising.labels.filter(label => label.x === 27).map(label => label.text)).toEqual(['6', '7', '8']);
-        expect(rising.dots[0].y).toBe(118);
-        expect(rising.dots[2].y).toBe(12);
+        expect(rising.labels.filter(label => label.x === 27).map(label => label.text)).toEqual(['0', '2', '4', '6', '8', '10', '12', '14', '16', '18']);
+        expect(rising.dots[0].y).toBeCloseTo(88 - 6 / 18 * 76);
+        expect(rising.dots[2].y).toBeCloseTo(88 - 8 / 18 * 76);
 
         const flat = context();
         drawPlayerSkillChart(flat.ctx, progress({ points: [point(1205, 5), point(1206, 5)] }), 260, 140);
-        expect(flat.labels.filter(label => label.x === 27).map(label => label.text)).toEqual(['4', '5', '6']);
-        expect(flat.dots[0].y).toBe(65);
+        expect(flat.labels.filter(label => label.x === 27).map(label => label.text)).toEqual(['0', '2', '4', '6', '8', '10', '12', '14', '16', '18']);
+        expect(flat.dots[0].y).toBeCloseTo(88 - 5 / 18 * 76);
     });
 
-    it('labels actual game weeks with proportional x positions and never extends into future weeks', () => {
-        const { ctx, labels, dots } = context();
-        drawPlayerSkillChart(ctx, progress({ points: [point(1205, 4), point(1206, 5), point(1214, 6)] }), 260, 140);
-        const weeks = labels.filter(label => label.y === 135);
-        expect(weeks[0].text).toBe('1205');
-        expect(weeks.at(-1)?.text).toBe('1214');
+    it('labels only the first, last and observed rise weeks', () => {
+        const { ctx, labels, dots, strokes } = context();
+        const data = progress({ points: [point(1205, 4), point(1206, 5), point(1214, 6)], riseWeeks: [1206] });
+        drawPlayerSkillChart(ctx, data, PLAYER_SKILL_CHART_WIDTH, 140);
+        const weeks = labels.filter(label => Number(label.text) >= 1000);
+        expect(weeks.map(label => label.text)).toEqual(['1205', '1206', '1214']);
         expect(weeks.some(label => label.text === '1215')).toBe(false);
         expect(dots[1].x - dots[0].x).toBeLessThan(dots[2].x - dots[1].x);
+        expect(dots[1].style).toBe('#93eab4');
+        expect(strokes[0].path.slice(19 * 2)).toHaveLength(3 * 2);
     });
 
-    it('joins only adjacent real observations and distinguishes carried and roster points', () => {
+    it('fits a long saved history into one width without losing observations', () => {
+        const points = Array.from({ length: 51 }, (_, index) => point(1163 + index, index < 17 ? 8 : index < 37 ? 9 : 10));
+        const data = progress({ points, riseWeeks: [1180, 1200] });
+        const { ctx, labels, dots } = context();
+        drawPlayerSkillChart(ctx, data, PLAYER_SKILL_CHART_WIDTH, 400);
+        expect(dots).toHaveLength(51);
+        expect(labels.filter(label => Number(label.text) >= 1000).map(label => label.text)).toEqual(['1163', '1180', '1200', '1213']);
+    });
+
+    it('connects the full history while dashing gaps and references and marking injured carried points', () => {
         const { ctx, strokes, dots, squares } = context();
+        const injuredCarry = { ...point(1207, 5, 'carried-over'), injured: true };
         drawPlayerSkillChart(ctx, progress({ points: [
-            point(1205, 4), point(1206, 5), point(1207, 5, 'carried-over'),
-            point(1208, 6, 'roster-fallback'), point(1210, 7),
+            point(1205, 4), point(1206, 5), injuredCarry,
+            point(1208, 6, 'roster-fallback'), point(1210, 7), point(1212, 8),
         ] }), 260, 140);
         const real = strokes.filter(stroke => stroke.style === '#78d4ff');
-        expect(real).toHaveLength(1);
+        const references = strokes.filter(stroke => stroke.style === '#94a3b8');
+        expect(real).toHaveLength(2);
+        expect(real[0].dash).toEqual([]);
+        expect(real[1].dash).toEqual([4, 3]);
         expect(real[0].path.map(operation => operation.op)).toEqual(['move', 'line']);
-        expect(dots.some(dot => dot.style === '#9ca3af')).toBe(true);
+        expect(references).toHaveLength(3);
+        expect(references.every(stroke => stroke.dash.join(',') === '4,3')).toBe(true);
+        expect(dots.some(dot => dot.style === '#fb923c')).toBe(true);
         expect(squares.some(square => square.style === '#a78bfa')).toBe(true);
     });
 
-    it('clips a dashed regression to fitted real weeks after a drop', () => {
-        const { ctx, strokes, clips } = context();
+    it('never draws an average trend over the observed rises', () => {
+        const { ctx, strokes } = context();
         drawPlayerSkillChart(ctx, progress({
             points: [point(1201, 8), point(1205, 5), point(1206, 5), point(1207, 6), point(1208, 7)],
             trendStartWeek: 1205,
             trendEndWeek: 1208,
             pace: { state: 'estimated', slope: 0.7, weeksPerLevel: 1 / 0.7 },
         }), 260, 140);
-        const trend = strokes.filter(stroke => stroke.style === '#ffbf69');
-        expect(trend).toHaveLength(1);
-        expect(trend[0].dash).toEqual([5, 4]);
-        expect(trend[0].path.map(operation => operation.op)).toEqual(['move', 'line']);
-        expect(trend[0].path[0].x).toBeGreaterThan(32);
-        expect(trend[0].path[1].x).toBe(248);
-        expect(clips).toEqual([{ x: 32, y: 12, width: 216, height: 106 }]);
+        expect(strokes.some(stroke => stroke.style === '#ffbf69')).toBe(false);
     });
 
-    it('omits the trend for stamina or an unavailable pace', () => {
-        const stamina = context();
-        drawPlayerSkillChart(stamina.ctx, progress({ skill: 'stamina', pace: null, trendStartWeek: 1205, trendEndWeek: 1207 }), 260, 140);
-        expect(stamina.strokes.some(stroke => stroke.style === '#ffbf69')).toBe(false);
-
-        const flat = context();
-        drawPlayerSkillChart(flat.ctx, progress({ pace: { state: 'no-progress', slope: 0, weeksPerLevel: null } }), 260, 140);
-        expect(flat.strokes.some(stroke => stroke.style === '#ffbf69')).toBe(false);
+    it('does not label an inferred reference as an observed rise', () => {
+        const { ctx, labels, dots } = context();
+        drawPlayerSkillChart(ctx, progress({
+            points: [point(1205, 4), point(1206, 5, 'carried-over'), point(1207, 5)],
+            riseWeeks: [1206],
+        }), 260, 140);
+        expect(labels.filter(label => Number(label.text) >= 1000).map(label => label.text)).toEqual(['1205', '1207']);
+        expect(dots.some(dot => dot.style === '#93eab4')).toBe(false);
     });
 });

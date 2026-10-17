@@ -2,7 +2,7 @@ import type { PlayerData, PlayerHistoryEntry, TrainingReport } from '../types/in
 import { PLAYER_SKILL_COLUMNS, type PlayerSkill, type PlayerTimelineRow } from '../core/playerTimeline';
 import type { SkillProgress } from '../core/talent';
 import { downloadChartPng } from '../ui-components/chartExport';
-import { drawPlayerSkillChart } from '../ui-components/playerSkillCanvas';
+import { drawPlayerSkillChart, PLAYER_SKILL_CHART_HEIGHT, PLAYER_SKILL_CHART_WIDTH } from '../ui-components/playerSkillCanvas';
 import { createPlayerSkillExportCanvas } from '../ui-components/playerSkillExport';
 import { formatPlayerNumber, type PlayerStrings } from './playerLocale';
 
@@ -129,11 +129,11 @@ function historyCsv(rows: readonly PlayerTimelineRow[]): string {
 
 function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: PlayerStrings): HTMLElement {
     const section = element('section');
-    section.style.cssText = 'margin-top:12px;border-top:1px solid #475569;padding-top:10px';
+    section.style.cssText = 'display:flex;flex:1;flex-direction:column;min-height:0;margin-top:12px;border-top:1px solid #475569;padding-top:10px';
     const scroller = element('div');
-    scroller.style.cssText = 'max-height:460px;overflow:auto;border:1px solid #475569;border-radius:6px';
+    scroller.style.cssText = 'flex:1;min-height:120px;width:max-content;max-width:100%;overflow:auto;margin-inline:auto;border:1px solid #475569;border-radius:6px';
     const table = element('table');
-    table.style.cssText = 'border-collapse:collapse;table-layout:fixed;width:100%;min-width:710px;font-size:11px;font-variant-numeric:tabular-nums;text-align:center';
+    table.style.cssText = 'border-collapse:collapse;width:max-content;font-size:11px;font-variant-numeric:tabular-nums;text-align:center';
     const columns = element('colgroup');
     for (const width of ['100px', '144px', '52px', '56px', ...Array(tableSkills.length).fill('')]) {
         const column = element('col');
@@ -146,6 +146,7 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
     for (const [index, label] of headers.entries()) {
         const th = element('th', label);
         th.style.cssText = 'position:sticky;top:0;background:#314156;padding:5px 6px;color:#e2e8f0;white-space:nowrap';
+        if (index >= 4) th.style.padding = '5px 3px';
         if (index === 1) th.style.textAlign = 'left';
         if (label === t.week) th.title = `${t.week}: ${t.observedWeek}`;
         headerRow.appendChild(th);
@@ -173,6 +174,7 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
         for (const [skill] of tableSkills) {
             const level = row.entry.skills?.[skill];
             const cell = addCell(Number.isFinite(level) ? String(level) : '—');
+            cell.style.padding = '5px 3px';
             const previous = newestFirst[index + 1]?.entry.skills?.[skill];
             if (Number.isFinite(level) && Number.isFinite(previous)) {
                 if (level > previous) cell.style.background = '#245a46';
@@ -185,7 +187,7 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
     scroller.appendChild(table);
     section.appendChild(scroller);
     const footer = element('div');
-    footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px;color:#cbd5e1;font-size:11px';
+    footer.style.cssText = 'display:flex;flex:none;justify-content:space-between;align-items:center;gap:8px;margin-top:7px;color:#cbd5e1;font-size:11px';
     const range = rows.length ? `${t.history}: ${Math.min(...rows.map(row => row.reportWeek))}–${Math.max(...rows.map(row => row.reportWeek))}` : t.noData;
     footer.appendChild(element('span', range));
     const exportButton = element('button', t.exportCsv);
@@ -214,7 +216,7 @@ export function createPlayerSummaryContent(
     t: PlayerStrings,
 ): HTMLElement {
     const content = element('div');
-    content.style.cssText = 'color:#f8fafc;font:12px/1.4 system-ui,sans-serif';
+    content.style.cssText = 'display:flex;flex-direction:column;height:100%;min-height:0;color:#f8fafc;font:12px/1.4 system-ui,sans-serif';
     const header = element('div');
     header.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px';
     const nameBlock = element('div');
@@ -285,17 +287,8 @@ export function createPlayerSkillContent(player: PlayerData, progress: SkillProg
     content.appendChild(header);
 
     const latest = progress.points.at(-1);
-    const value = progress.skill === 'stamina' ? t.staminaInfo
-        : progress.pace?.state === 'estimated' && progress.pace.weeksPerLevel !== null
-            ? `${formatPlayerNumber(progress.pace.weeksPerLevel, t.language)} ${t.weeksPerLevel}`
-            : progress.pace?.state === 'no-progress' ? t.noProgress : t.insufficient;
-    const metric = element('div');
-    metric.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:7px;background:#314156';
-    const metricText = element('div');
-    metricText.append(element('div', t.observedPace), element('strong', value));
-    metricText.firstElementChild?.setAttribute('style', 'font-size:11px;color:#cbd5e1');
-    (metricText.lastElementChild as HTMLElement).style.cssText = 'display:block;font-size:18px;line-height:1.25';
-    metric.append(metricText, element('span', `${t.skills[progress.skill]} ${latest?.level ?? '—'} · ${progress.points.filter(point => point.source === 'training').length} ${t.observations}`));
+    const metric = element('div', `${t.skills[progress.skill]} ${latest?.level ?? '—'} · ${progress.points.filter(point => point.source === 'training').length} ${t.observations}`);
+    metric.style.cssText = 'padding:8px 10px;border-radius:7px;background:#314156;font-variant-numeric:tabular-nums';
     content.appendChild(metric);
     if (progress.points.some(point => point.source === 'training' && point.dateReliable === false)) {
         const warning = element('div', `ⓘ ${t.uncertainWeek}`);
@@ -303,16 +296,20 @@ export function createPlayerSkillContent(player: PlayerData, progress: SkillProg
         content.appendChild(warning);
     }
 
+    const chartFrame = element('div');
+    chartFrame.style.cssText = 'width:100%;margin:9px 0';
     const canvas = element('canvas');
-    canvas.width = 448;
-    canvas.height = 180;
-    canvas.style.cssText = 'display:block;width:100%;height:auto;margin:9px 0;border:1px solid #475569;border-radius:5px';
+    canvas.width = PLAYER_SKILL_CHART_WIDTH;
+    canvas.height = PLAYER_SKILL_CHART_HEIGHT;
+    canvas.style.cssText = 'display:block;box-sizing:border-box;width:100%;max-width:680px;height:auto;margin-inline:auto;border:1px solid #475569;border-radius:5px';
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', `${t.skills[progress.skill]} · ${t.observedWeek}`);
     const ctx = canvas.getContext('2d');
     if (ctx) drawPlayerSkillChart(ctx, progress, canvas.width, canvas.height);
-    content.appendChild(canvas);
-    const legend = element('div', `${t.observed}  ━━    ${t.trend}  ┄┄`);
+    chartFrame.appendChild(canvas);
+    content.appendChild(chartFrame);
+    const legend = element('div', t.observed);
     legend.style.cssText = 'color:#cbd5e1;font-size:11px;margin-bottom:8px';
-    if (progress.skill === 'stamina') legend.textContent = t.observed;
     content.appendChild(legend);
 
     const counts = element('div');

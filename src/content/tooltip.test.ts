@@ -4,7 +4,7 @@ import type { PlayerData, PlayerHistoryEntry } from '../types/index';
 import { hideTooltip, openZoomChart, scheduleHide, showHistoryTooltip, showTooltip } from './tooltip';
 
 vi.mock('../core/repository', () => ({ getPlayerHistory: vi.fn() }));
-vi.mock('../ui-components/playerSkillCanvas', () => ({ drawPlayerSkillChart: vi.fn() }));
+vi.mock('../ui-components/playerSkillCanvas', () => ({ drawPlayerSkillChart: vi.fn(), PLAYER_SKILL_CHART_WIDTH: 680, PLAYER_SKILL_CHART_HEIGHT: 400 }));
 
 const skills = { stamina: 7, pace: 10, technique: 8, passing: 9, keeper: 0, defending: 6, playmaking: 11, striker: 5, form: 10, teamwork: 8, tacticalDiscipline: 5, experience: 4 };
 const entry = (week: number, level = 10): PlayerHistoryEntry => ({
@@ -47,11 +47,14 @@ describe('first-team hover integration', () => {
         expect(getPlayerHistory).toHaveBeenCalledOnce();
         expect(network).not.toHaveBeenCalled();
         expect(card.style.display).toBe('block');
+        expect(card.style.height).toBe('80vh');
+        expect(card.style.overflowX).toBe('hidden');
         expect(card.textContent).toContain('Habilidades generales ++');
         expect(card.textContent).toContain('Registro');
         expect(card.querySelectorAll('[data-player-skill-column]')).toHaveLength(2);
         expect(card.querySelector('table')).not.toBeNull();
-        expect(parseInt(card.style.width, 10)).toBeGreaterThan(630);
+        expect(card.style.width).toBe('640px');
+        expect(card.firstElementChild?.getAttribute('style')).toContain('height: 100%');
     });
 
     it('ignores a stale IndexedDB result after selecting another skill', async () => {
@@ -66,7 +69,7 @@ describe('first-team hover integration', () => {
         const text = document.querySelector('#sokkerpp-history-tooltip')?.textContent ?? '';
         expect(text).toContain('New player');
         expect(text).not.toContain('Old player');
-        expect(text).toContain('Ritmo observado');
+        expect(text).toContain('Ritmo 10');
     });
 
     it('keeps the card open while the pointer crosses to it, and Escape closes it', async () => {
@@ -92,8 +95,10 @@ describe('first-team hover integration', () => {
         await openZoomChart(7, 'pace', trigger);
         const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
         expect(card.style.position).toBe('fixed');
+        expect(card.style.height).toBe('');
+        expect(card.style.width).toBe('720px');
         expect(card.style.left).toBe('188px');
-        expect(card.textContent).toContain('Ritmo observado');
+        expect(card.textContent).toContain('Ritmo 10');
         expect(card.querySelector('canvas')).not.toBeNull();
         expect(card.querySelector('button[aria-label="Descargar PNG"]')).not.toBeNull();
     });
@@ -116,15 +121,15 @@ describe('first-team hover integration', () => {
         } as DOMRect);
         await showHistoryTooltip(480, 110, 7, trigger);
         const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
-        expect(card.style.width).toBe('800px');
+        expect(card.style.width).toBe('640px');
         expect(card.querySelector('table')?.querySelectorAll('th')).toHaveLength(13);
     });
 
-    it('allows the summary to use 80 percent of a wide viewport', async () => {
+    it('keeps the summary compact even on a wide viewport', async () => {
         vi.stubGlobal('innerWidth', 1920);
         const trigger = anchor();
         await showHistoryTooltip(130, 110, 7, trigger);
         const card = document.querySelector<HTMLElement>('#sokkerpp-history-tooltip')!;
-        expect(card.style.width).toBe('1536px');
+        expect(card.style.width).toBe('640px');
     });
 });

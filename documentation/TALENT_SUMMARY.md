@@ -16,15 +16,17 @@ The eight skills follow the familiar player-page order: Stamina, Pace, Technique
 
 ## What the curve means
 
-Each skill card draws saved level observations on the game-week X axis and a Y axis sized to its actual range (0–18). Missing weeks are left empty. Carried-over and roster-only snapshots can appear as muted references, but only real training-report observations contribute to the trend or detected rises.
+Each skill card draws every saved level observation across the full game-week span in one 680 × 400 px chart, scaled down on narrow screens without horizontal scrolling. The Y axis stays at 0–18, with grid lines at every level and labels at even levels. The X axis labels only the first week, the last week, and weeks with an observed rise from a real report. Those rises have green dots; consecutive real reports use a solid blue line. Missing-week spans and reference snapshots use dashed lines, without inventing intermediate points. Carried-over values recorded during injury are orange, and roster-only snapshots use violet squares. The junior chart keeps its own scale.
 
-For a non-stamina skill, **observed pace** is the reciprocal of the slope of an ordinary least-squares line through `(observed game week, skill level)`. It is displayed in **weeks per level**. It needs at least four distinct real observed weeks and a positive slope. After a level drop, only the segment beginning with the lower observation is fitted. A flat or falling fit shows “No measurable progress”; a shorter usable segment shows “Insufficient data.” The dashed trend ends at the last fitted observation; it does not predict future levels. Stamina shows its observed levels without a trend or pace number because its values fluctuate.
+The skill card and PNG show observed levels and rises without a fitted average line or weeks-per-level estimate. A rise after a gap is assigned to the later real report; the precise week of the change within that gap is unknown. Stamina shows its saved values on the same fixed scale.
 
-Observed pace is **not Sokker's hidden talent**. Age, level, coaches, minutes, interruptions, and training type also affect progress. It is not the previous average of advanced trainings per rise. The old global average, ASCII progress bars, and “soon” marker are no longer shown.
+Observed rises are **not Sokker's hidden talent**. Age, level, coaches, minutes, interruptions, and training type also affect progress. The old global average, ASCII progress bars, and “soon” marker are no longer shown.
 
 ## Weeks, sources, and exports
 
-The weekly table keeps one row per report and its original columns. The card can use 80% of the viewport when space permits, and the history area displays up to 460 px of rows; on narrow screens the table retains its horizontal scrolling. `Record` has a fixed width and visually truncates long text, with the full label available on hover. `Pos / Skill` starts at the same position in every row. Injury appears as an icon with an accessible explanation. If a report marks injury and `0` effectiveness, the visible record shows only the injury; CSV retains the original training kind.
+The summary modal uses 80% of the viewport height.
+
+The weekly table keeps one row per report and its original columns. The summary card is at most 640 px wide, independent of its two-column grid; the skill card remains 720 px wide for its chart. The table fills the available height within the summary card and keeps the footer visible. On narrow screens, the table retains its horizontal scrolling. `Record` has a fixed width and visually truncates long text, with the full label available on hover. `Pos / Skill` starts at the same position in every row. Injury appears as an icon with an accessible explanation. If a report marks injury and `0` effectiveness, the visible record shows only the injury; CSV retains the original training kind.
 
 The weekly table remains open beneath the two-column summary. Its `Week` and CSV `Week` fields retain the stored **report week**. For the curve, a Thursday/Friday capture uses that week; a Saturday–Wednesday capture is placed in the previous **observed week**. Calendar-day parsing is independent of the computer's timezone. An invalid date falls back to the stored week, marked `?` in the table and explained in the skill card and PNG; duplicate observed weeks prefer a real report, then the latest capture. Implausible old-week entries stamped on the latest capture day are excluded from analysis but remain visible in the table. The expanded level list labels carried-over and roster-only values as references.
 
@@ -37,7 +39,7 @@ The table has one localized **Record** column in place of the old flag and `Kind
 | Roster only | Snapshot from the current squad without a historical report. |
 | Report without detail | Older real report without the `training` metadata. |
 
-The injury icon does not claim that injury caused a missing report. The table keeps `Pos / Skill`, effectiveness, levels, and CSV export. The CSV keeps the original source, kind, skill, position, intensity, minutes, report week, and level columns. The skill PNG uses the shared Canvas compositor, an English `Skill · N.N weeks/level` footer when available, and `by manuel.team`.
+The injury icon does not claim that injury caused a missing report. The table keeps `Pos / Skill`, effectiveness, levels, and CSV export. The CSV keeps the original source, kind, skill, position, intensity, minutes, report week, and level columns. The skill PNG uses the shared Canvas compositor, an English `Skill · weeks first–last` footer, and `by manuel.team`.
 
 New card text supports English, Spanish, Polish, Portuguese, Italian, German, Romanian, and Turkish, with English fallback. The PNG footer stays in English.
 
