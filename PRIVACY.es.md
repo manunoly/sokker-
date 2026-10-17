@@ -6,6 +6,8 @@
 
 9 de octubre de 2026
 
+Última actualización: 16 de octubre de 2026.
+
 ## Datos a los que accede la extensión
 
 Sokker++ accede y guarda los datos del juego necesarios para mostrar cambios de habilidades e historial de jugadores:
@@ -15,14 +17,15 @@ Sokker++ accede y guarda los datos del juego necesarios para mostrar cambios de 
 - Valores de habilidades, valor del jugador e información de lesiones dentro del juego de esos jugadores (incluidos los días restantes cuando estén disponibles).
 - Campos del informe semanal de entrenamiento: tipo, habilidad entrenada, posición, intensidad y minutos.
 - La semana y fecha asociadas a cada entrada guardada del historial del jugador.
+- IDs juveniles y de equipo, niveles semanales observados, talento juvenil informado por Sokker, semanas restantes en la cantera y estado local de semana y resolución que evita repetir solicitudes.
 
 ## Cómo se accede a los datos
 
-En páginas de `https://sokker.org`, Sokker++ realiza solicitudes del mismo origen a `https://sokker.org/api/current`, `https://sokker.org/api/training?filter[week]=N` y `https://sokker.org/api/player?filter[team]=ID` usando la sesión existente del usuario en Sokker. No solicita ni guarda las credenciales de inicio de sesión.
+En páginas de `https://sokker.org`, Sokker++ realiza solicitudes del mismo origen a `/api/current`, `/api/training?filter[week]=N` y `/api/player?filter[team]=ID` usando la sesión existente del usuario en Sokker. En páginas juveniles admitidas también solicita `/api/junior?filter[limit]=100` y `/api/junior/{id}/graph`. No solicita ni guarda las credenciales de inicio de sesión.
 
 ## Dónde se almacenan
 
-La extensión guarda el historial de jugadores y los metadatos de sincronización únicamente en IndexedDB del navegador, en la base `SokkerTalentTrackerDB`, en el dispositivo del usuario. Como la base la crea el content script de la extensión, el navegador la guarda en el almacenamiento del sitio `https://sokker.org`. No mantiene un servidor propio ni una copia en la nube.
+La extensión guarda el historial del primer equipo, el historial juvenil y los metadatos de sincronización en IndexedDB del navegador, en la base `SokkerTalentTrackerDB`, en el dispositivo del usuario. Como la base la crea el content script de la extensión, el navegador la guarda en el almacenamiento del sitio `https://sokker.org`. No mantiene un servidor propio ni una copia en la nube. Una copia JSON exportada por el usuario puede contener ambos historiales y debe almacenarse y compartirse con ese cuidado.
 
 ## Compartición
 
@@ -30,7 +33,7 @@ Sokker++ no envía estos datos al desarrollador ni a terceros. No se venden, no 
 
 ## Aviso sobre la sincronización automática
 
-La sincronización se inicia automáticamente al cargar una página de Sokker.org. La extensión solicita datos actuales de Sokker y guarda el historial localmente. También puedes iniciar una sincronización desde la ventana emergente de la extensión.
+La sincronización del primer equipo se intenta automáticamente al cargar una página de Sokker.org. La de juveniles se ejecuta en los detalles de informes de entrenamiento y en la cantera propia; el hover juvenil lee los datos guardados. La extensión solicita datos a Sokker y guarda el historial localmente. También puedes iniciar la sincronización del primer equipo desde la ventana emergente.
 
 ## Controles del usuario y conservación
 

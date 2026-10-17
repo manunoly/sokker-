@@ -1,65 +1,25 @@
-# Sokker++ Logic Explanation
+# Sokker++ runtime logic
 
-This document describes the core logic behind the Sokker++ extension, specifically focusing on Data Synchronization, Chart Rendering, and Skill Improvement detection.
+This guide describes the current pipelines. See [first-team behavior](TALENT_SUMMARY.md) and [junior behavior](JUNIOR_TALENT.md) for chart details and their limits.
 
-## 1. Data Synchronization Logic (`src/core/sync.ts`)
+## First-team synchronization
 
-The synchronization process (`syncData`) ensures that the local database has up-to-date player history without overwhelming the Sokker API.
+The content script attempts `syncData()` when a Sokker page loads. It obtains the current game week from `/api/current` and reads the last stored week. When that stored week is older, it refreshes it once to capture late updates. It then checks the last 30 game weeks: previously saved or marked-empty past weeks are skipped; missing past weeks are fetched from `/api/training?filter[week]=N`. The current week is fetched on each sync because its report can change within the week. Empty past weeks are marked checked. The roster from `/api/player` can also support the separate best-effort gap reconciliation pass.
 
-### **Workflow:**
-1.  **Initialization**: The database is initialized.
-2.  **Fetch Weeks**: The extension fetches the **Current Week** (from `/api/current`) and the **Last Synced Week** (from local storage).
-3.  **Baseline Refresh**:
-    -   If the `Last Synced Week` is older than the current week, it re-fetches data for that specific week. This ensures that any late-week training updates (e.g., typically Thursday/Friday) are captured for the previous week before moving forward.
-4.  **Gap Filling**:
-    -   The system calculates a range of weeks to sync, looking back up to **30 weeks**. Past weeks that return no data are marked as checked (`{ week, empty: true }` in the `weeks` store) and are not requested again. Verified 2026-10-09: the Sokker API only returns the last 10 weeks; longer history accumulates while the extension stays installed.
-    -   It iterates from the past to the present.
-    -   **Current Week**: Always fetched to capture real-time changes.
-    -   **Past Weeks**: Only fetched if they are missing from the local database.
-5.  **Storage**: Valid data is saved to `IndexedDB` via `saveWeekData`.
+`src/core/sync.ts` owns the report sequence; `src/core/gapDetector.ts` reconciles missing player entries; `src/core/repository.ts` stores the history. A carried-over value or roster snapshot is labeled as a reference, not presented as a measured training report. Historical availability depends on what Sokker returns and what this browser has saved. Use JSON backup export/import to preserve accumulated local history between devices.
 
-## 2. Chart Rendering Logic (`src/content/tooltip.ts`)
+## Junior synchronization
 
-Charts are rendered by processing the raw player history into clean data points.
+Junior synchronization starts only on an eligible report details page or the user's own academy page. It checks `/api/current`, the visible junior IDs, the current roster, and cached graph resolution for that game week. Only unresolved juniors need graph requests. The roster supplies Sokker's talent value and weeks remaining; the graph supplies observed level points. The hover card reads the shared local IndexedDB. Details and limits are in [JUNIOR_TALENT.md](JUNIOR_TALENT.md).
 
-### **Data Preparation (`prepareChartData`):**
-1.  **Filtering**:
-    -   **Static Form Check**: If a player's `form` skill has been identical for >3 weeks, the history is considered "fake" (naive backfill) and is truncated to just the latest entry.
-2.  **Week Adjustment**:
-    -   Sokker training typically updates data late in the week (Thursday/Friday).
-    -   **Logic**:
-        -   If the data point's day is **Thursday (4)** or **Friday (5)**, the week is kept as is.
-        -   If the day is **Saturday-Wednesday**, the week number is **decremented by 1**.
-        -   *Reason*: Data collected early in the week usually represents the *previous* week's training state.
-3.  **Deduplication**:
-    -   If multiple entries exist for the same adjusted week, the one with the **latest date** is kept.
-4.  **Bad Backfill Detection**:
-    -   The system detects if a "historical" week entry has a timestamp very close (within 24h) to the current time. This indicates a sync error where current data was saved as history, and such points are discarded.
-5.  **Flatline Removal**:
-    -   For non-fluctuating skills (everything except Form, Stamina, Teamwork, Tactical Discipline), long sequences of identical values are trimmed to clean up the chart, keeping only the change points.
+## First-team display
 
-## 3. Skill Improvement (Pop) Logic (`src/content/ui.ts`)
+Squad and player views compare saved skill snapshots for the improvement arrows. Before the current week's training window, the comparison can use the preceding completed weeks; after it, the latest two saved entries are compared. See `src/content/ui.ts` for the exact page handling. Do not interpret an arrow as proof of which training caused a rise.
 
-The visual indicators (green ▲ / red ▼) on the Player and Squad pages show changes in skill levels.
+General Skills ++ keeps the stored **report week** in the table and CSV. Its skill chart uses an **observed week** derived from the capture date: Thursday or Friday stays in the report week; Saturday through Wednesday moves to the preceding week. Date parsing uses the written calendar date, not the computer's local timezone. If the date is invalid, the report week is used with an uncertainty marker. Duplicate observed weeks prefer a real training report, then the latest capture. Implausible old-week entries stamped on the latest capture day remain in the table but are excluded from the skill curve. Missing weeks are not filled with invented chart points.
 
-### **Comparison Logic:**
-The extension compares a "Current" value against a "Previous" value. The selection of these values depends on the **Current Day of the Week**.
+`src/core/playerTimeline.ts` normalizes the observations, `src/core/talent.ts` counts assigned advanced and formation training since each skill's last observed rise, and `src/ui-components/playerSkillCanvas.ts` draws the observed levels and rises. The card does not display a fitted weeks-per-level talent value for first-team skills. See [TALENT_SUMMARY.md](TALENT_SUMMARY.md) for count rules and source labels.
 
--   **Pre-Training (Sunday - Thursday / Day < 5)**:
-    -   Training for the *current* week hasn't happened yet.
-    -   Comparing `Week X` vs `Week X-1` would result in **0 change**.
-    -   **Action**: The system compares `Week X-1` vs `Week X-2`.
-    -   *Result*: You see the arrows from the **previous training** (e.g., last Friday) held over until the new training occurs.
+## Storage and export
 
--   **Post-Training (Friday - Saturday / Day >= 5)**:
-    -   Training has occurred.
-    -   **Action**: The system compares `Week X` (Current) vs `Week X-1`.
-    -   *Result*: You see the fresh results of this week's training.
-
-### **Display Logic:**
--   **English Interface**: The arrow is appended **inside** the skill link tag (e.g., `<a>Stamina ▲</a>`) to ensure it flows with the text.
--   **Spanish Interface**: The arrow is appended to the table cell (`td`), positioned after the text.
-
-## 4. Talent Summary (`src/core/talent.ts`)
-
-The direct-training counters and talent estimate shown above the **General Skills ++** table are documented (rules R1–R8, presentation, limitations) in [TALENT_SUMMARY.md](TALENT_SUMMARY.md).
+`SokkerTalentTrackerDB` is in the browser's `sokker.org` site storage. First-team and junior records share this database but use separate stores. The popup exports/imports a JSON backup; General Skills ++ exports a CSV of its table; skill and junior cards export PNG charts. Backups can contain account history, so keep them outside the repository and share them only intentionally. Real API captures and account data belong in ignored local documents, never tracked examples.

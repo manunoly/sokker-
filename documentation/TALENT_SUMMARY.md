@@ -46,7 +46,7 @@ New card text supports English, Spanish, Polish, Portuguese, Italian, German, Ro
 ## Implementation and limits
 
 - Timeline normalization: `src/core/playerTimeline.ts`.
-- Counts and per-skill pace: `src/core/talent.ts` and `src/core/levelTrend.ts`.
+- Focused counts: `src/core/talent.ts`.
 - Native chart and PNG: `src/ui-components/playerSkillCanvas.ts`, `src/ui-components/playerSkillExport.ts`, and the shared `chartExport.ts`.
 - Cards, translations, and hover lifecycle: `src/content/playerCard.ts`, `src/content/playerLocale.ts`, `src/content/tooltip.ts`, and `src/content/ui.ts`.
 

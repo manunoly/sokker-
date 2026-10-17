@@ -2,31 +2,23 @@
 
 **English** · [Español](readme.es.md)
 
-Sokker++ is an ultra-light Google Chrome extension that injects advanced analytics, skill tracking and talent estimation straight into the [Sokker.org](https://sokker.org) interface.
+Sokker++ is a Chromium extension that adds skill history and junior talent estimates to [Sokker.org](https://sokker.org). It is an unofficial fan project, not affiliated with Sokker.
 
-Its name is a nod to C++ and to its core philosophy: **maximum performance, full control over state and zero unnecessary dependencies.**
+It uses TypeScript, native browser APIs, and local IndexedDB storage. Charts use Canvas without a charting library.
 
 ## 🚀 Key Features
 
 * **History Tracking (Skill Tracker):** Tracks players' skill increases and decreases week by week.
 * **Non-Invasive UI Injection:** Dynamically colors the squad table cells (`/app/squad/`) green (increase) or red (decrease).
 * **Native Charts:** Floating tooltips with progression charts drawn 100% with the native `<canvas>` API, no heavy external libraries.
-* **Junior Talent:** On training report details and your own junior-team page, hover over or focus a junior's name to see observed levels, their trend, Sokker's talent value and a separate estimate in weeks per level. [Behavior and limits](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md).
-* **Smart Sync:** Reads Sokker's own API to get the current week (`today.week`) and only downloads the missing weeks, so the game servers are not flooded.
-* **First-team progress:** General Skills ++ shows focused advanced and formation counts since each skill's last observed increase, a native per-skill curve, and an observed pace in weeks per level where the data supports it. The weekly table stays visible; [calculation and limits](documentation/TALENT_SUMMARY.md).
+* **Junior Talent:** On training report details and your own academy page, hover over or focus a junior's name to see observed levels, a fitted trend, Sokker's talent value and a separate estimate in weeks per level. [Behavior and limits](documentation/JUNIOR_TALENT.md).
+* **Smart Sync:** Reads Sokker's current game week, refreshes the latest stored week at a week change, fetches missing recent report weeks, and refreshes the current report week. Junior data syncs only on eligible junior pages and is reused for the game week.
+* **First-team progress:** General Skills ++ shows assigned advanced and formation training counts since each skill's last observed rise, plus a native chart of observed levels and rises. The weekly table stays visible; [calculation and limits](documentation/TALENT_SUMMARY.md).
 * **Backup Manager:** Local database with JSON import/export of first-team and junior history.
 
 ## 🛠️ Architecture and Technical Philosophy
 
-Sokker++ follows **ECMAScript (ES2026+)** best practices under a strictly **functional** paradigm.
-
-**Repository Rules:**
-1.  **Zero Classes (`class`):** State is encapsulated with closures and modules (*ESM*).
-2.  **Zero Dependencies (Vanilla JS):** No React, no Chart.js, no state libraries. Everything uses native browser APIs (IndexedDB, Canvas, Fetch, MutationObserver).
-3.  **Side-Effect Separation:**
-    * DOM manipulation (`ui.ts`, `observer.ts`) is isolated.
-    * Network requests (`api.ts`) are purely asynchronous functions.
-    * Persistence (`repository.ts`) abstracts IndexedDB without exposing its internal API.
+The Manifest V3 content script separates same-origin API access (`src/core/api.ts`), IndexedDB persistence (`src/core/repository.ts` and `src/core/juniorRepository.ts`), synchronization (`src/core/sync.ts` and `src/core/juniorSync.ts`), and page integration (`src/content/`). The build uses Vite; runtime charts use the browser's Canvas API.
 
 ## 📁 Project Structure
 
@@ -53,7 +45,7 @@ sokker-plus-plus/
     │   ├── repository.ts      # Functional IndexedDB wrapper (closures)
     │   ├── sync.ts            # Orchestrator: compares weeks and decides what to fetch
     │   ├── gapDetector.ts     # Detects missing weeks in the history
-    │   ├── talent.ts          # Focused counts and observed per-skill pace
+    │   ├── talent.ts          # Focused per-skill training counts
     │   ├── playerTimeline.ts  # Report weeks and observed skill levels
     │   ├── levelTrend.ts      # Shared regression math
     │   ├── juniorSync.ts      # Weekly junior queue and roster decisions
@@ -82,11 +74,14 @@ npx vitest run    # tests
 npx tsc --noEmit  # typecheck
 ```
 
+`npm run package` currently needs POSIX `rm` and `zip`; on Windows use a shell that provides them. Loading `dist/` only needs `npm run build`.
+
 ## 📚 Documentation
 
+* [Documentation index](documentation/README.md): current guides and historical design records.
 * [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sync, charts and skill increase detection.
-* [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): first-team focused counts, observed pace, weekly table, and their limits.
-* [Junior talent design](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md): supported pages, weekly sync, curve estimate and known limits.
+* [TALENT_SUMMARY.md](documentation/TALENT_SUMMARY.md): first-team counts, observed skill curves, weekly table, and limits.
+* [Junior talent](documentation/JUNIOR_TALENT.md): supported pages, weekly sync, curve estimate and limits.
 * [PRIVACY.md](PRIVACY.md): privacy policy (data stays in your browser).
 * [store/](store/LISTING.md): Chrome Web Store listing and submission checklist.
 * Installation: [English](documentation/INSTALL-en.md) · [Español](documentation/INSTALL-es.md).

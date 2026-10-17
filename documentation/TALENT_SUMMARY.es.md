@@ -46,7 +46,7 @@ Los textos nuevos admiten inglés, español, polaco, portugués, italiano, alem�
 ## Código y límites
 
 - Línea temporal: `src/core/playerTimeline.ts`.
-- Contadores y ritmo: `src/core/talent.ts` y `src/core/levelTrend.ts`.
+- Contadores desde la última subida: `src/core/talent.ts`.
 - Gráfica y PNG nativos: `src/ui-components/playerSkillCanvas.ts`, `src/ui-components/playerSkillExport.ts` y el compositor `chartExport.ts`.
 - Tarjetas, traducciones y ciclo de hover: `src/content/playerCard.ts`, `src/content/playerLocale.ts`, `src/content/tooltip.ts` y `src/content/ui.ts`.
 

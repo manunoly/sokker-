@@ -1,54 +1,15 @@
-# Guía de Instalación: Sokker++
+# Instalar Sokker++ desde el código fuente
 
-Sigue estos pasos para instalar la extensión **Sokker++** en tu navegador Chrome o Edge o Brave. Esta guía está diseñada para instalar la extensión manualmente desde el archivo [sokker-plus-plus.zip](https://github.com/manunoly/sokker-/raw/main/documentation/sokker-plus-plus.zip) descargado.
+[English](INSTALL-en.md) · **Español**
 
----
+El ZIP incluido en `documentation/` es una compilación antigua. Para la instalación manual, usa el código actual.
 
-## 🚀 Paso 1: Preparar el Archivo
+1. Descarga o clona este repositorio e instala las dependencias de desarrollo con `npm ci`.
+2. Ejecuta `npm run build`. Se crea `dist/` con `manifest.json` en la raíz.
+3. Abre `chrome://extensions/`, `edge://extensions/` o `brave://extensions/` en el navegador correspondiente y activa **Modo de desarrollador**.
+4. Elige **Cargar descomprimida** y selecciona la carpeta `dist/` que contiene `manifest.json`.
+5. Entra a Sokker con tu sesión abierta. En las páginas de plantilla/jugador aparecen el historial guardado y las flechas según haya datos. Pasa el cursor o enfoca el nombre de un jugador del primer equipo para abrir General Skills ++. En el detalle de un informe de entrenamiento o en tu propia cantera, haz lo mismo con un juvenil para ver su gráfica.
 
-1.  **Descarga** el archivo [sokker-plus-plus.zip](https://github.com/manunoly/sokker-/raw/main/documentation/sokker-plus-plus.zip) (normalmente se guarda en tu carpeta de *Descargas*).
-2.  **Descomprime** el archivo zip:
-    *   Haz click derecho sobre `sokker-plus-plus.zip`.
-    *   Selecciona **"Extraer todo..."** o **"Extract Here"**.
-    *   Esto creará una carpeta (que suele contener otra carpeta llamada `dist` o los archivos de la extensión). **Recuerda dónde está esta carpeta.**
+Después de cambiar el código, recompila y pulsa **Recargar** en la tarjeta de la extensión del navegador. `npm run package` crea un ZIP de tienda desde `dist/`; el script actual utiliza `rm` y `zip` de POSIX, por lo que en Windows necesita un entorno que ofrezca esos comandos. Para pruebas locales basta con `npm run build` y cargar `dist/`.
 
----
-
-## 🌐 Opción A: Google Chrome o Brave
-
-1.  Abre Google Chrome o Brave.
-2.  En la barra de direcciones, escribe: `chrome://extensions/` o `brave://extensions/` y presiona **Enter**.
-3.  En la esquina superior derecha, **activa** el interruptor **"Modo de desarrollador"** (Developer mode).
-4.  Aparecerán 3 botones nuevos a la izquierda. Haz click en el primero: **"Cargar descomprimida"** (Load unpacked).
-5.  Se abrirá una ventana para seleccionar carpeta.
-    *   Navega a la carpeta donde descomprimiste el zip.
-    *   **Importante:** Debes seleccionar la carpeta que contiene el archivo `manifest.json`. Si al descomprimir se creó una estructura como `sokker-plus-plus/dist`, selecciona la carpeta `dist`.
-6.  Haz click en **"Seleccionar carpeta"**.
-7.  ¡Listo! La extensión Sokker++ debería aparecer activa en tu lista.
-
----
-
-## 🌊 Opción B: Microsoft Edge
-
-1.  Abre Microsoft Edge.
-2.  En la barra de direcciones, escribe: `edge://extensions/` y presiona **Enter**.
-3.  En el menú de la izquierda (o abajo a la izquierda), activa el interruptor **"Modo de desarrollador"**.
-4.  Aparecerán botones nuevos. Haz click en **"Cargar extensión descomprimida"** (Load unpacked).
-5.  Se abrirá una ventana para seleccionar carpeta.
-    *   Navega a la carpeta donde descomprimiste el zip.
-    *   **Importante:** Debes seleccionar la carpeta que contiene el archivo `manifest.json`. Si al descomprimir se creó una estructura como `sokker-plus-plus/dist`, selecciona la carpeta `dist`.
-6.  Haz click en **"Seleccionar carpeta"**.
-7.  ¡Listo! La extensión Sokker++ debería aparecer activa.
-
----
-
-## ✅ Verificación
-
-1.  Ve a [Sokker.org](https://sokker.org).
-2.  Entra en la página de **Equipo** o **Players**.
-3.  Deberías ver las flechas de mejora de habilidades y las gráficas al pasar el ratón por las habilidades.
-4.  **Nuevo:** Revisa la página del Jugador para ver el **Historial de Entrenamiento** (`trainHistory.png`) y los indicadores de **Subida de Habilidad** (`PlayerUp.png`).
-
----
-
-*Nota: Al reiniciar el navegador, es posible que veas un aviso sobre "extensiones en modo desarrollador". Esto es normal para extensiones instaladas manualmente y es 100% seguro.*
+El historial local se guarda en los datos del sitio `sokker.org` del navegador. Exporta una copia JSON desde el popup antes de cambiar de navegador o equipo si quieres conservar el historial acumulado. Consulta la [política de privacidad](../PRIVACY.es.md).

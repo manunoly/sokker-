@@ -2,30 +2,23 @@
 
 [English](readme.md) · **Español**
 
-Sokker++ es una extensión ultraligera para Google Chrome diseñada para inyectar analíticas avanzadas, seguimiento de habilidades y estimación de talento directamente en la interfaz de [Sokker.org](https://sokker.org).
+Sokker++ es una extensión para navegadores Chromium que añade historial de habilidades y estimaciones de talento juvenil a [Sokker.org](https://sokker.org). Es un proyecto independiente, sin afiliación con Sokker.
 
-El proyecto rinde homenaje a C++ en su nombre, reflejando su filosofía principal: **máximo rendimiento, control absoluto del estado y cero dependencias innecesarias.**
+Usa TypeScript, API nativas del navegador y almacenamiento local en IndexedDB. Las gráficas usan Canvas sin librerías de gráficos.
 
 ## 🚀 Características Principales
 
 * **Seguimiento Histórico (Skill Tracker):** Rastrea las subidas y bajadas de habilidades de los jugadores semana a semana.
 * **Inyección UI No Invasiva:** Colorea dinámicamente las celdas de la tabla de la plantilla (`/app/squad/`) en verde (subida) o rojo (bajada).
 * **Gráficos Nativos:** Tooltips flotantes con gráficas de progresión dibujadas 100% con la API nativa de `<canvas>`, sin librerías externas pesadas.
-* **Talento juvenil:** En los informes de entrenamiento y tu cantera, pasa el cursor sobre el nombre de un juvenil o enfócalo con el teclado para ver niveles observados, tendencia, talento de Sokker y una estimación independiente en semanas por nivel. [Uso y límites](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md).
-* **Smart Sync:** Intercepta la API nativa de Sokker para conocer la semana actual (`today.week`) y solo descarga el delta de semanas faltantes, evitando saturar los servidores del juego.
-* **Progreso del primer equipo:** General Skills ++ muestra los entrenos avanzados y de formación enfocados desde la última subida observada de cada habilidad, su curva nativa y el ritmo observado en semanas por nivel cuando hay datos suficientes. La tabla semanal sigue visible; [cálculo y límites](documentation/TALENT_SUMMARY.es.md).
+* **Talento juvenil:** En los informes de entrenamiento y tu cantera, pasa el cursor sobre el nombre de un juvenil o enfócalo con el teclado para ver niveles observados, tendencia, talento de Sokker y una estimación independiente en semanas por nivel. [Uso y límites](documentation/JUNIOR_TALENT.es.md).
+* **Sincronización:** Consulta la semana actual de Sokker, actualiza la última semana guardada al cambiar de semana, obtiene informes recientes que falten y refresca el informe de la semana actual. Los juveniles solo se sincronizan en sus páginas admitidas y se reutilizan los datos de la semana.
+* **Progreso del primer equipo:** General Skills ++ muestra los entrenos avanzados y de formación asignados desde la última subida observada de cada habilidad y una gráfica nativa de niveles y subidas. La tabla semanal sigue visible; [cálculo y límites](documentation/TALENT_SUMMARY.es.md).
 * **Gestor de Backups:** Base de datos local con importación y exportación JSON del historial del primer equipo y de los juveniles.
 
 ## 🛠️ Arquitectura y Filosofía Técnica
 
-Sokker++ está construido siguiendo las mejores prácticas de **ECMAScript (ES2026+)** bajo un paradigma estrictamente **Funcional**.
-
-**Reglas del Repositorio:**
-1.  **Cero Clases (`class`):** El estado se encapsula utilizando cierres (*closures*) y módulos (*ESM*).
-2.  **Cero Dependencias (Vanilla JS):** No React, no Chart.js, no librerías de estado. Todo se resuelve con APIs nativas del navegador (IndexedDB, Canvas, Fetch, MutationObserver).
-3.  **Separación de Efectos (Side-Effects):** * La manipulación del DOM (`ui.ts`, `observer.ts`) está aislada.
-    * Las peticiones de red (`api.ts`) son funciones puramente asíncronas.
-    * La persistencia (`repository.ts`) abstrae IndexedDB sin exponer su API interna.
+El content script Manifest V3 separa el acceso a la API del mismo origen (`src/core/api.ts`), la persistencia IndexedDB (`src/core/repository.ts` y `src/core/juniorRepository.ts`), la sincronización (`src/core/sync.ts` y `src/core/juniorSync.ts`) y la integración con las páginas (`src/content/`). La compilación usa Vite; las gráficas en ejecución usan Canvas.
 
 ## 📁 Estructura del Proyecto
 
@@ -52,7 +45,7 @@ sokker-plus-plus/
     │   ├── repository.ts      # Wrapper funcional de IndexedDB (Closures)
     │   ├── sync.ts            # Orquestador: compara semanas y decide el fetch
     │   ├── gapDetector.ts     # Detección de semanas faltantes en la historia
-    │   ├── talent.ts          # Contadores enfocados y ritmo por habilidad
+    │   ├── talent.ts          # Contadores de entrenamiento por habilidad
     │   ├── playerTimeline.ts  # Semanas de informe y niveles observados
     │   ├── levelTrend.ts      # Regresión compartida
     │   ├── juniorSync.ts      # Cola juvenil y sincronización semanal
@@ -76,15 +69,19 @@ sokker-plus-plus/
 npm ci            # instalar dependencias
 npm run dev       # build en modo watch
 npm run build     # genera dist/ (cargar como "unpacked" en chrome://extensions)
+npm run package   # genera store/sokker-plus-plus.zip desde dist/
 npx vitest run    # tests
 npx tsc --noEmit  # typecheck
 ```
 
+`npm run package` necesita los comandos POSIX `rm` y `zip`; en Windows usa un entorno que los proporcione. Para cargar `dist/` basta con `npm run build`.
+
 ## 📚 Documentación
 
+* [Índice de documentación](documentation/README.md): guías vigentes y registros de diseño históricos.
 * [LOGIC_EXPLANATION.md](documentation/LOGIC_EXPLANATION.md): sincronización, gráficas y detección de subidas.
-* [TALENT_SUMMARY.es.md](documentation/TALENT_SUMMARY.es.md): contadores enfocados, ritmo observado, tabla semanal y límites del primer equipo.
-* [Diseño de talento juvenil](docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md): páginas admitidas, sincronización, cálculo y límites.
+* [TALENT_SUMMARY.es.md](documentation/TALENT_SUMMARY.es.md): contadores, curvas observadas, tabla semanal y límites del primer equipo.
+* [Talento juvenil](documentation/JUNIOR_TALENT.es.md): páginas admitidas, sincronización, cálculo y límites.
 * [PRIVACY.es.md](PRIVACY.es.md): política de privacidad (datos solo en tu navegador).
 * [store/](store/LISTING.md): ficha y checklist de envío a la Chrome Web Store.
 * Instalación: [español](documentation/INSTALL-es.md) · [English](documentation/INSTALL-en.md).

@@ -1,82 +1,13 @@
-# Why Sokker++? 🚀
+# Sokker++
 
-Sokker++ is not just another external tool; it's an **organic extension** that integrates into the very DNA of Sokker.org. It was designed with what really matters to a manager in mind: **speed, precision, and privacy**.
+**English** · [Español](SOKKER_PLUS_intro.md)
 
-Here's why Sokker++ stands out from any other alternative:
+Sokker++ adds first-team skill history and junior talent charts to Sokker. It is an independent fan extension, not affiliated with or endorsed by Sokker.
 
----
+- On squad and player views, it marks observed skill increases and decreases. **General Skills ++** shows a weekly table, assigned advanced and formation training since each skill's last rise, and an observed level chart per skill. The table exports CSV, and charts export PNG.
+- On training report details and your own academy page, the junior card shows observed levels, their trend, Sokker's talent value, and a separate estimate. That estimate requires at least four observations and is not the game's hidden talent.
+- The extension requests data from Sokker's API through the existing session and saves it in browser IndexedDB. First-team sync is attempted when a Sokker page loads; junior sync runs only on eligible pages. The popup exports/imports a JSON backup. Export that backup to preserve accumulated history when moving browsers or devices.
 
-## 1. Total Native Integration (Feels like part of the game) 🎨
-**Sokker++ lives inside your browser**.
-*   **Goodbye Downloads:** Forget about downloading XML files week after week, wrestling with spreadsheets, or configuring complex external programs.
-*   **Absolute Immediacy:** Just by installing the extension and opening Sokker, you'll have instant access to the last 15 weeks of history for every player. **You don't need to have downloaded the data beforehand.**
-*   **Zero Configuration:** you don't need to enter your username or password on any strange site. Sokker++ uses your active session securely and transparently.
-*   **Smart Visualization:**
-    *   Evolution charts appear integrated into the player table itself just by hovering your mouse.
-    
-    ![General View](sokkerAlain.png)
-
-    *   Want details? Clicking on a skill opens an enlarged and precise chart.
-    
-    ![Detailed Chart](sokkerAlainSkillGraft.png)
-
-    *   Improvement arrows (▲/▼) are drawn next to the real values so you can see progress at a glance.
-    
-    ![Skill Tooltip](sokkerAlainSkill.png)
-
-    *   **NEW: Skill Rise Indicator:**
-    *   Spot exactly which skill has popped thanks to the new visual indicators.
-    
-    ![Skill Rise](PlayerUp.png)
-
-    *   **NEW: Skills History (General Skills):**
-    *   Hover over the **player's name** to see a full table with the weekly evolution of all skills, the training type received, the assigned position, and the effectiveness.
-    *   Changes are automatically highlighted: **Green** for improvements, **Red** for drops.
-    
-    ![Training History and Skills](Skills_train.png)
-
-    *   **NEW: Gap Detector for missing training reports:**
-    *   Players sometimes miss a weekly training report (injury, API glitch, mid-week sale). Sokker++ now detects those gaps and fills them automatically by carrying forward the values from the previous week, so your weekly charts and "who improved this week" calculations stay consistent.
-    *   A **status column (⚑)** in the General Skills table explains every row: blank for a real training report, **🩹** when the gap is most likely caused by an injury (inferred from adjacent weeks), and **⏸** when the cause is unknown.
-    *   In the mini chart, segments touching an inferred point are drawn as a **dashed gray line** so you can tell real progress from filled-in data at a glance.
-    *   Run it yourself with the new **"Repair History"** button in the popup — it also runs automatically after every sync and every time you enter the squad view.
-
-    *   **NEW: Training received per week:**
-    *   Three new columns in the General Skills table tell you what happened each training week:
-        *   **Kind** — training type: 🎯 advanced (intense), 📋 formation (moderate), or **—** if no training occurred.
-        *   **Skill @ Pos** — skill trained and assigned position (e.g. `striker @ ATT`). The position is shown as a **color-coded badge by role**: 🔵 GK, 🟢 DEF, 🟡 MID, 🔴 ATT. If the team plan has no specific skill assigned, it shows `general`.
-        *   **Eff** — training effectiveness (0–100%) with a **heatmap**: green (≥80%), yellow (50–79%), red (<50%). Spot wasted weeks at a glance.
-    *   Confirm every young player is actually getting the training you planned and played enough minutes in the right position.
-    *   The **Export CSV** button now includes Kind, Skill, Position, Intensity and Minutes columns for external analysis in spreadsheets.
-
-*   **Native Design:** The aesthetics respect the Sokker style 100%. **You won't feel like it's a plugin; you'll feel like the game has evolved.**
-
----
-
-## 2. Privacy and Portability 🔒
-*   **Your data is yours.** Sokker++ does not send your players' information to third-party servers, shared databases, or hidden trackers.
-*   All the magic happens locally in your browser. You can rest easy knowing your strategy and future stars are state secrets.
-*   **Magical Portability:** If you switch computers, **you don't need to copy files or databases**. Simply install the extension on the new machine and open Sokker. The extension will automatically reconstruct history by reading the available data in the game. It's that easy!
-
----
-
-## 3. Ultralight Performance ⚡
-We've optimized every line of code so the extension is invisible in terms of performance.
-*   It doesn't slow down page loading.
-*   It doesn't consume unnecessary memory.
-*   It only activates when needed (in the squad view), keeping the rest of the game fluid.
-
----
-
-### In Summary:
-Sokker++ transforms Sokker into the modern version you always wanted, respecting the essence of the classic game but giving you the power of modern data. **It's Sokker, but with superpowers.**
-
----
-
-### ⚠️ IMPORTANT NOTE ABOUT PLUS
-Sokker++ is an incredible complementary tool, but **it does not replace the official Plus subscription**. If you are a Plus user (like me), I genuinely recommend that you continue supporting the game by maintaining your subscription. Sokker++ boosts your experience; it doesn't replace support for Sokker.org's development.
-
-Final Note: In due time, Sokker++ will be available in the Chrome and Edge extension stores. The Chrome Store fee is already paid, but there are many forms to fill out before it's available to all users.
-
+Read the [first-team guide](TALENT_SUMMARY.md), [junior guide](JUNIOR_TALENT.md), [installation guide](INSTALL-en.md), and [privacy policy](../PRIVACY.md). Older screenshots in this folder may not represent the current UI.
 
 [by manuel.team](https://manuel.team)
