@@ -9,7 +9,7 @@ Keep this file short. It contains working rules and points to the source of trut
 - Follow `docs/WORKFLOW.md` for the project's research, spec, plan, implementation, and verification phases. A request to investigate or plan does not authorize feature code.
 - Follow the existing architecture in `readme.md` and the owning source files. Inspect code before editing it; use the Codebase Memory graph for structural discovery when available and exact source as fallback. Check graph coverage before relying on it for code claims.
 - Use only the relevant repository skills listed in `.agents/skills/README.md`; load supporting references when the task needs them.
-- Keep real account data, raw API captures, cookies, and credentials out of tracked files. `docs/documentacion-talent/` is local and Git-ignored. Use synthetic data in tracked examples and tests.
+- Keep real account data, raw API captures, cookies, and credentials out of tracked files unless the owner explicitly approves specific public examples. The current exception is `documentation/images/general-skills-summary.png`, `junior-talent-card.png`, and `junior-talent-export.png`. `docs/documentacion-talent/` remains local and Git-ignored. Use synthetic data in tracked examples and tests otherwise.
 - Use the relevant checks documented in `readme.md` and `package.json`. Documentation-only changes need direct inspection and a diff check, not new application tests. Report what actually ran.
 - Preserve unrelated work. Do not commit, push, publish, or deploy unless the owner asks.
 

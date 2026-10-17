@@ -4,6 +4,8 @@
 
 La tarjeta aparece al pasar el cursor o enfocar el nombre de un juvenil en el detalle de un informe de entrenamiento (`/{idioma}/app/training/reports/details/{semana}/`) o en la página de **tu propia cantera** `/juniors/teamID/{teamId}/`. Se sitúa a la izquierda del nombre en el informe y a la derecha en la cantera. La extensión verifica el ID del equipo antes de activar la tarjeta en la cantera. El hover lee IndexedDB; no solicita la gráfica a la API.
 
+La [galería de capturas](SCREENSHOTS.md#junior-talent-card) muestra la tarjeta y el PNG exportado.
+
 ## Datos y sincronización semanal
 
 En una página admitida, la extensión consulta la semana actual y el equipo en `/api/current`. Lee los IDs juveniles visibles, usa `/api/junior?filter[limit]=100` para la cantera actual, el `talent` de Sokker y `weeksLeft`, y solicita `/api/junior/{id}/graph` cuando hacen falta los niveles observados. Ejecuta hasta tres consultas de gráfica a la vez. Guarda el resultado en una tabla juvenil de la misma `SokkerTalentTrackerDB` del primer equipo.

@@ -2,7 +2,9 @@
 
 **English** · [Español](TALENT_SUMMARY.es.md)
 
-General Skills ++ reads the first-team history already saved in IndexedDB. Hover or focus a player's name to open the two-column summary and the weekly table. Hover or focus a skill value to see its native Canvas curve; clicking the value pins that card. Hovering does not sync, fetch, or write data.
+General Skills ++ reads the first-team history already saved in IndexedDB. Hover or focus a player's name on the squad, player, training setup, or training report details page to open the same two-column summary and weekly table. The training report keeps its separate junior hover on junior names. Hover or focus a skill value in the first-team view to see its native Canvas curve; clicking the value pins that card. Hovering does not sync, fetch, or write data.
+
+See the [General Skills ++ screenshot](SCREENSHOTS.md#general-skills-summary) for an example of the summary and weekly table.
 
 ## What the two numbers mean
 
