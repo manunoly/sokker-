@@ -22,9 +22,9 @@ This document defines how work moves from an idea to a verified change in this r
 
 Do not create a new permission gate from a skill example or routine checkpoint. Reuse authorization the owner has already given. Do not commit, push, open a PR, merge, or deploy unless the owner requests that action. Do not automatically delegate work; a skill's mention of subagents does not change the current task's authorization.
 
-## Current junior-talent workstream
+## Current feature documentation
 
-The juvenile talent graph is implemented. Start with the [juvenile talent design](superpowers/specs/2026-10-16-junior-talent-hover-design.md) and its [implementation plan](superpowers/plans/2026-10-16-junior-talent-hover.md). The optional `docs/juniors/README.md` is kept locally and ignored by Git. Keep observed API behavior and response examples in the local, Git-ignored `docs/documentacion-talent/API-SOKKER.md`. The graph uses native Canvas, and first-team talent calculations remain separate. Update the public and local documentation when behavior changes.
+Use the [documentation index](../documentation/README.md) to find the current juvenile and first-team guides. The dated [juvenile design](superpowers/specs/2026-10-16-junior-talent-hover-design.md), [juvenile plan](superpowers/plans/2026-10-16-junior-talent-hover.md), and [General Skills ++ design](superpowers/specs/2026-10-16-general-skills-talent-redesign-design.md) preserve the decisions at the time; verify present behavior against the guides and source code. The optional `docs/juniors/README.md` and observed API examples in `docs/documentacion-talent/API-SOKKER.md` stay local and Git-ignored. Update the current guide when feature behavior changes; avoid rewriting historical plans to imply they describe the live UI.
 
 ## Skill selection and provenance
 

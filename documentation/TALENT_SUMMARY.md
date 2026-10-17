@@ -1,108 +1,53 @@
-# Talent summary (direct training since last pop)
+# First-team skill progress in General Skills ++
 
 **English** · [Español](TALENT_SUMMARY.es.md)
 
-Block shown above the table of the **General Skills ++** panel (history tooltip, `#sokkerpp-history-tooltip`). For each skill it shows how many direct trainings the player has received since that skill's last pop, and estimates the player's **talent**: how many direct trainings a skill needs to go up one level.
+General Skills ++ reads the first-team history already saved in IndexedDB. Hover or focus a player's name to open the two-column summary and the weekly table. Hover or focus a skill value to see its native Canvas curve; clicking the value pins that card. Hovering does not sync, fetch, or write data.
 
-- Calculation: `src/core/talent.ts` → `computeTalentSummary(history)` (pure function, no DOM or network).
-- Rendering: `src/content/tooltip.ts` → `renderTalentSummary(summary)`.
-- Tests: `src/core/talent.test.ts`, `src/content/tooltip.test.ts`.
-- Data: the weekly history already stored in IndexedDB (`PlayerHistoryEntry`: `week`, `skills`, `training`, `source`). It makes no new API calls.
-- History: the first sync tries to backfill up to 30 weeks (past weeks that come back empty are not requested again). Verified on 2026-10-09: the Sokker API only returns the last 10 weeks, so a longer history only builds up by keeping the extension installed; after that the history grows without limit. Training data (kind/skill/intensity) only exists for weeks stored since 2026-04-15; older weeks have skills but no training.
-- `computeTalentSummary` expects at most one entry per week (the caller dedupes).
+## What the two numbers mean
 
-## Sokker concepts
+The eight skills follow the familiar player-page order: Stamina, Pace, Technique, Passing on the left; Keeper, Defending, Playmaking, Striker on the right. Each row shows a large **advanced** count and a smaller **formation** count. Hover or focus a count for its explanation.
 
-- **Advanced training** (`kind: 'individual'`, 🎯 in the table): trains one specific skill. It is the only training used to measure talent.
-- **Formation training** (`kind: 'formation'`, 📋): treated as **general training (GT)**. It never counts as direct.
-- **Talent**: approximate number of direct trainings a skill needs to go up one level. It is not exact:
-  - it changes with age (young players improve faster; older players need more trainings);
-  - each skill has its own pace (e.g. Pace every ~5, Playmaking every ~4).
+- An advanced count includes a saved week when `training.kind === 'individual'`, `training.skill` matches that row, and `training.intensity > 0`.
+- A formation count uses the same assigned-skill and positive-intensity rules with `training.kind === 'formation'`.
+- A training assigned to `general` or another skill is not assigned to this row. An observed skill rise may still have received indirect training; the stored report cannot measure that contribution by skill.
+- Counts start **after** the report that shows the last observed rise in that skill. If no rise was observed, or a report/whole week is missing in the relevant period, `≥` marks the number as a known minimum. `≥0` does not prove the player had no training.
+- Each report week contributes at most one count to its assigned skill and kind. The effectiveness percentage remains visible in the weekly table.
 
-## Rules
+## What the curve means
 
-### R1 — Direct training
+Each skill card draws every saved level observation across the full game-week span in one 680 × 400 px chart, scaled down on narrow screens without horizontal scrolling. The Y axis stays at 0–18, with grid lines at every level and labels at even levels. The X axis labels only the first week, the last week, and weeks with an observed rise from a real report. Those rises have green dots; consecutive real reports use a solid blue line. Missing-week spans and reference snapshots use dashed lines, without inventing intermediate points. Carried-over values recorded during injury are orange, and roster-only snapshots use violet squares. The junior chart keeps its own scale.
 
-A week counts as **direct training** for skill X if and only if all three conditions hold:
+The skill card and PNG show observed levels and rises without a fitted average line or weeks-per-level estimate. A rise after a gap is assigned to the later real report; the precise week of the change within that gap is unknown. Stamina shows its saved values on the same fixed scale.
 
-| Condition | Value |
-|---|---|
-| Training kind | `training.kind === 'individual'` |
-| Trained skill | `training.skill === X` |
-| Effectiveness | `training.intensity >= 50` |
+Observed rises are **not Sokker's hidden talent**. Age, level, coaches, minutes, interruptions, and training type also affect progress. The old global average, ASCII progress bars, and “soon” marker are no longer shown.
 
-- **Minutes played do not matter**: a player with 0 minutes can still get 50% of the training in the intensity, and that counts.
-- *Carry-over* weeks (no `training`) add no direct trainings, but they are known weeks: they do not invalidate the interval.
-- Weeks without training data that are not *carry-over* (legacy, before 2026-04-15) are "unknown": they add no direct trainings and make the interval incomplete. *Carry-over* weeks are known (no report = 0 direct trainings).
-- A week that does not meet the conditions adds nothing, but does not reset the counter either.
+## Weeks, sources, and exports
 
-### R2 — Pop
+The summary modal uses 80% of the viewport height.
 
-Skill X **pops** in week W when `skills[X]` in W is greater than in the previous history entry, with the history sorted by `week` ascending.
+The weekly table keeps one row per report and its original columns. The summary card is at most 640 px wide, independent of its two-column grid; the skill card remains 720 px wide for its chart. The table fills the available height within the summary card and keeps the footer visible. On narrow screens, the table retains its horizontal scrolling. `Record` has a fixed width and visually truncates long text, with the full label available on hover. `Pos / Skill` starts at the same position in every row. Injury appears as an icon with an accessible explanation. If a report marks injury and `0` effectiveness, the visible record shows only the injury; CSV retains the original training kind.
 
-- The value in W already includes W's training. So if W was a direct training, that training counts toward the interval that ends at that pop.
-- It is the same detection that paints table cells green.
-- A decrease is not a pop and does not reset the counter.
+The weekly table remains open beneath the two-column summary. Its `Week` and CSV `Week` fields retain the stored **report week**. For the curve, a Thursday/Friday capture uses that week; a Saturday–Wednesday capture is placed in the previous **observed week**. Calendar-day parsing is independent of the computer's timezone. An invalid date falls back to the stored week, marked `?` in the table and explained in the skill card and PNG; duplicate observed weeks prefer a real report, then the latest capture. Implausible old-week entries stamped on the latest capture day are excluded from analysis but remain visible in the table. The expanded level list labels carried-over and roster-only values as references.
 
-### R3 — Counter reset
+The table has one localized **Record** column in place of the old flag and `Kind` columns:
 
-**Any pop resets the counter to 0**, whether it came from direct training or from GT.
+| Record | Meaning |
+| --- | --- |
+| Advanced / Formation | Real report with the corresponding training kind. |
+| No report | Values carried from a prior week; no known training details. |
+| Roster only | Snapshot from the current squad without a historical report. |
+| Report without detail | Older real report without the `training` metadata. |
 
-### R4 — "Since last pop" counter
+The injury icon does not claim that injury caused a missing report. The table keeps `Pos / Skill`, effectiveness, levels, and CSV export. The CSV keeps the original source, kind, skill, position, intensity, minutes, report week, and level columns. The skill PNG uses the shared Canvas compositor, an English `Skill · weeks first–last` footer, and `by manuel.team`.
 
-`sinceLastPop` = direct trainings accumulated since that skill's last pop.
+New card text supports English, Spanish, Polish, Portuguese, Italian, German, Romanian, and Turkish, with English fallback. The PNG footer stays in English.
 
-- It is shown as `≥ N` (the counter is a minimum) when no pop has been observed, or when there is a week with unknown training data since the last pop.
+## Implementation and limits
 
-### R5 — Complete intervals
+- Timeline normalization: `src/core/playerTimeline.ts`.
+- Focused counts: `src/core/talent.ts`.
+- Native chart and PNG: `src/ui-components/playerSkillCanvas.ts`, `src/ui-components/playerSkillExport.ts`, and the shared `chartExport.ts`.
+- Cards, translations, and hover lifecycle: `src/content/playerCard.ts`, `src/content/playerLocale.ts`, `src/content/tooltip.ts`, and `src/content/ui.ts`.
 
-An **interval** is the number of direct trainings between two consecutive observed pops.
-
-- The interval before the **first** observed pop is incomplete (its start is unknown) and **is not used**.
-- Intervals with **0 direct trainings** (pop from GT only) **are not used** for talent, so they do not lower it artificially.
-- Intervals that contain a week with unknown training data (legacy) **are not used**.
-- Intervals that contain a skill decrease **are not used** (dropping and recovering does not count as a full level).
-
-### R6 — Talent per skill
-
-`talent` = average of that skill's complete intervals (R5). If there are none, talent is unknown (`?`).
-
-### R7 — Overall player talent
-
-`overallTalent` = sum of all used intervals across all skills ÷ number of those intervals. Each pop weighs the same. If there are no intervals, it is unknown (`?`).
-
-### R8 — Listed skills and order
-
-1. **Kp (keeper)** first, only if the latest keeper value in the history is **greater than 6**; the player is then considered a goalkeeper. With 6 or less it is not shown.
-2. Then, always in this order: **Pc** (pace), **Tec** (technique), **Pas** (passing), **Def** (defending), **Plm** (playmaking), **Str** (striker).
-3. **Stamina is never shown.**
-4. Every listed skill is shown even with 0 trainings, so the block always has the same shape.
-
-## Presentation
-
-```
- DIRECT TRAINING SINCE LAST POP                    Est. talent ≈ 4.5
-  Pc    ■■□□□   2 / ~5    last pop wk 1182 · after 5
-  Tec   □□□□□   ≥ 0 / ?   no pop in history
-  Plm   ■■■■□   4 / ~4    last pop wk 1176 · after 4             ▲?
-```
-
-| Element | Meaning |
-|---|---|
-| `2 / ~5` | counter (R4) / skill talent (R6) |
-| `≥ 0` | the counter is a minimum (R4): no pop observed, or weeks with unknown training since the last pop |
-| `?` | unknown talent (no complete intervals) |
-| `■□` bar | counter progress toward the skill's talent. If the skill has no talent of its own, the overall talent (R7) is used. If there is neither, no bar is drawn. Rounded to the nearest integer. |
-| `last pop wk W · after N` | week of the last pop and direct trainings in the interval that ended there (`after` is omitted if it was the first observed pop) |
-| `▲?` | the counter reached the bar size (the skill's talent, or the overall talent when the skill has none) |
-| `Est. talent ≈ X` | overall player talent (R7) |
-
-- The panel text is in English, like the rest of the tooltip.
-- The panel footer shows `History: N wks (A–B)`: how far back the player's stored history goes, from the oldest (A) to the newest (B) week, gaps included.
-- Numbers use `font-variant-numeric: tabular-nums`. The bar is decorative (`aria-hidden="true"`). Each row has a `title` explaining the calculation.
-
-## Known limitations
-
-- Legacy weeks (before 2026-04-15) have no training data and are not downloaded again: intervals that cross them are excluded and counters may be a minimum. With little usable history, talent will be `?` or based on few intervals.
-- Real talent changes with age: an average of old intervals may overestimate how fast a player who has aged improves.
-- If the history has missing weeks filled in as *carry-over*, those weeks add no direct trainings. The counter may be lower than the real one.
+Older history may have skill levels without training details. Missing reports and weeks make focused counts a minimum. A rise between two real observations is assigned to the later report only to define the count window; its precise day and training cause are unknown. No private API captures are needed to use this feature.

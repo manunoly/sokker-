@@ -2,7 +2,7 @@
 
 ## Package
 
-- [ ] Run `npm run package` and upload `store/sokker-plus-plus.zip` (built from `dist/`, `manifest.json` at its root, ~52 KB). Do NOT upload `documentation/sokker-plus-plus.zip` (old pre-fix build).
+- [ ] Run `npm ci` and `npm run package` in a POSIX-compatible shell with `zip` installed. Inspect `store/sokker-plus-plus.zip` and confirm `manifest.json` is at its root. The committed `documentation/sokker-plus-plus.zip` is an old build and must not be uploaded.
 - [ ] Confirm the uploaded build corresponds to the source facts cited in `store/LISTING.md`, especially `manifest.json` host scope and the same-origin API behavior in `src/core/api.ts`.
 - [ ] Store icon: reuse `assets/icons/icon-128.png` (128×128); no replacement icon was created.
 
@@ -15,7 +15,7 @@
 - [ ] Category — `store/LISTING.md`, heading “5. Category”; choose Entertainment, with Tools as the fallback.
 - [ ] Primary and additional languages — `store/LISTING.md`, heading “6. Language”.
 - [ ] Homepage URL, Support URL, Privacy policy URL — `store/LISTING.md`, heading “7. URLs”.
-- [ ] (Recommended) Replace one screenshot with a fresh 1280×800 capture of the current panel: the existing images predate the talent summary block, the `Pos / Skill` column order and the history footer.
+- [ ] Replace outdated screenshots with fresh captures of General Skills ++ and the junior chart. Check that account and player details are safe to publish, and verify the required image sizes in the live Dashboard before submission.
 - [ ] Screenshots — upload `store/screenshot-01.png` through `store/screenshot-05.png`; use captions in `store/LISTING.md`, heading “9. Screenshot captions”.
 - [ ] Small promotional tile — upload `store/promo-small-440x280.png`.
 - [ ] Store icon — upload/reuse `assets/icons/icon-128.png`.
@@ -51,5 +51,5 @@
 
 ## Known limitations to mention if reviewers ask
 
-- Synchronization starts automatically when a Sokker.org page loads; the content script calls `syncData()` during initialization (`src/content/main.ts:7-10`).
-- Player and sync history is kept in local IndexedDB (`SokkerTalentTrackerDB`) on the user's device, in the `sokker.org` site storage because the content script opens it (`src/core/repository.ts:9-14,112-135`); the extension does not send it to the developer or third parties. Uninstalling does not delete it; the popup's Clear All Data does.
+- First-team synchronization is attempted on Sokker.org page load (`src/content/main.ts`). Junior synchronization is limited to eligible report details and own academy pages (`src/content/juniorPage.ts`).
+- Player, junior, and sync history is kept in local IndexedDB (`SokkerTalentTrackerDB`) in the `sokker.org` site storage (`src/core/repository.ts`, `src/core/juniorRepository.ts`). The extension does not send it to the developer or third parties. Uninstalling does not delete it; the popup's Clear All Data does.

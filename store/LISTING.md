@@ -23,7 +23,7 @@ Track Sokker player skill changes, training history, and estimated talent in you
 ```text
 Sokker++ adds player development history to Sokker.org. On squad and player pages, skill changes are marked with up and down arrows so you can spot weekly improvements and declines.
 
-Open a player's history tooltip to see the “General Skills ++” view: a week-by-week skills table with training columns for Kind, Pos / Skill, and Eff. It also includes a talent summary for each skill, counting qualifying advanced trainings since the last skill pop and showing an estimated talent based on the recorded history. A footer shows the saved history range. Talent is an estimate from the history available to the extension, so it may be unknown when there are not enough complete training intervals. Use the popup to sync now, repair history gaps, or export and import a JSON backup.
+Hover or focus a first-team player's name for “General Skills ++”: assigned advanced and formation training counts since each skill's last observed rise, plus a weekly table with Record, Pos / Skill, Eff, Week, and skill levels. Hover or focus a skill value for its observed-level chart. The table exports CSV and skill charts export PNG. On training report details and your own academy page, hovering or focusing a junior name shows the observed junior curve, Sokker's talent value, and a separate curve estimate when at least four observations exist. Junior charts also export PNG. Use the popup to sync first-team data, repair history gaps, or export/import a JSON backup.
 
 Sokker++ automatically syncs when a Sokker.org page loads. It uses your existing Sokker session to request game data and stores the resulting history in IndexedDB on your device. The extension does not send this data to its developer or other third parties.
 
@@ -38,7 +38,7 @@ Support: https://github.com/manunoly/sokker-/issues
 ```text
 Sokker++ añade un historial de desarrollo de jugadores en Sokker.org. En las páginas de plantilla y de cada jugador, marca con flechas hacia arriba y abajo los cambios de habilidades para que puedas identificar las mejoras y bajadas semanales.
 
-Abre el tooltip del historial de un jugador para ver “General Skills ++”: una tabla semanal de habilidades con las columnas de entrenamiento Kind, Pos / Skill y Eff. También incluye un resumen de talento por habilidad, que cuenta los entrenamientos avanzados válidos desde la última subida de esa habilidad y muestra una estimación basada en el historial registrado. El pie indica el rango de semanas guardadas. Desde la ventana emergente puedes sincronizar, reparar huecos del historial y exportar o importar una copia JSON.
+Pasa el cursor o enfoca el nombre de un jugador del primer equipo para abrir “General Skills ++”: contadores de entrenos avanzados y de formación asignados desde la última subida observada de cada habilidad y una tabla semanal con Registro, Pos / Skill, efectividad, semana y niveles. Al pasar o enfocar una habilidad aparece su gráfica de niveles observados. La tabla exporta CSV y las gráficas, PNG. En el detalle de informes de entrenamiento y en tu propia cantera, el nombre juvenil abre una curva, el talento informado por Sokker y una estimación independiente cuando hay al menos cuatro observaciones. La gráfica juvenil también exporta PNG. El popup permite sincronizar los datos del primer equipo, reparar huecos y exportar/importar una copia JSON.
 
 Sokker++ sincroniza automáticamente cuando se carga una página de Sokker.org. Usa tu sesión existente de Sokker para solicitar datos del juego y guarda el historial resultante en IndexedDB en tu dispositivo. La extensión no envía estos datos a su desarrollador ni a terceros.
 
@@ -76,13 +76,13 @@ Privacy policy URL: https://github.com/manunoly/sokker-/blob/main/PRIVACY.md
 ### Single purpose description
 
 ```text
-Show Sokker player skill changes, training history, and estimated talent on Sokker.org using locally stored game history.
+Show Sokker first-team skill history and junior talent charts on Sokker.org using locally stored game data.
 ```
 
 ### Permission justification
 
 ```text
-Host permission https://sokker.org/* and content script match https://sokker.org/*: the content script enhances Sokker squad/player pages and makes same-origin requests to Sokker's current, training, and player endpoints to build the user's training history. The extension has no permissions entry in its manifest.
+Host permission https://sokker.org/* and content script match https://sokker.org/*: the content script enhances squad/player, training report details, and own academy pages. It makes same-origin requests to Sokker's current, training, player, junior roster, and junior graph endpoints to build local history. The extension has no permissions entry in its manifest.
 ```
 
 ### Remote code
@@ -102,7 +102,7 @@ Personal communications — Collected: No. It does not access messages or commun
 Location — Collected: No. It does not access location data.
 Web browsing activity — Collected: No. It does not record browsing history, visited URLs, or browsing behavior.
 User activity — Collected: No. It does not track clicks, keystrokes, or activity outside the stated Sokker feature.
-Website content — Collected: Yes. It reads Sokker game data (in-game player names, skills, value, injuries and weekly training report fields) needed for the displayed history and talent estimate. Stored only locally.
+Website content — Collected: Yes. It reads Sokker game data (in-game player names, skills, value, injuries, weekly training report fields, and junior roster, talent, weeks remaining, and graph points) needed for the displayed history and estimates. Stored only locally.
 Other personal information — Collected: No. It does not collect other personal information beyond the categories above.
 ```
 
@@ -128,15 +128,9 @@ Screenshot 05: Compare tracked skills across the squad.
 
 ## Sources (code)
 
-- `manifest.json:2-18` — MV3, Sokker-only host permission and content-script match; `manifest.json:20-35` — popup and store icon assets.
-- `src/core/api.ts:6-18,24-32,53-58,72-78` — same-origin API endpoints, current team/week data, training and roster requests.
-- `src/core/sync.ts:19-24,40-75` — sync workflow and requested weeks.
-- `src/content/main.ts:7-13` — automatic sync on page load; `src/content/main.ts:19-60` — repair, backup, manual sync, and clear handlers.
-- `src/core/repository.ts:9-14,112-135` — local IndexedDB name and stores; `src/core/repository.ts:177-210` — player IDs/names, skill values, value, injury, and training history saved.
-- `src/core/trainingReport.ts:23-51` — kind, skill, position, intensity, and minutes extracted from training reports.
-- `src/content/ui.ts:216-251` — skill comparison and rendered up/down arrows; `documentation/LOGIC_EXPLANATION.md:41-61` — arrow behavior on player and squad views.
-- `src/content/tooltip.ts:420-439,471-508` — “General Skills ++” table, training columns, and history range footer.
-- `src/content/tooltip.ts:817-842` and `documentation/TALENT_SUMMARY.md` (Rules R1–R8, Presentation) — advanced training count and estimated talent summary.
-- `popup/index.html:68-82` and `popup/popup.ts:37-53,57-75,78-97,99-115,118-151` — sync, repair, JSON export/import, and clear controls.
-- `src/core/repository.ts:306-357` — data export, restore, and database clearing.
-- `readme.md` (Key Features, Documentation) — project purpose, features, and open source documentation.
+- `manifest.json` — MV3, Sokker-only host scope, popup, and icons.
+- `src/core/api.ts`, `src/core/sync.ts`, `src/core/juniorSync.ts` — same-origin requests and weekly synchronization.
+- `src/core/repository.ts`, `src/core/juniorRepository.ts` — local IndexedDB, backup, and junior cache.
+- `src/content/main.ts`, `src/content/playerCard.ts`, `src/content/juniorCard.ts`, `src/content/ui.ts` — page activation and visible UI.
+- `src/core/talent.ts`, `src/core/juniorTalent.ts`, `src/ui-components/playerSkillCanvas.ts`, `src/ui-components/juniorCanvas.ts` — counts, estimates, and charts.
+- `popup/popup.ts`, `documentation/TALENT_SUMMARY.md`, `documentation/JUNIOR_TALENT.md` — controls and current behavior descriptions.
