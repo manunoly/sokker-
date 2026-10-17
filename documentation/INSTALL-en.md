@@ -2,7 +2,7 @@
 
 **English** · [Español](INSTALL-es.md)
 
-The ZIP committed under `documentation/` is an older build. Use the current source for a manual installation.
+For a packaged installation, download [sokker-plus-plus.zip](sokker-plus-plus.zip), extract it, then use **Load unpacked** in your browser to select the extracted directory containing `manifest.json`. The browser does not load this ZIP directly. To build from source instead:
 
 1. Download or clone this repository and install its development dependencies with `npm ci`.
 2. Run `npm run build`. It creates `dist/` with `manifest.json` at its root.

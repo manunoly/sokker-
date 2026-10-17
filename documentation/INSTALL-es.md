@@ -2,7 +2,7 @@
 
 [English](INSTALL-en.md) · **Español**
 
-El ZIP incluido en `documentation/` es una compilación antigua. Para la instalación manual, usa el código actual.
+Para instalar la compilación empaquetada, descarga [sokker-plus-plus.zip](sokker-plus-plus.zip), descomprímelo y usa **Cargar descomprimida** en el navegador para seleccionar la carpeta extraída que contiene `manifest.json`. El navegador no carga este ZIP directamente. Si prefieres compilar desde el código fuente:
 
 1. Descarga o clona este repositorio e instala las dependencias de desarrollo con `npm ci`.
 2. Ejecuta `npm run build`. Se crea `dist/` con `manifest.json` en la raíz.
