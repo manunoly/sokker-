@@ -95,8 +95,59 @@ describe('first-team cards', () => {
         const injuredWithoutTraining = [...table.querySelectorAll('tbody tr')].find(tr => tr.textContent?.includes('1209'))!;
         expect(injuredWithoutTraining.children[0].textContent).toBe('🩹');
         expect(injuredWithoutTraining.children[0].textContent).not.toContain('Formación');
-        expect(injuredWithoutTraining.children[2].textContent).toBe('0%');
+        expect(injuredWithoutTraining.children[2].textContent).toBe('—');
         expect(card.querySelector('[data-export-csv]')).not.toBeNull();
+    });
+
+    it.each(['individual', 'formation'] as const)('highlights only effectiveness strictly between 49 and 80 for %s reports', (kind) => {
+        const t = getPlayerStrings('/en/app/player/7/', 'en', 'en');
+        const cases = [
+            [0, false], [49, false], [49.5, true], [50, true],
+            [70, true], [79, true], [79.5, true], [80, false], [100, false],
+        ] as const;
+        const rows = cases.map(([intensity], index) => row(sourceEntry(1214 - index, 'training', {
+            kind, skill: 'pace', position: 'MID', intensity, minutes: 90,
+        })));
+        const card = createPlayerSummaryContent(player, rows, progress, t);
+        const renderedRows = [...card.querySelectorAll<HTMLTableRowElement>('tbody tr')];
+        cases.forEach(([intensity, highlighted], index) => {
+            const cell = renderedRows[index].cells[2];
+            expect(cell.textContent).toBe(`${intensity}%`);
+            expect(cell.style.background).toBe(highlighted ? 'rgb(250, 204, 21)' : '');
+            expect(cell.style.color).toBe(highlighted ? 'rgb(31, 41, 55)' : '');
+            expect(renderedRows[index].cells[1].style.background).toBe('');
+        });
+    });
+
+    it.each(['individual', 'formation'] as const)('keeps injured %s reports unhighlighted and hides only zero effectiveness', (kind) => {
+        const t = getPlayerStrings('/en/app/player/7/', 'en', 'en');
+        const rows = [0, 70, 100].map((intensity, index) => {
+            const entry = sourceEntry(1214 - index, 'training', {
+                kind, skill: 'pace', position: 'MID', intensity, minutes: 90,
+            });
+            entry.injured = true;
+            return row(entry);
+        });
+        const card = createPlayerSummaryContent(player, rows, progress, t);
+        const cells = [...card.querySelectorAll<HTMLTableCellElement>('tbody tr td:nth-child(3)')];
+        expect(cells.map(cell => cell.textContent)).toEqual(['—', '70%', '100%']);
+        expect(cells.every(cell => cell.style.background === '')).toBe(true);
+    });
+
+    it('leaves unknown effectiveness and reference or missing reports unhighlighted', () => {
+        const t = getPlayerStrings('/en/app/player/7/', 'en', 'en');
+        const training = { kind: 'formation', skill: 'pace', position: 'MID', intensity: 70, minutes: 90 } as const;
+        const rows = [
+            row(sourceEntry(1214, 'training')),
+            row(sourceEntry(1213, 'training', { ...training, intensity: Number.NaN })),
+            row(sourceEntry(1212, 'carried-over', training)),
+            row(sourceEntry(1211, 'roster-fallback', training)),
+            row(sourceEntry(1210, 'training', { ...training, kind: 'missing' })),
+        ];
+        const card = createPlayerSummaryContent(player, rows, progress, t);
+        const cells = [...card.querySelectorAll<HTMLTableCellElement>('tbody tr td:nth-child(3)')];
+        expect(cells.slice(0, 2).map(cell => cell.textContent)).toEqual(['—', '—']);
+        expect(cells.every(cell => cell.style.background === '')).toBe(true);
     });
 
     it('shows saved levels without a fitted pace or trend', () => {

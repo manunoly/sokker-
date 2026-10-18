@@ -167,7 +167,17 @@ function tableContent(rows: readonly PlayerTimelineRow[], playerId: number, t: P
         };
         addCell(sourceBadge(row, t));
         addCell(positionSkill(row.entry.training)).style.textAlign = 'left';
-        addCell(Number.isFinite(row.entry.training?.intensity) ? `${row.entry.training!.intensity}%` : '—');
+        const training = row.entry.training;
+        const intensity = training?.intensity;
+        const hasEffectiveness = typeof intensity === 'number' && Number.isFinite(intensity);
+        const injuryWithoutTraining = row.entry.injured && intensity === 0;
+        const effectivenessCell = addCell(hasEffectiveness && !injuryWithoutTraining ? `${intensity}%` : '—');
+        if (row.source === 'training' && !row.entry.injured
+            && (training?.kind === 'individual' || training?.kind === 'formation')
+            && hasEffectiveness && intensity > 49 && intensity < 80) {
+            effectivenessCell.style.background = '#facc15';
+            effectivenessCell.style.color = '#1f2937';
+        }
         const weekCell = addCell(`${row.reportWeek}${row.dateReliable ? '' : ' ?'}`);
         if (!row.dateReliable) weekCell.title = t.uncertainWeek;
         else if (row.observedWeek !== row.reportWeek) weekCell.title = `${t.observedWeek}: ${row.observedWeek}`;

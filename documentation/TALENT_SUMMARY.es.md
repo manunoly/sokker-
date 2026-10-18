@@ -32,6 +32,8 @@ La tabla semanal conserva una fila por informe y sus columnas originales. El mod
 
 La tabla semanal sigue abierta bajo el resumen. El campo `Semana` de la tabla y del CSV conserva la **semana del informe** almacenada. En la curva, una captura de jueves o viernes queda en esa semana; una de sábado a miércoles se ubica en la **semana observada** anterior. El día se interpreta sin depender de la zona horaria del ordenador. Una fecha inválida usa la semana guardada, marcada con `?` en la tabla y explicada en la tarjeta y el PNG; si dos entradas caen en la misma semana observada, se prefiere el informe real y después la captura más reciente. Los ecos históricos fechados el mismo día que la captura reciente se excluyen del análisis, pero siguen visibles en la tabla. El listado desplegable de niveles identifica los valores de arrastre y plantilla como referencias.
 
+La celda de efectividad tiene fondo amarillo y texto oscuro solo en informes reales de Avanzado o Formación con efectividad estrictamente mayor del 49 % y menor del 80 %, excluyendo las filas marcadas con lesión. Los valores de 49 % o menos, 80 % o más, los desconocidos y las filas de referencia conservan el fondo normal. Una fila con lesión y efectividad cero muestra `—`; si tiene un valor positivo registrado, se conserva visible sin amarillo. Esta regla solo cambia la presentación: los datos guardados y el CSV mantienen la efectividad original.
+
 La columna localizada **Registro** sustituye a la bandera y a `Kind`:
 
 | Registro | Significado |
