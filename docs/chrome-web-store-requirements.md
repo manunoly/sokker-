@@ -1,13 +1,13 @@
 # Preparación de Sokker++ para Chrome Web Store
 
-Revisión del repositorio y de la documentación oficial de Google: 16 de octubre de 2026. Esta guía describe el estado de los archivos locales; la configuración de la cuenta y del Developer Dashboard se comprueba al enviar. La [ficha preparada](../store/LISTING.md) y el [checklist de envío](../store/SUBMISSION_CHECKLIST.md) contienen los textos y pasos de esta versión.
+Revisión inicial del repositorio y de la documentación oficial de Google: 16 de octubre de 2026. Estado local actualizado el 18 de octubre para la versión 0.2.1. La configuración de la cuenta y del Developer Dashboard se comprueba al enviar. La [ficha preparada](../store/LISTING.md) y el [checklist de envío](../store/SUBMISSION_CHECKLIST.md) contienen los textos y pasos actuales.
 
 ## Estado del repositorio
 
-- `manifest.json` declara Manifest V3, versión `0.2.0`, `https://sokker.org/*` para el content script y el host, popup e iconos; no declara permisos generales adicionales.
+- `manifest.json` declara Manifest V3, versión `0.2.1`, `https://sokker.org/*` para el content script y el host, popup e iconos; no declara permisos generales adicionales. Incluye descripciones breves en inglés y español mediante `_locales/`.
 - [PRIVACY.md](../PRIVACY.md) y [PRIVACY.es.md](../PRIVACY.es.md) documentan el historial del primer equipo y juvenil, la sincronización automática y el almacenamiento local.
-- `store/` contiene cinco capturas y un mosaico promocional. Se prepararon antes de los cambios recientes de General Skills ++ y la tarjeta juvenil: hay que capturar la interfaz actual y comprobar las imágenes antes del envío.
-- `npm run build` genera `dist/`; `npm run package` construye `store/sokker-plus-plus.zip` desde allí en un entorno con comandos POSIX `rm` y `zip`. El ZIP versionado en `documentation/` es antiguo y no corresponde a la versión actual.
+- `store/chrome-web-store-assets/` contiene las capturas y mosaicos de la ficha actual, aprobados para publicación por el propietario.
+- `npm run build` genera `dist/`; `npm run package` construye el único ZIP de distribución en `documentation/sokker-plus-plus.zip` desde allí en un entorno con comandos POSIX `rm` y `zip`. Las guías de instalación enlazan ese mismo archivo.
 - La ficha de tienda debe describir las **dos** funciones actuales: historial y curvas de habilidades del primer equipo, y talento juvenil en las páginas admitidas. Ya no se muestra una estimación de talento por habilidad del primer equipo.
 
 ## Comprobaciones antes de publicar

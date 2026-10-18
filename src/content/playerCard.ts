@@ -21,7 +21,7 @@ function countHelp(progress: SkillProgress, kind: 'advanced' | 'formation', t: P
     const period = progress.lastRiseReportWeek === null
         ? t.noRise : `${t.sinceRise} ${progress.lastRiseReportWeek}`;
     const incomplete = progress.lastRiseReportWeek !== null && !progress.exact ? ` · ${t.minimum}` : '';
-    return `${t[kind]} · ${t.skills[progress.skill]} · ${period}${incomplete}`;
+    return `${t[kind]} · ${t.skills[progress.skill]} · ${t.countMeaning[kind]} · ${period}${incomplete}`;
 }
 
 function countNode(progress: SkillProgress, kind: 'advanced' | 'formation', t: PlayerStrings): HTMLElement {

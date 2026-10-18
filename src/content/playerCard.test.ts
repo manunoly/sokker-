@@ -39,6 +39,8 @@ describe('first-team cards', () => {
         expect(counts).toHaveLength(2);
         expect(counts[0].getAttribute('aria-label')).toContain('Avanzados');
         expect(counts[1].getAttribute('aria-label')).toContain('Formación');
+        expect(counts[0].title).toContain('entrenamiento directo');
+        expect(counts[1].title).toContain('sin foco directo');
         expect(counts[0].tabIndex).toBe(0);
         expect(counts[0].title).toContain('faltan semanas o informes');
         expect(card.textContent).toContain('Semana observada: 1214');

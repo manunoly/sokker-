@@ -11,10 +11,10 @@ See the [General Skills ++ screenshot](SCREENSHOTS.md#general-skills-summary) fo
 The eight skills follow the familiar player-page order: Stamina, Pace, Technique, Passing on the left; Keeper, Defending, Playmaking, Striker on the right. Each row shows a large **advanced** count and a smaller **formation** count. Hover or focus a count for its explanation.
 
 - An advanced count includes a saved week when `training.kind === 'individual'`, `training.skill` matches that row, and `training.intensity > 0`.
-- A formation count uses the same assigned-skill and positive-intensity rules with `training.kind === 'formation'`.
-- A training assigned to `general` or another skill is not assigned to this row. An observed skill rise may still have received indirect training; the stored report cannot measure that contribution by skill.
+- For every other displayed skill in that positive-intensity week, the count goes to formation. A `training.kind === 'formation'` report therefore adds formation to all eight skills, including its assigned skill. A positive-intensity `general` report also adds formation to all eight.
+- Zero-intensity weeks and weeks without a real training report add neither count. Formation counts weeks without direct focus on that skill; they do not measure the amount of indirect progress or guarantee a skill increase.
 - Counts start **after** the report that shows the last observed rise in that skill. If no rise was observed, or a report/whole week is missing in the relevant period, `≥` marks the number as a known minimum. `≥0` does not prove the player had no training.
-- Each report week contributes at most one count to its assigned skill and kind. The effectiveness percentage remains visible in the weekly table.
+- Each report week contributes at most one count per skill. The weekly table continues to show the report's actual training kind and effectiveness, which may differ from the per-skill counter category.
 
 ## What the curve means
 
