@@ -147,6 +147,21 @@ const translations: Record<string, Text> = {
         sources: { individual: 'Avansat', formation: 'Formare', carriedOver: 'Fără raport', rosterFallback: 'Doar lot', reportNoDetail: 'Raport fără detalii' },
         skills: { stamina: 'Rezistență', pace: 'Viteză', technique: 'Tehnică', passing: 'Pase', keeper: 'Portar', defending: 'Apărare', playmaking: 'Construcție', striker: 'Atac' }
     },
+    sk: {
+        title: 'Všeobecné schopnosti ++', history: 'História', week: 'Týždeň', observedWeek: 'Pozorovaný týždeň', weeks: 'týždne',
+        record: 'Záznam', posSkill: 'Poz. / Schopnosť', effectiveness: 'Účin.', exportCsv: 'Exportovať CSV',
+        downloadPng: 'Stiahnuť PNG', downloadFailed: 'PNG sa nepodarilo stiahnuť.', close: 'Zavrieť', noData: 'Žiadna uložená história.',
+        advanced: 'Pokročilý', formation: 'Formácia', sinceRise: 'od posledného pozorovaného nárastu v týždni',
+        countMeaning: { advanced: 'týždne priameho tréningu tejto schopnosti', formation: 'týždne účinného tréningu bez priameho zamerania na túto schopnosť' },
+        noRise: 'nebol pozorovaný nárast; začiatok obdobia nie je známy', minimum: 'známe minimum; chýbajú týždne alebo správy',
+        observedPace: 'Pozorované tempo', weeksPerLevel: 'týždne na úroveň', insufficient: 'Nedostatok údajov',
+        noProgress: 'Žiadny merateľný pokrok', staminaInfo: 'Kondícia kolíše; tempo sa neodhaduje.',
+        observed: 'Pozorované', trend: 'Trend', observations: 'pozorovania', observedLevels: 'Uložené týždenné úrovne',
+        injured: 'Zranený v tomto zázname', realReport: 'Skutočná správa', reference: 'referencia',
+        uncertainWeek: 'Neplatný dátum záznamu; pre krivku sa použil uložený týždeň správy.',
+        sources: { individual: 'Pokročilý', formation: 'Formácia', carriedOver: 'Bez správy', rosterFallback: 'Iba súpiska', reportNoDetail: 'Správa bez podrobností' },
+        skills: { stamina: 'Kondícia', pace: 'Rýchlosť', technique: 'Technika', passing: 'Prihrávanie', keeper: 'Brankár', defending: 'Obranca', playmaking: 'Tvorca hry', striker: 'Útočník' }
+    },
     tr: {
         title: 'Genel beceriler ++', history: 'Geçmiş', week: 'Hafta', observedWeek: 'Gözlenen hafta', weeks: 'hafta',
         record: 'Kayıt', posSkill: 'Poz. / Beceri', effectiveness: 'Etki', exportCsv: 'CSV dışa aktar',

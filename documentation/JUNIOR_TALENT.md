@@ -18,7 +18,7 @@ Canvas draws only observed levels. Consecutive observed weeks have a solid line;
 
 The card labels **Sokker talent** from the roster separately from **estimated talent** calculated from the curve. The estimate fits a straight line by ordinary least squares to the distinct observed game-week coordinates. For a positive slope, `estimated talent = 1 / slope` in weeks per level. It requires at least four distinct observations. A flat or falling fit shows “no measurable progress” instead of a number. This estimate is a descriptive trend, not Sokker's hidden talent; it does not infer missing observations or correct level drops. The card displays estimates below 3 or above 12 as ranges.
 
-The card can export a PNG using the shared Canvas export compositor. Its footer shows remaining weeks, the curve estimate, and `by manuel.team` in English. Card text supports English, Spanish, Polish, Portuguese, Italian, German, Romanian, and Turkish, with English fallback.
+The card can export a PNG using the shared Canvas export compositor. Its footer shows remaining weeks, the curve estimate, and `by manuel.team` in English. Card text supports English, Spanish, Polish, Portuguese, Italian, German, Romanian, Turkish, and Slovak, with English fallback.
 
 ## Implementation
 

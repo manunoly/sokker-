@@ -54,6 +54,17 @@ afterEach(() => {
 });
 
 describe('junior hover card', () => {
+    it('renders the academy card in Slovak with localized talent values', async () => {
+        document.documentElement.lang = 'sk-SK';
+        const trigger = anchor('Synthetic Junior');
+        await showJuniorCard(trigger, 1, 2, trigger.textContent!);
+        expect(cardText()).toContain('Talent v Sokkeri');
+        expect(cardText()).toContain('Talent odhadnutý z krivky');
+        expect(cardText()).toContain('5,5');
+        expect(cardText()).toContain('Zostávajúce týždne 12: Úroveň 3');
+        expect(document.querySelector('#sokkerpp-junior-card button[aria-label="Stiahnuť PNG"]')).not.toBeNull();
+    });
+
     it('reads saved points only, distinguishes two talents, and lists remaining weeks', async () => {
         const trigger = anchor('<img src=x onerror=alert(1)>');
         await showJuniorCard(trigger, 1, 2, trigger.textContent!);

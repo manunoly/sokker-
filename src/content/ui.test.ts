@@ -63,6 +63,16 @@ describe('mapSkillLabelToKey', () => {
         expect(mapSkillLabelToKey('Takım oyunu')).toBe('teamwork');
     });
 
+    it.each([
+        ['Kondícia', 'stamina'], ['Rýchlosť', 'pace'], ['Technika', 'technique'],
+        ['Prihrávanie', 'passing'], ['Prihrávky', 'passing'], ['Brankár', 'keeper'],
+        ['Obranca', 'defending'], ['Tvorca hry', 'playmaking'], ['Útočník', 'striker'],
+        ['Taktická disciplína', 'tacticalDiscipline'], ['Skúsenosti', 'experience'], ['Forma', 'form'],
+    ])('recognizes the Slovak skill label %s', (label, key) => {
+        expect(mapSkillLabelToKey(label)).toBe(key);
+        expect(mapSkillLabelToKey('  ' + label.toUpperCase() + '  ')).toBe(key);
+    });
+
     it('should return null for unknown labels', () => {
         expect(mapSkillLabelToKey('Unknown')).toBeNull();
         expect(mapSkillLabelToKey('')).toBeNull();
