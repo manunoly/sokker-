@@ -128,6 +128,20 @@ const strings: Record<string, JuniorStrings> = {
         pointsHeading: 'Niveluri săptămânale observate', keyboardHint: 'Apasă săgeata în jos pentru a explora acest panou.',
         downloadPng: 'Descarcă PNG', downloadFailed: 'Nu s-a putut descărca PNG-ul.'
     },
+    sk: {
+        observations: 'pozorovania', sokkerTalent: 'Talent v Sokkeri', curveTalent: 'Talent odhadnutý z krivky',
+        capturedWeek: 'Zaznamenané v hernom týždni', lastRecorded: 'Posledná zaznamenaná hodnota',
+        weeksPerLevel: 'týždne na úroveň', insufficient: 'Nedostatok údajov', noProgress: 'Žiadny merateľný pokrok',
+        lessThanThree: 'Menej ako 3', moreThanTwelve: 'Viac ako 12', syncing: 'Synchronizácia údajov…',
+        updating: 'Aktualizácia; zobrazujú sa uložené údaje.', updateFailed: 'Aktualizácia zlyhala; zobrazujú sa uložené údaje.',
+        loadFailed: 'Údaje juniora sa nepodarilo načítať.', noData: 'Zatiaľ žiadne pozorované úrovne.',
+        unavailable: 'Nedostupné', observed: 'Pozorované', trend: 'Trend', relativeWeek: 'Relatívny týždeň',
+        level: 'Úroveň', relativeExplanation: 'Týždne od prvého pozorovania; v medzerách nie je pozorovaná úroveň.',
+        remainingWeek: 'Zostávajúce týždne',
+        countdownExplanation: 'Týždne do odchodu z akadémie (0 znamená odchod); v medzerách nie je pozorovaná úroveň.',
+        pointsHeading: 'Pozorované týždenné úrovne', keyboardHint: 'Na prehliadanie tejto karty stlačte šípku nadol.',
+        downloadPng: 'Stiahnuť PNG', downloadFailed: 'PNG sa nepodarilo stiahnuť.'
+    },
     tr: {
         observations: 'gözlem', sokkerTalent: 'Sokker yeteneği', curveTalent: 'Eğriden tahmini yetenek',
         capturedWeek: 'Oyun haftasında kaydedildi', lastRecorded: 'Son kaydedilen değer',

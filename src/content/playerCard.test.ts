@@ -27,6 +27,18 @@ beforeEach(() => {
 });
 
 describe('first-team cards', () => {
+    it('renders Slovak skill names, report sources, and export actions', () => {
+        const t = getPlayerStrings('/sk/app/player/7/', 'en', 'en');
+        const card = createPlayerSummaryContent(player, [row(sourceEntry(1214, 'carried-over'))], progress, t);
+        expect(card.textContent).toContain('Všeobecné schopnosti ++');
+        expect(card.querySelector('[data-player-skill="pace"]')?.textContent).toContain('Rýchlosť');
+        expect(card.querySelector('table')?.textContent).toContain('Bez správy');
+        expect(card.querySelector('[data-export-csv]')?.textContent).toContain('Exportovať CSV');
+        const skillCard = createPlayerSkillContent(player, progress[1], t);
+        expect(skillCard.textContent).toContain('Rýchlosť 10');
+        expect(skillCard.querySelector('button[aria-label="Stiahnuť PNG"]')).not.toBeNull();
+    });
+
     it('shows the approved two-column order and separate accessible counters', () => {
         const t = getPlayerStrings('/es/app/player/7/', 'es', 'es');
         const card = createPlayerSummaryContent(player, [row(sourceEntry(1214, 'training'))], progress, t);

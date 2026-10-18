@@ -121,6 +121,18 @@ export const skillMap: { [key: string]: string } = {
     'experienta': 'experience',
     'formă': 'form',
 
+    // Slovak ('technika' and 'forma' are already mapped above)
+    'kondícia': 'stamina',
+    'rýchlosť': 'pace',
+    'prihrávanie': 'passing',
+    'prihrávky': 'passing',
+    'brankár': 'keeper',
+    'obranca': 'defending',
+    'tvorca hry': 'playmaking',
+    'útočník': 'striker',
+    'taktická disciplína': 'tacticalDiscipline',
+    'skúsenosti': 'experience',
+
     // Turkish
     'kondisyon': 'stamina',
     'hız': 'pace',
