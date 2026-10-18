@@ -32,6 +32,8 @@ The weekly table keeps one row per report and its original columns. The summary 
 
 The weekly table remains open beneath the two-column summary. Its `Week` and CSV `Week` fields retain the stored **report week**. For the curve, a Thursday/Friday capture uses that week; a Saturday–Wednesday capture is placed in the previous **observed week**. Calendar-day parsing is independent of the computer's timezone. An invalid date falls back to the stored week, marked `?` in the table and explained in the skill card and PNG; duplicate observed weeks prefer a real report, then the latest capture. Implausible old-week entries stamped on the latest capture day are excluded from analysis but remain visible in the table. The expanded level list labels carried-over and roster-only values as references.
 
+The effectiveness cell has a yellow background with dark text only for real Advanced or Formation reports with effectiveness strictly greater than 49% and strictly less than 80%, excluding rows marked as injured. Values of 49% or less, 80% or more, unknown values, and reference rows keep the normal background. An injured row with zero effectiveness displays `—`; a positive recorded value remains visible without yellow highlighting. This is a display rule only: saved values and CSV exports retain the original effectiveness.
+
 The table has one localized **Record** column in place of the old flag and `Kind` columns:
 
 | Record | Meaning |
