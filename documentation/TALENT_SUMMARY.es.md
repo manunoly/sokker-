@@ -11,10 +11,10 @@ La [galería de capturas](SCREENSHOTS.md#general-skills-summary) muestra un ejem
 Las ocho habilidades siguen el orden de la ficha: Resistencia, Ritmo, Técnica y Pases a la izquierda; Portería, Defensa, Creación y Anotación a la derecha. Cada fila muestra en grande los **avanzados** y en pequeño los entrenos de **formación**. Al pasar o enfocar una cifra aparece su explicación.
 
 - Un avanzado cuenta si el informe guardado tiene `training.kind === 'individual'`, la `training.skill` coincide con la habilidad y `training.intensity > 0`.
-- Formación sigue las mismas reglas de habilidad asignada e intensidad positiva con `training.kind === 'formation'`.
-- No se asigna a la habilidad un entreno `general` ni uno de otra habilidad. Una subida observada pudo recibir entrenamiento indirecto; el informe no permite cuantificarlo por habilidad.
+- Para cada una de las demás habilidades mostradas, esa semana con intensidad positiva suma formación. Por eso un informe `training.kind === 'formation'` suma formación a las ocho habilidades, incluida la asignada. Un informe `general` con intensidad positiva también suma formación a las ocho.
+- Las semanas con intensidad cero o sin informe real no suman ninguno. Formación cuenta semanas sin foco directo en esa habilidad; no mide cuánto progresó indirectamente ni garantiza una subida.
 - El contador empieza **después** del informe donde se observa la última subida de esa habilidad. Si no se ha observado ninguna subida o falta algún informe o semana en el tramo, `≥` indica un mínimo conocido. `≥0` no demuestra que el jugador no entrenó.
-- Cada semana de informe suma como máximo una unidad al contador de la habilidad y clase asignadas. El porcentaje de efectividad permanece en la tabla.
+- Cada semana de informe suma como máximo una unidad por habilidad. La tabla conserva el tipo real de informe y su efectividad, que pueden diferir de la categoría del contador por habilidad.
 
 ## Significado de la curva
 

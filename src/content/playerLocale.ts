@@ -18,6 +18,7 @@ export interface PlayerStrings {
     noData: string;
     advanced: string;
     formation: string;
+    countMeaning: { advanced: string; formation: string };
     sinceRise: string;
     noRise: string;
     minimum: string;
@@ -46,6 +47,7 @@ const translations: Record<string, Text> = {
         record: 'Record', posSkill: 'Pos / Skill', effectiveness: 'Eff', exportCsv: 'Export CSV',
         downloadPng: 'Download PNG', downloadFailed: 'Could not download PNG.', close: 'Close', noData: 'No saved history.',
         advanced: 'Advanced', formation: 'Formation', sinceRise: 'since the last observed rise in week',
+        countMeaning: { advanced: 'weeks directly training this skill', formation: 'effective training weeks without direct focus on this skill' },
         noRise: 'no rise observed; the start of this interval is unknown', minimum: 'minimum known; reports or weeks are missing',
         observedPace: 'Observed pace', weeksPerLevel: 'weeks per level', insufficient: 'Insufficient data',
         noProgress: 'No measurable progress', staminaInfo: 'Stamina varies; no pace is estimated.',
@@ -60,6 +62,7 @@ const translations: Record<string, Text> = {
         record: 'Registro', posSkill: 'Pos / Skill', effectiveness: 'Efect.', exportCsv: 'Exportar CSV',
         downloadPng: 'Descargar PNG', downloadFailed: 'No se pudo descargar el PNG.', close: 'Cerrar', noData: 'No hay historial guardado.',
         advanced: 'Avanzados', formation: 'Formación', sinceRise: 'desde la última subida observada en la semana',
+        countMeaning: { advanced: 'semanas de entrenamiento directo de esta habilidad', formation: 'semanas con entrenamiento efectivo sin foco directo en esta habilidad' },
         noRise: 'sin subida observada; se desconoce el inicio del tramo', minimum: 'mínimo conocido; faltan semanas o informes',
         observedPace: 'Ritmo observado', weeksPerLevel: 'semanas por nivel', insufficient: 'Datos insuficientes',
         noProgress: 'Sin progreso medible', staminaInfo: 'La resistencia fluctúa; no se estima un ritmo.',
@@ -74,6 +77,7 @@ const translations: Record<string, Text> = {
         record: 'Zapis', posSkill: 'Poz. / Umiejętność', effectiveness: 'Skut.', exportCsv: 'Eksportuj CSV',
         downloadPng: 'Pobierz PNG', downloadFailed: 'Nie udało się pobrać PNG.', close: 'Zamknij', noData: 'Brak zapisanej historii.',
         advanced: 'Zaawansowane', formation: 'Formacja', sinceRise: 'od ostatniego zaobserwowanego wzrostu w tygodniu',
+        countMeaning: { advanced: 'tygodnie bezpośredniego treningu tej umiejętności', formation: 'tygodnie efektywnego treningu bez bezpośredniego skupienia na tej umiejętności' },
         noRise: 'brak wzrostu w historii; początek okresu jest nieznany', minimum: 'znane minimum; brakuje tygodni lub raportów',
         observedPace: 'Zaobserwowane tempo', weeksPerLevel: 'tygodni na poziom', insufficient: 'Za mało danych',
         noProgress: 'Brak mierzalnego postępu', staminaInfo: 'Kondycja się waha; tempo nie jest szacowane.',
@@ -88,6 +92,7 @@ const translations: Record<string, Text> = {
         record: 'Registo', posSkill: 'Pos. / Habilidade', effectiveness: 'Efet.', exportCsv: 'Exportar CSV',
         downloadPng: 'Baixar PNG', downloadFailed: 'Não foi possível baixar o PNG.', close: 'Fechar', noData: 'Sem histórico guardado.',
         advanced: 'Avançados', formation: 'Formação', sinceRise: 'desde a última subida observada na semana',
+        countMeaning: { advanced: 'semanas de treino direto desta habilidade', formation: 'semanas de treino eficaz sem foco direto nesta habilidade' },
         noRise: 'nenhuma subida observada; início do período desconhecido', minimum: 'mínimo conhecido; faltam semanas ou relatórios',
         observedPace: 'Ritmo observado', weeksPerLevel: 'semanas por nível', insufficient: 'Dados insuficientes',
         noProgress: 'Sem progresso mensurável', staminaInfo: 'A resistência varia; não se estima um ritmo.',
@@ -102,6 +107,7 @@ const translations: Record<string, Text> = {
         record: 'Registro', posSkill: 'Pos. / Abilità', effectiveness: 'Effic.', exportCsv: 'Esporta CSV',
         downloadPng: 'Scarica PNG', downloadFailed: 'Impossibile scaricare il PNG.', close: 'Chiudi', noData: 'Nessuno storico salvato.',
         advanced: 'Avanzati', formation: 'Formazione', sinceRise: "dall'ultimo aumento osservato nella settimana",
+        countMeaning: { advanced: 'settimane di allenamento diretto di questa abilità', formation: 'settimane di allenamento efficace senza focus diretto su questa abilità' },
         noRise: 'nessun aumento osservato; inizio del periodo sconosciuto', minimum: 'minimo noto; mancano settimane o rapporti',
         observedPace: 'Ritmo osservato', weeksPerLevel: 'settimane per livello', insufficient: 'Dati insufficienti',
         noProgress: 'Nessun progresso misurabile', staminaInfo: 'La resistenza varia; nessun ritmo stimato.',
@@ -116,6 +122,7 @@ const translations: Record<string, Text> = {
         record: 'Eintrag', posSkill: 'Pos. / Fähigkeit', effectiveness: 'Eff.', exportCsv: 'CSV exportieren',
         downloadPng: 'PNG herunterladen', downloadFailed: 'PNG konnte nicht heruntergeladen werden.', close: 'Schließen', noData: 'Kein gespeicherter Verlauf.',
         advanced: 'Intensiv', formation: 'Formation', sinceRise: 'seit dem letzten beobachteten Anstieg in Woche',
+        countMeaning: { advanced: 'Wochen mit direktem Training dieser Fähigkeit', formation: 'Wochen mit wirksamem Training ohne direkten Fokus auf diese Fähigkeit' },
         noRise: 'kein Anstieg beobachtet; Beginn des Abschnitts unbekannt', minimum: 'bekanntes Minimum; Wochen oder Berichte fehlen',
         observedPace: 'Beobachtetes Tempo', weeksPerLevel: 'Wochen pro Stufe', insufficient: 'Nicht genügend Daten',
         noProgress: 'Kein messbarer Fortschritt', staminaInfo: 'Kondition schwankt; kein Tempo geschätzt.',
@@ -130,6 +137,7 @@ const translations: Record<string, Text> = {
         record: 'Înregistrare', posSkill: 'Poz. / Abilitate', effectiveness: 'Efic.', exportCsv: 'Exportă CSV',
         downloadPng: 'Descarcă PNG', downloadFailed: 'Nu s-a putut descărca PNG-ul.', close: 'Închide', noData: 'Nu există istoric salvat.',
         advanced: 'Avansate', formation: 'Formare', sinceRise: 'de la ultima creștere observată în săptămâna',
+        countMeaning: { advanced: 'săptămâni cu antrenament direct al acestei abilități', formation: 'săptămâni cu antrenament eficient fără accent direct pe această abilitate' },
         noRise: 'nicio creștere observată; începutul intervalului necunoscut', minimum: 'minim cunoscut; lipsesc săptămâni sau rapoarte',
         observedPace: 'Ritm observat', weeksPerLevel: 'săptămâni pe nivel', insufficient: 'Date insuficiente',
         noProgress: 'Fără progres măsurabil', staminaInfo: 'Rezistența variază; ritmul nu este estimat.',
@@ -144,6 +152,7 @@ const translations: Record<string, Text> = {
         record: 'Kayıt', posSkill: 'Poz. / Beceri', effectiveness: 'Etki', exportCsv: 'CSV dışa aktar',
         downloadPng: 'PNG indir', downloadFailed: 'PNG indirilemedi.', close: 'Kapat', noData: 'Kayıtlı geçmiş yok.',
         advanced: 'İleri', formation: 'Formasyon', sinceRise: 'son gözlenen artıştan beri, hafta',
+        countMeaning: { advanced: 'bu becerinin doğrudan çalışıldığı haftalar', formation: 'bu beceriye doğrudan odaklanılmadan etkili antrenman yapılan haftalar' },
         noRise: 'artış gözlenmedi; aralığın başlangıcı bilinmiyor', minimum: 'bilinen alt sınır; hafta veya raporlar eksik',
         observedPace: 'Gözlenen hız', weeksPerLevel: 'seviye başına hafta', insufficient: 'Yetersiz veri',
         noProgress: 'Ölçülebilir ilerleme yok', staminaInfo: 'Kondisyon değişkendir; hız tahmin edilmez.',

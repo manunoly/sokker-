@@ -87,7 +87,9 @@ export interface SkillProgress {
     skill: PlayerSkill;
     /** All displayable observations, including explicitly marked inferred references. */
     points: PlayerSkillPoint[];
+    /** Positive-intensity weeks directly focused on this skill. */
     advanced: number;
+    /** Positive-intensity weeks without direct focus on this skill. */
     formation: number;
     /** False means the displayed counters are minimum known counts. */
     exact: boolean;
@@ -144,9 +146,9 @@ export function computeSkillProgress(rows: readonly PlayerTimelineRow[], skill: 
             exact = false;
             continue;
         }
-        if (training.skill !== skill || !Number.isFinite(training.intensity) || training.intensity <= 0) continue;
-        if (training.kind === 'individual') advanced++;
-        if (training.kind === 'formation') formation++;
+        if (!Number.isFinite(training.intensity) || training.intensity <= 0) continue;
+        if (training.kind === 'individual' && training.skill === skill) advanced++;
+        else formation++;
     }
 
     return {

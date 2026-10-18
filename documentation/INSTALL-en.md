@@ -10,6 +10,6 @@ For a packaged installation, download [sokker-plus-plus.zip](sokker-plus-plus.zi
 4. Choose **Load unpacked** and select the `dist/` directory containing `manifest.json`.
 5. Open Sokker while signed in. On squad/player pages, saved skill history and arrows appear as data becomes available. Hover or focus a first-team player's name for General Skills ++. On a training report details page or your own academy page, hover or focus a junior name for its chart.
 
-After changing source code, rebuild and use **Reload** on the extension's browser card. `npm run package` builds a store ZIP from `dist/`; its current script uses POSIX `rm` and `zip`, so on Windows run it in an environment that provides those commands. For local testing, `npm run build` and loading `dist/` are enough.
+After changing source code, rebuild and use **Reload** on the extension's browser card. `npm run package` regenerates the ZIP linked above from `dist/`; its current script uses POSIX `rm` and `zip`, so on Windows run it in an environment that provides those commands. For local testing, `npm run build` and loading `dist/` are enough.
 
 Local history is stored in the browser's `sokker.org` site data. Export a JSON backup from the popup before moving browsers or devices if you want to preserve accumulated history. See the [privacy policy](../PRIVACY.md).

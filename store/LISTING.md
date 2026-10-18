@@ -12,10 +12,16 @@ Sokker++
 Track Sokker player skill changes, training history, and estimated talent in your browser.
 ```
 
-Proposed manifest `description` (same value):
+English manifest summary (`_locales/en/messages.json`):
 
 ```text
 Track Sokker player skill changes, training history, and estimated talent in your browser.
+```
+
+Spanish manifest summary (`_locales/es/messages.json`):
+
+```text
+Consulta los cambios de habilidades, el historial de entrenamientos y el talento estimado de tus jugadores de Sokker.
 ```
 
 ## 3. Detailed description — English
@@ -23,7 +29,7 @@ Track Sokker player skill changes, training history, and estimated talent in you
 ```text
 Sokker++ adds player development history to Sokker.org. On squad and player pages, skill changes are marked with up and down arrows so you can spot weekly improvements and declines.
 
-Hover or focus a first-team player's name on squad/player pages, training setup, or training report details for “General Skills ++”: assigned advanced and formation training counts since each skill's last observed rise, plus a weekly table with Record, Pos / Skill, Eff, Week, and skill levels. Hover or focus a skill value for its observed-level chart. The table exports CSV and skill charts export PNG. On training report details and your own academy page, hovering or focusing a junior name shows the observed junior curve, Sokker's talent value, and a separate curve estimate when at least four observations exist. Junior charts also export PNG. Use the popup to sync first-team data, repair history gaps, or export/import a JSON backup.
+Hover or focus a first-team player's name on squad/player pages, training setup, or training report details for “General Skills ++”: direct advanced and non-direct formation training week counts since each skill's last observed rise, plus a weekly table with Record, Pos / Skill, Eff, Week, and skill levels. Hover or focus a skill value for its observed-level chart. The table exports CSV and skill charts export PNG. On training report details and your own academy page, hovering or focusing a junior name shows the observed junior curve, Sokker's talent value, and a separate curve estimate when at least four observations exist. Junior charts also export PNG. Use the popup to sync first-team data, repair history gaps, or export/import a JSON backup.
 
 Sokker++ automatically syncs when a Sokker.org page loads. It uses your existing Sokker session to request game data and stores the resulting history in IndexedDB on your device. The extension does not send this data to its developer or other third parties.
 
@@ -38,7 +44,7 @@ Support: https://github.com/manunoly/sokker-/issues
 ```text
 Sokker++ añade un historial de desarrollo de jugadores en Sokker.org. En las páginas de plantilla y de cada jugador, marca con flechas hacia arriba y abajo los cambios de habilidades para que puedas identificar las mejoras y bajadas semanales.
 
-Pasa el cursor o enfoca el nombre de un jugador del primer equipo en la plantilla, la ficha del jugador, la configuración de entrenamiento o el detalle de informes para abrir “General Skills ++”: contadores de entrenos avanzados y de formación asignados desde la última subida observada de cada habilidad y una tabla semanal con Registro, Pos / Skill, efectividad, semana y niveles. Al pasar o enfocar una habilidad aparece su gráfica de niveles observados. La tabla exporta CSV y las gráficas, PNG. En el detalle de informes de entrenamiento y en tu propia cantera, el nombre juvenil abre una curva, el talento informado por Sokker y una estimación independiente cuando hay al menos cuatro observaciones. La gráfica juvenil también exporta PNG. El popup permite sincronizar los datos del primer equipo, reparar huecos y exportar/importar una copia JSON.
+Pasa el cursor o enfoca el nombre de un jugador del primer equipo en la plantilla, la ficha del jugador, la configuración de entrenamiento o el detalle de informes para abrir “General Skills ++”: contadores de semanas con entrenamiento avanzado directo y formación sin foco directo desde la última subida observada de cada habilidad y una tabla semanal con Registro, Pos / Skill, efectividad, semana y niveles. Al pasar o enfocar una habilidad aparece su gráfica de niveles observados. La tabla exporta CSV y las gráficas, PNG. En el detalle de informes de entrenamiento y en tu propia cantera, el nombre juvenil abre una curva, el talento informado por Sokker y una estimación independiente cuando hay al menos cuatro observaciones. La gráfica juvenil también exporta PNG. El popup permite sincronizar los datos del primer equipo, reparar huecos y exportar/importar una copia JSON.
 
 Sokker++ sincroniza automáticamente cuando se carga una página de Sokker.org. Usa tu sesión existente de Sokker para solicitar datos del juego y guarda el historial resultante en IndexedDB en tu dispositivo. La extensión no envía estos datos a su desarrollador ni a terceros.
 
@@ -63,10 +69,12 @@ Primary language: English
 Additional language: Spanish
 ```
 
+The 0.2.1 package includes `_locales/en/messages.json` and `_locales/es/messages.json`, so the Dashboard can offer separate detailed descriptions for both languages. Select Spanish after uploading the updated package, paste section 4, and save the draft. Keep section 3 as the English description.
+
 ## 7. URLs
 
 ```text
-Homepage URL: https://github.com/manunoly/sokker-
+Homepage URL: https://manuel.team/
 Support URL: https://github.com/manunoly/sokker-/issues
 Privacy policy URL: https://github.com/manunoly/sokker-/blob/main/PRIVACY.md
 ```
@@ -119,11 +127,9 @@ The Dashboard's privacy field is described in [Google's official Privacy practic
 ## 9. Screenshot captions
 
 ```text
-Screenshot 01: Review weekly reports and player skill history.
-Screenshot 02: Spot player skill increases and decreases.
-Screenshot 03: View skill progression over time.
-Screenshot 04: Inspect a player's saved skill history.
-Screenshot 05: Compare tracked skills across the squad.
+Screenshot 01: Review General Skills ++ and weekly first-team training history.
+Screenshot 02: Inspect a junior's observed levels and separate talent estimates.
+Screenshot 03: Export a junior talent chart as a PNG image.
 ```
 
 ## Sources (code)

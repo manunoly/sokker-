@@ -161,7 +161,7 @@ describe('computeSkillProgress', () => {
         expect(computeSkillProgress(rows, 'stamina').pace).toBeNull();
     });
 
-    it('counts only positive-intensity focused reports after the later observation that detects a rise', () => {
+    it('attributes positive-intensity weeks to the direct skill and formation to the other skills', () => {
         const rows = [
             timelineRow(1, 10, { kind: 'individual', skill: 'pace', intensity: 100 }),
             timelineRow(2, 11, { kind: 'individual', skill: 'passing', intensity: 100 }), // indirect rise
@@ -172,9 +172,21 @@ describe('computeSkillProgress', () => {
             timelineRow(7, 11, { kind: 'formation', skill: 'passing', intensity: 100 }),
         ];
         expect(computeSkillProgress([...rows].reverse(), 'pace')).toMatchObject({
-            advanced: 1, formation: 1, exact: true, lastRiseReportWeek: 2, riseWeeks: [2],
+            advanced: 1, formation: 3, exact: true, lastRiseReportWeek: 2, riseWeeks: [2],
         });
-        expect(computeSkillProgress(rows, 'passing')).toMatchObject({ advanced: 1, formation: 1, exact: false });
+        expect(computeSkillProgress(rows, 'passing')).toMatchObject({ advanced: 1, formation: 5, exact: false });
+        expect(computeSkillProgress(rows, 'keeper')).toMatchObject({ advanced: 0, formation: 6, exact: false });
+    });
+
+    it('counts a formation report for every skill but excludes a zero-intensity week', () => {
+        const rows = [
+            timelineRow(1, 10, { kind: 'individual', skill: 'striker', intensity: 100 }),
+            timelineRow(2, 10, { kind: 'formation', skill: 'passing', intensity: 70 }),
+            timelineRow(3, 10, { kind: 'formation', skill: 'general', intensity: 0 }),
+        ];
+        expect(computeSkillProgress(rows, 'striker')).toMatchObject({ advanced: 1, formation: 1 });
+        expect(computeSkillProgress(rows, 'passing')).toMatchObject({ advanced: 0, formation: 2 });
+        expect(computeSkillProgress(rows, 'keeper')).toMatchObject({ advanced: 0, formation: 2 });
     });
 
     it('treats no observed rise, gaps, carried rows and legacy reports as minimum counts', () => {

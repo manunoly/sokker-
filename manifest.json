@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Sokker++",
-  "version": "0.2.0",
-  "description": "Track Sokker player skill changes, training history, and estimated talent in your browser.",
+  "version": "0.2.1",
+  "default_locale": "en",
+  "description": "__MSG_extensionDescription__",
   "host_permissions": [
     "https://sokker.org/*"
   ],
