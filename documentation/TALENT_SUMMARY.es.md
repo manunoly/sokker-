@@ -45,7 +45,7 @@ La columna localizada **Registro** sustituye a la bandera y a `Kind`:
 
 El icono de lesión no afirma que esta haya causado la ausencia del informe. La tabla conserva `Pos / Skill`, efectividad, niveles y exportación CSV. El CSV mantiene los campos de procedencia, tipo, habilidad, posición, intensidad, minutos, semana del informe y niveles. El PNG de la habilidad reutiliza el compositor Canvas compartido, con pie inglés `Skill · weeks primera–última` y `by manuel.team`.
 
-Los textos nuevos admiten inglés, español, polaco, portugués, italiano, alemán, rumano, turco y eslovaco, con inglés de respaldo. El pie del PNG permanece en inglés.
+Los textos nuevos admiten inglés, español, polaco, portugués, italiano, alemán, rumano, turco, eslovaco y francés, con inglés de respaldo. El pie del PNG permanece en inglés.
 
 ## Código y límites
 

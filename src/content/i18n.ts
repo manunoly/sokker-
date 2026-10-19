@@ -30,6 +30,19 @@ export const skillMap: { [key: string]: string } = {
     'forma': 'form',
     'condición': 'stamina',
 
+    // French ('technique' and 'passe' are already mapped)
+    'endurance': 'stamina',
+    'vitesse': 'pace',
+    'passes': 'passing',
+    'gardien': 'keeper',
+    'défense': 'defending',
+    'construction': 'playmaking',
+    'buteur': 'striker',
+    'discipline tactique': 'tacticalDiscipline',
+    'jeu collectif': 'teamwork',
+    'expérience': 'experience',
+    'forme': 'form',
+
     // Polish
     'kondycja': 'stamina',
     'szybkość': 'pace',

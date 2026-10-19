@@ -35,11 +35,11 @@ sokker-plus-plus/
     │   ├── ui.ts              # Mutaciones visuales de la tabla
     │   ├── tooltip.ts         # Hover y foco del primer equipo
     │   ├── playerCard.ts      # Resumen, tarjeta por habilidad y tabla semanal
-    │   ├── playerLocale.ts    # Nueve idiomas de la tarjeta del primer equipo
+    │   ├── playerLocale.ts    # Diez idiomas de la tarjeta del primer equipo
     │   ├── i18n.ts            # Normalización de habilidades entrantes
     │   ├── juniorPage.ts      # Rutas y activación en nombres juveniles
     │   ├── juniorCard.ts      # Recuadro con datos locales
-    │   └── juniorLocale.ts    # Nueve idiomas y respaldo en inglés
+    │   └── juniorLocale.ts    # Diez idiomas y respaldo en inglés
     ├── core/                  # Lógica de Negocio y Datos
     │   ├── api.ts             # Fetchers puros hacia sokker.org/api (mismo origen)
     │   ├── repository.ts      # Wrapper funcional de IndexedDB (Closures)

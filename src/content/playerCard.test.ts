@@ -39,6 +39,18 @@ describe('first-team cards', () => {
         expect(skillCard.querySelector('button[aria-label="Stiahnuť PNG"]')).not.toBeNull();
     });
 
+    it('renders French skill names, report sources, and accessible export actions', () => {
+        const t = getPlayerStrings('/fr/app/player/7/', 'en', 'en');
+        const card = createPlayerSummaryContent(player, [row(sourceEntry(1214, 'carried-over'))], progress, t);
+        expect(card.textContent).toContain('Compétences générales ++');
+        expect(card.querySelector('[data-player-skill="pace"]')?.textContent).toContain('Vitesse');
+        expect(card.querySelector('table')?.textContent).toContain('Sans rapport');
+        expect(card.querySelector('[data-export-csv]')?.textContent).toContain('Exporter en CSV');
+        const skillCard = createPlayerSkillContent(player, progress[1], t);
+        expect(skillCard.textContent).toContain('Vitesse 10');
+        expect(skillCard.querySelector('button[aria-label="Télécharger le PNG"]')).not.toBeNull();
+    });
+
     it('shows the approved two-column order and separate accessible counters', () => {
         const t = getPlayerStrings('/es/app/player/7/', 'es', 'es');
         const card = createPlayerSummaryContent(player, [row(sourceEntry(1214, 'training'))], progress, t);

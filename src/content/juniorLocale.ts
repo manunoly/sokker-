@@ -58,6 +58,20 @@ const strings: Record<string, JuniorStrings> = {
         pointsHeading: 'Niveles semanales observados', keyboardHint: 'Pulsa Flecha abajo para explorar este recuadro.',
         downloadPng: 'Descargar PNG', downloadFailed: 'No se pudo descargar el PNG.'
     },
+    fr: {
+        observations: 'observations', sokkerTalent: 'Talent Sokker', curveTalent: 'Talent estimé à partir de la courbe',
+        capturedWeek: 'Enregistré pendant la semaine de jeu', lastRecorded: 'Dernière valeur enregistrée',
+        weeksPerLevel: 'semaines par niveau', insufficient: 'Données insuffisantes', noProgress: 'Aucune progression mesurable',
+        lessThanThree: 'Moins de 3', moreThanTwelve: 'Plus de 12', syncing: 'Synchronisation des données…',
+        updating: 'Mise à jour ; affichage des données enregistrées.', updateFailed: 'Échec de la mise à jour ; affichage des données enregistrées.',
+        loadFailed: 'Impossible de charger les données du junior.', noData: 'Aucun niveau observé pour le moment.',
+        unavailable: 'Indisponible', observed: 'Observé', trend: 'Tendance', relativeWeek: 'Semaine relative',
+        level: 'Niveau', relativeExplanation: 'Semaines écoulées depuis la première observation ; les périodes manquantes n’ont pas de niveau observé.',
+        remainingWeek: 'Semaines restantes',
+        countdownExplanation: 'Semaines avant la sortie du centre de formation (0 correspond à la sortie) ; les périodes manquantes n’ont pas de niveau observé.',
+        pointsHeading: 'Niveaux hebdomadaires observés', keyboardHint: 'Appuyez sur la flèche vers le bas pour explorer cette fiche.',
+        downloadPng: 'Télécharger le PNG', downloadFailed: 'Impossible de télécharger le PNG.'
+    },
     pl: {
         observations: 'obserwacji', sokkerTalent: 'Talent Sokker', curveTalent: 'Talent oszacowany z wykresu',
         capturedWeek: 'Zapisano w tygodniu gry', lastRecorded: 'Ostatnia zapisana wartość',

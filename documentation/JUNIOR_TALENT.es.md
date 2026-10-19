@@ -18,7 +18,7 @@ Canvas dibuja únicamente los niveles observados. Las semanas consecutivas se un
 
 La tarjeta separa **talento de Sokker**, obtenido de la cantera, y **talento estimado**, calculado desde la curva. La estimación ajusta una recta por mínimos cuadrados a las coordenadas semanales distintas. Con pendiente positiva, `talento estimado = 1 / pendiente`, en semanas por nivel. Exige al menos cuatro observaciones distintas. Una recta plana o descendente muestra «sin progreso medible» en vez de una cifra. Es una tendencia descriptiva, no el talento oculto de Sokker; no inventa semanas ni corrige bajadas. La tarjeta muestra como rangos las estimaciones menores de 3 o mayores de 12.
 
-La tarjeta exporta PNG mediante el compositor Canvas compartido. El pie en inglés muestra semanas restantes, talento estimado y `by manuel.team`. Los textos de la tarjeta admiten inglés, español, polaco, portugués, italiano, alemán, rumano, turco y eslovaco, con inglés de respaldo.
+La tarjeta exporta PNG mediante el compositor Canvas compartido. El pie en inglés muestra semanas restantes, talento estimado y `by manuel.team`. Los textos de la tarjeta admiten inglés, español, polaco, portugués, italiano, alemán, rumano, turco, eslovaco y francés, con inglés de respaldo.
 
 ## Implementación
 
