@@ -65,6 +65,17 @@ describe('junior hover card', () => {
         expect(document.querySelector('#sokkerpp-junior-card button[aria-label="Stiahnuť PNG"]')).not.toBeNull();
     });
 
+    it('renders the academy card in French with localized talent values', async () => {
+        document.documentElement.lang = 'fr-FR';
+        const trigger = anchor('Synthetic Junior');
+        await showJuniorCard(trigger, 1, 2, trigger.textContent!);
+        expect(cardText()).toContain('Talent Sokker');
+        expect(cardText()).toContain('Talent estimé à partir de la courbe');
+        expect(cardText()).toContain('5,5');
+        expect(cardText()).toContain('Semaines restantes 12: Niveau 3');
+        expect(document.querySelector('#sokkerpp-junior-card button[aria-label="Télécharger le PNG"]')).not.toBeNull();
+    });
+
     it('reads saved points only, distinguishes two talents, and lists remaining weeks', async () => {
         const trigger = anchor('<img src=x onerror=alert(1)>');
         await showJuniorCard(trigger, 1, 2, trigger.textContent!);

@@ -73,6 +73,17 @@ describe('mapSkillLabelToKey', () => {
         expect(mapSkillLabelToKey('  ' + label.toUpperCase() + '  ')).toBe(key);
     });
 
+    it.each([
+        ['Endurance', 'stamina'], ['Vitesse', 'pace'], ['Technique', 'technique'],
+        ['Passe', 'passing'], ['Passes', 'passing'], ['Gardien', 'keeper'],
+        ['Défense', 'defending'], ['Construction', 'playmaking'], ['Buteur', 'striker'],
+        ['Discipline tactique', 'tacticalDiscipline'], ['Jeu collectif', 'teamwork'],
+        ['Expérience', 'experience'], ['Forme', 'form'],
+    ])('recognizes the French skill label %s', (label, key) => {
+        expect(mapSkillLabelToKey(label)).toBe(key);
+        expect(mapSkillLabelToKey('  ' + label.toUpperCase() + '  ')).toBe(key);
+    });
+
     it('should return null for unknown labels', () => {
         expect(mapSkillLabelToKey('Unknown')).toBeNull();
         expect(mapSkillLabelToKey('')).toBeNull();

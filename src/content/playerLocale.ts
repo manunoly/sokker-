@@ -72,6 +72,21 @@ const translations: Record<string, Text> = {
         sources: { individual: 'Avanzado', formation: 'Formación', carriedOver: 'Sin informe', rosterFallback: 'Solo plantilla', reportNoDetail: 'Informe sin detalle' },
         skills: { stamina: 'Resistencia', pace: 'Ritmo', technique: 'Técnica', passing: 'Pases', keeper: 'Portería', defending: 'Defensa', playmaking: 'Creación', striker: 'Anotación' }
     },
+    fr: {
+        title: 'Compétences générales ++', history: 'Historique', week: 'Semaine', observedWeek: 'Semaine observée', weeks: 'semaines',
+        record: 'Rapport', posSkill: 'Pos. / Compétence', effectiveness: 'Effic.', exportCsv: 'Exporter en CSV',
+        downloadPng: 'Télécharger le PNG', downloadFailed: 'Impossible de télécharger le PNG.', close: 'Fermer', noData: 'Aucun historique enregistré.',
+        advanced: 'Avancé', formation: 'Formation', sinceRise: 'depuis la dernière hausse observée en semaine',
+        countMeaning: { advanced: 'semaines d’entraînement direct de cette compétence', formation: 'semaines d’entraînement effectif sans cibler directement cette compétence' },
+        noRise: 'aucune hausse observée ; le début de cette période est inconnu', minimum: 'minimum connu ; des semaines ou des rapports manquent',
+        observedPace: 'Rythme observé', weeksPerLevel: 'semaines par niveau', insufficient: 'Données insuffisantes',
+        noProgress: 'Aucune progression mesurable', staminaInfo: 'L’endurance varie ; aucun rythme n’est estimé.',
+        observed: 'Observé', trend: 'Tendance', observations: 'observations', observedLevels: 'Niveaux hebdomadaires enregistrés',
+        injured: 'Blessé dans ce rapport', realReport: 'Rapport réel', reference: 'référence',
+        uncertainWeek: 'Date de capture invalide ; la semaine du rapport enregistré est utilisée pour la courbe.',
+        sources: { individual: 'Avancé', formation: 'Formation', carriedOver: 'Sans rapport', rosterFallback: 'Effectif uniquement', reportNoDetail: 'Rapport sans détail' },
+        skills: { stamina: 'Endurance', pace: 'Vitesse', technique: 'Technique', passing: 'Passe', keeper: 'Gardien', defending: 'Défense', playmaking: 'Construction', striker: 'Buteur' }
+    },
     pl: {
         title: 'Umiejętności ogólne ++', history: 'Historia', week: 'Tydzień', observedWeek: 'Tydzień obserwacji', weeks: 'tygodni',
         record: 'Zapis', posSkill: 'Poz. / Umiejętność', effectiveness: 'Skut.', exportCsv: 'Eksportuj CSV',

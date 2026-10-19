@@ -45,7 +45,7 @@ The table has one localized **Record** column in place of the old flag and `Kind
 
 The injury icon does not claim that injury caused a missing report. The table keeps `Pos / Skill`, effectiveness, levels, and CSV export. The CSV keeps the original source, kind, skill, position, intensity, minutes, report week, and level columns. The skill PNG uses the shared Canvas compositor, an English `Skill · weeks first–last` footer, and `by manuel.team`.
 
-New card text supports English, Spanish, Polish, Portuguese, Italian, German, Romanian, Turkish, and Slovak, with English fallback. The PNG footer stays in English.
+New card text supports English, Spanish, Polish, Portuguese, Italian, German, Romanian, Turkish, Slovak, and French, with English fallback. The PNG footer stays in English.
 
 ## Implementation and limits
 

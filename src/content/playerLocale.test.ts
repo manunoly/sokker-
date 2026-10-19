@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { formatPlayerNumber, getPlayerStrings } from './playerLocale';
 
 describe('first-team card locale', () => {
-    it.each(['en', 'es', 'pl', 'pt', 'it', 'de', 'ro', 'tr', 'sk'])('provides translated card labels for %s', (language) => {
+    it.each(['en', 'es', 'pl', 'pt', 'it', 'de', 'ro', 'tr', 'sk', 'fr'])('provides translated card labels for %s', (language) => {
         const t = getPlayerStrings(`/${language}/app/player/1/`, 'en', 'en');
         expect(t.language).toBe(language);
         expect(t.skills.pace).toBeTruthy();
@@ -18,6 +18,15 @@ describe('first-team card locale', () => {
         expect(t.title).toBe('Všeobecné schopnosti ++');
         expect(t.sources.carriedOver).toBe('Bez správy');
         expect(t.skills.passing).toBe('Prihrávanie');
+        expect(formatPlayerNumber(3.5, t.language)).toBe('3,5');
+    });
+
+    it.each(['/fr/app/player/1/', '/fr-FR/app/player/1/', '/FR-ca/app/player/1/'])('uses French on %s', (pathname) => {
+        const t = getPlayerStrings(pathname, 'es', 'en');
+        expect(t.language).toBe('fr');
+        expect(t.title).toBe('Compétences générales ++');
+        expect(t.sources.carriedOver).toBe('Sans rapport');
+        expect(t.skills.passing).toBe('Passe');
         expect(formatPlayerNumber(3.5, t.language)).toBe('3,5');
     });
 
