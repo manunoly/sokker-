@@ -69,7 +69,7 @@ Primary language: English
 Additional language: Spanish
 ```
 
-The 0.2.1 package includes `_locales/en/messages.json` and `_locales/es/messages.json`, so the Dashboard can offer separate detailed descriptions for both languages. Select Spanish after uploading the updated package, paste section 4, and save the draft. Keep section 3 as the English description.
+The 0.2.2 package includes localized extension summaries in `_locales/en/messages.json`, `_locales/es/messages.json`, `_locales/fr/messages.json`, and `_locales/sk/messages.json`. The detailed listing copy in this document is provided in English and Spanish. Select Spanish after uploading the updated package, paste section 4, and save the draft. Keep section 3 as the English description.
 
 ## 7. URLs
 

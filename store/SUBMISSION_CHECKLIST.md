@@ -4,13 +4,13 @@
 
 - [ ] Build with `npm run build`, then package the contents of `dist/` at the ZIP root (`npm run package` in a POSIX-compatible shell with `zip`, or `Compress-Archive` on Windows). The single release ZIP is `documentation/sokker-plus-plus.zip`; confirm `manifest.json` is at its root and the archive matches the latest build.
 - [ ] Confirm the uploaded build corresponds to the source facts cited in `store/LISTING.md`, especially `manifest.json` host scope and the same-origin API behavior in `src/core/api.ts`.
-- [ ] Confirm the ZIP includes `_locales/en/messages.json` and `_locales/es/messages.json`; select Spanish in the Store listing and save the description from `store/LISTING.md` section 4.
+- [ ] Confirm the ZIP includes the English, Spanish, French, and Slovak catalogs at `_locales/{en,es,fr,sk}/messages.json`; select Spanish in the Store listing and save the description from `store/LISTING.md` section 4.
 - [ ] Store icon: reuse `assets/icons/icon-128.png` (128×128); no replacement icon was created.
 
 ## Store listing
 
 - [ ] Item name — `store/LISTING.md`, heading “1. Item name”.
-- [ ] Summary / short description — `store/LISTING.md`, heading “2. Summary / short description”. The manifest reads English and Spanish summaries from `_locales/`.
+- [ ] Summary / short description — `store/LISTING.md`, heading “2. Summary / short description”. The manifest reads localized summaries from `_locales/`.
 - [ ] Detailed description, English — `store/LISTING.md`, heading “3. Detailed description — English”.
 - [ ] Detailed description, Spanish — `store/LISTING.md`, heading “4. Detailed description — Spanish”.
 - [ ] Category — `store/LISTING.md`, heading “5. Category”; choose Entertainment, with Tools as the fallback.
