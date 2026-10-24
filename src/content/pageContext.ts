@@ -46,7 +46,8 @@ export function resolvePageContext(url: URL): PageContext | null {
     if (betaReport) {
         const reportId = positiveId(betaReport[1]);
         return reportId === null ? null : { kind: 'training-report', reportId, pathname, layout: 'beta' };
-    }    const squad = /^\/squad(?:\/([1-9]\d*))?\/?$/.exec(pathname);
+    }
+    const squad = /^\/squad(?:\/([1-9]\d*))?\/?$/.exec(pathname);
     if (squad) {
         const teamId = squad[1] ? positiveId(squad[1]) : null;
         if (squad[1] && teamId === null) return null;
