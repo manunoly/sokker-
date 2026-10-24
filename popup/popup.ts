@@ -1,4 +1,36 @@
 import { clearSharedData, ensureStorageReady, exportBackup, importBackup, recoverPendingPublication } from '../src/core/storageClient';
+import { historyButtonsVisible, initHistoryButtonPreferences, setHistoryButtonsVisible, subscribeHistoryButtonsVisibility } from '../src/core/historyButtonPreferences';
+
+function setupHistoryButtonsPreference(): void {
+    const checkbox = document.getElementById('historyButtonsVisible') as HTMLInputElement | null;
+    const error = document.getElementById('historyButtonsError');
+    if (!checkbox || !error) return;
+    const spanish = (chrome.i18n?.getUILanguage?.() ?? navigator.language).toLowerCase().split(/[-_]/)[0] === 'es';
+    document.getElementById('historyButtonsLabel')!.textContent = spanish ? 'Mostrar botones + de historial' : 'Show + history buttons';
+    document.getElementById('historyButtonsHint')!.textContent = spanish
+        ? 'Se aplica a todas las páginas de Sokker de este perfil del navegador.'
+        : 'Applies to all Sokker pages in this browser profile.';
+    const showError = (loading: boolean): void => {
+        error.textContent = spanish
+            ? loading ? 'No se pudo cargar esta preferencia.' : 'No se pudo guardar la preferencia. Inténtalo de nuevo.'
+            : loading ? 'Could not load this preference.' : 'Could not save the preference. Please retry.';
+        error.hidden = false;
+    };
+    subscribeHistoryButtonsVisibility(visible => { checkbox.checked = visible; });
+    checkbox.addEventListener('change', () => {
+        const next = checkbox.checked;
+        checkbox.disabled = true;
+        error.hidden = true;
+        void setHistoryButtonsVisible(next).catch(() => showError(false)).finally(() => {
+            checkbox.checked = historyButtonsVisible();
+            checkbox.disabled = false;
+        });
+    });
+    void initHistoryButtonPreferences().then(() => {
+        checkbox.checked = historyButtonsVisible();
+        checkbox.disabled = false;
+    }).catch(() => showError(true));
+}
 
 function supportedTab(url: string | undefined): boolean {
     try { const parsed = new URL(url ?? ''); return parsed.protocol === 'https:' && (parsed.hostname === 'sokker.org' || parsed.hostname.endsWith('.sokker.org')); }
@@ -6,6 +38,7 @@ function supportedTab(url: string | undefined): boolean {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    setupHistoryButtonsPreference();
     const status = document.getElementById('status')!;
     const recovery = document.getElementById('recovery');
     const importFile = document.getElementById('importFile') as HTMLInputElement;

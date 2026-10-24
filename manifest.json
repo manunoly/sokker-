@@ -4,6 +4,7 @@
   "version": "0.2.2",
   "default_locale": "en",
   "description": "__MSG_extensionDescription__",
+  "permissions": ["storage"],
   "host_permissions": [
     "https://sokker.org/*",
     "https://*.sokker.org/*"

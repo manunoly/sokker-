@@ -194,3 +194,46 @@ describe('observed beta academy and report', () => {
         expect(sync).toHaveBeenCalledWith({ teamId: 42, week: 1213, kind: 'report', ids: [12346] });
     });
 });
+
+
+it('pins from separate junior controls, reuses rescans and ignores stale IDs before a rescan', async () => {
+    setPage('/juniors/42', academy);
+    const context = resolvePageContext(new URL(location.pathname, 'https://sokker.org'))!;
+    await handleJuniorPage(scanJuniorPage(context, document)!);
+    await handleJuniorPage(scanJuniorPage(context, document)!);
+    expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(2);
+    const name = document.querySelector<HTMLButtonElement>('span[id="junior-row-12345"] > button')!;
+    const button = name.nextElementSibling as HTMLButtonElement;
+    expect(button.matches('[data-sokkerpp-owned="pin"]')).toBe(true);
+    const native = vi.fn(); name.addEventListener('click', native);
+    const requests = current.mock.calls.length;
+    button.click();
+    expect(native).not.toHaveBeenCalled();
+    expect(showJuniorCard).toHaveBeenLastCalledWith(name, 42, 12345, 'Junior One', 'right', {
+        pinned: true, returnFocus: button, isCurrent: expect.any(Function)
+    });
+    expect(current).toHaveBeenCalledTimes(requests);
+    expect(sync).toHaveBeenCalledTimes(1);
+    vi.mocked(showJuniorCard).mockClear();
+    name.closest('tr')!.dataset.rowId = '12347';
+    button.click();
+    expect(showJuniorCard).not.toHaveBeenCalled();
+    leaveJuniorPage();
+    expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
+});
+
+it('keeps classic junior hover/focus when + controls are hidden and removes controls on remount', async () => {
+    setPage('/juniors/teamID/42', `<table>${academyRow('7')}</table>`);
+    await handleJuniorPage(scanJuniorPage(location.pathname, document)!);
+    const name = document.querySelector<HTMLElement>('strong')!;
+    const button = name.nextElementSibling as HTMLButtonElement;
+    button.hidden = true;
+    name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    name.focus();
+    expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'right');
+    name.parentElement!.innerHTML = '<strong>Replacement</strong>';
+    await handleJuniorPage(scanJuniorPage(location.pathname, document)!);
+    expect(button.isConnected).toBe(false);
+    expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);
+    expect(hideJuniorCard).toHaveBeenCalled();
+});

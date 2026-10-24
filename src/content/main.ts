@@ -12,6 +12,7 @@ import { hideTooltip } from './tooltip';
 import { leavePlayerBindings } from './playerBindings';
 import { resolvePageContext } from './pageContext';
 import type { StorageState } from '../core/storageTypes';
+import { initHistoryButtonPreferences } from '../core/historyButtonPreferences';
 
 let ready: Promise<void> | null = null;
 let storageState: StorageState | null = null;
@@ -53,6 +54,7 @@ function leavePage(): void {
 function report(error: unknown): void { console.warn('Sokker++ page operation failed:', error); }
 
 function main(): void {
+    void initHistoryButtonPreferences().catch(report);
     subscribeStorageChanges(state => {
         const previous = storageState;
         storageState = state;

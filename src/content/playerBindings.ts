@@ -1,3 +1,4 @@
+import { createHistoryButton, updateHistoryButton } from './historyButton';
 import { contextFromPath, positiveId, resolvePageContext } from './pageContext';
 import type { PlayerSkill } from '../core/playerTimeline';
 import { getPlayerStrings } from './playerLocale';
@@ -103,28 +104,16 @@ function bind(anchor: HTMLElement): void {
 }
 
 function pinControl(anchor: HTMLElement): void {
-    if (anchor.dataset.sokkerppLayout === 'legacy' || controls.get(anchor)?.isConnected) return;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = '+';
-    button.dataset.sokkerppOwned = 'pin';
-    button.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;margin-inline-start:4px;min-width:24px;min-height:24px;border:1px solid currentColor;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font:700 14px system-ui';
-    button.addEventListener('click', event => {
+    if (controls.get(anchor)?.isConnected) return;
+    const button = createHistoryButton(anchor, control => {
         const binding = selected(anchor);
         if (!binding) return;
-        event.stopPropagation();
-        const rect = button.getBoundingClientRect();
+        const rect = control.getBoundingClientRect();
         present(anchor, binding, () => binding.skill
-            ? openZoomChart(binding.playerId, binding.skill, button)
-            : showHistoryTooltip(rect.right, rect.top, binding.playerId, button, { pinned: true }));
+            ? openZoomChart(binding.playerId, binding.skill, control)
+            : showHistoryTooltip(rect.right, rect.top, binding.playerId, control, { pinned: true }));
     });
-    // Never place our button inside a native button or link.
-    const native = anchor.closest<HTMLElement>('button, a') ?? anchor;
-    const host = native.tagName === 'TD' ? native : native.parentElement;
-    if (!host) return;
-    if (host === native) host.appendChild(button);
-    else native.insertAdjacentElement('afterend', button);
-    controls.set(anchor, button);
+    if (button) controls.set(anchor, button);
 }
 
 /** Refresh identities on every render; listeners read this map instead of closing over IDs. */
@@ -151,7 +140,7 @@ export function bindPlayerAnchors(players: readonly PlayerAnchors[]): void {
         pinControl(anchor);
         const control = controls.get(anchor);
         const label = binding.skill ? strings.skills[binding.skill] : strings.title;
-        if (control) { control.title = `${strings.history}: ${label}`; control.setAttribute('aria-label', `${strings.history}: ${label}`); }
+        if (control) updateHistoryButton(control, binding.skill ? 'skill' : 'name', `${strings.history}: ${label}`);
     }
 }
 

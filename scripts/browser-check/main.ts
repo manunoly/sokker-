@@ -6,6 +6,7 @@ import { handleJuniorPage, leaveJuniorPage, scanJuniorPage } from '../../src/con
 import { handleTrainingPlayerPage, leaveTrainingPlayerPage, scanTrainingPlayerPage } from '../../src/content/trainingPlayerPage';
 import { hideTooltip } from '../../src/content/tooltip';
 import { hideJuniorCard } from '../../src/content/juniorCard';
+import { initHistoryButtonPreferences, setHistoryButtonsVisible } from '../../src/core/historyButtonPreferences';
 import type { PlayerData, PlayerHistoryEntry, Skills } from '../../src/types';
 import type { JuniorRecord } from '../../src/core/juniorTypes';
 import squad from '../../src/content/fixtures/betaSquad.html?raw';
@@ -57,7 +58,18 @@ function eventSet<T extends (...args: any[]) => void>() {
     return { addListener: (listener: T) => listeners.add(listener), removeListener: (listener: T) => listeners.delete(listener), fire: (...args: Parameters<T>) => { for (const listener of listeners) listener(...args); } };
 }
 // Stub exists only in this harness bundle. No production entry point imports it.
-(globalThis as any).chrome = { runtime: {
+const preferenceChanges = eventSet<(changes: Record<string, { newValue: unknown }>, area: string) => void>();
+const preferences: Record<string, unknown> = {};
+(globalThis as any).chrome = { storage: {
+    onChanged: preferenceChanges,
+    local: {
+        get: async (key: string) => ({ [key]: preferences[key] }),
+        set: async (values: Record<string, unknown>) => {
+            Object.assign(preferences, values);
+            preferenceChanges.fire(Object.fromEntries(Object.entries(values).map(([key, newValue]) => [key, { newValue }])), 'local');
+        },
+    },
+}, runtime: {
     onMessage: eventSet(),
     connect: () => {
         const onMessage = eventSet<(message: unknown) => void>();
@@ -128,6 +140,16 @@ async function load(): Promise<void> {
 async function verifyCurrent(): Promise<void> {
     const apiBefore = operations.filter(operation => operation.startsWith('api.')).length;
     check(['sokker.org', 'app.sokker.org', 'future.sokker.org'].every(host => resolvePageContext(new URL(`https://${host}${current.pathname}`))?.layout === 'beta'), `${scenario.value}: same route layout on root and subdomains`);
+    const buttons = [...fixture.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]')];
+    check(buttons.length > 0, `${scenario.value}: history controls are present`);
+    const skillButton = buttons.find(button => button.dataset.historyVariant === 'skill');
+    if (skillButton) {
+        const style = getComputedStyle(skillButton);
+        check(style.borderTopStyle === 'none' && style.backgroundColor === 'rgba(0, 0, 0, 0)', `${scenario.value}: skill + has no resting border or background`);
+    }
+    await setHistoryButtonsVisible(false);
+    check(buttons.every(button => button.hidden && button.getClientRects().length === 0), `${scenario.value}: preference hides every control without a rescan`);
+    // The following focus/Canvas checks run while the + controls are hidden.
     if (current.kind === 'squad' || current.kind === 'player') {
         const players = scanBetaPlayers(current, document);
         const skill = players[0].skills.find(item => item.key === 'pace')!.anchor;
@@ -144,6 +166,7 @@ async function verifyCurrent(): Promise<void> {
         await until(() => recordedDownloads.length > pngBefore);
         check(recordedDownloads.at(-1)!.type === 'image/png' && recordedDownloads.at(-1)!.bytes > 1000, `${scenario.value}: PNG export encoded real Canvas`);
         const control = [...(skill.parentElement?.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]') ?? [])].find(button => button.previousElementSibling === skill) ?? (skill.querySelector<HTMLButtonElement>('[data-sokkerpp-owned="pin"]'));
+        await setHistoryButtonsVisible(true);
         check(!!control && control.tabIndex === 0, `${scenario.value}: own pin control is keyboard accessible`);
         control!.click();
         await until(() => document.querySelector<HTMLButtonElement>('[data-close-player-card]')?.style.display === 'block');
@@ -168,9 +191,23 @@ async function verifyCurrent(): Promise<void> {
             juniors.names.values().next().value!.focus();
             const canvas = await until(() => document.querySelector<HTMLCanvasElement>('#sokkerpp-junior-card canvas'));
             check(canvas.toDataURL('image/png').length > 1000, `${scenario.value}: junior focus renders a real Canvas graph`);
+            await setHistoryButtonsVisible(true);
+            const name = juniors.names.values().next().value!;
+            const pin = name.nextElementSibling as HTMLButtonElement;
+            pin.click();
+            await until(() => document.querySelector('[data-junior-close]'));
+            fixture.tabIndex = -1;
+            fixture.focus();
+            name.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: fixture }));
+            await new Promise(resolve => setTimeout(resolve, 300));
+            check(!!document.querySelector('#sokkerpp-junior-card'), `${scenario.value}: pinned junior card survives pointer/focus leaving`);
+            document.querySelector<HTMLButtonElement>('[data-junior-close]')!.click();
+            check(!document.querySelector('#sokkerpp-junior-card'), `${scenario.value}: visible close dismisses the pinned junior card`);
         }
         if (current.kind === 'training-report') check(training?.names.has(12345) && juniors?.names.has(12346) && !training.names.has(12346), 'report: first-team and junior identities stay separate');
     }
+    await setHistoryButtonsVisible(true);
+    check(buttons.every(button => !button.hidden), `${scenario.value}: preference restores the existing controls`);
     check(operations.filter(operation => operation.startsWith('api.')).length === apiBefore, `${scenario.value}: hover, focus and pin add no API operation`);
     check(blockedNetwork === 0 && blockedWrites === 0, `${scenario.value}: no external network or storage mutation was attempted`);
     status.textContent = `Checks passed for ${scenario.value}. ${operations.length} synthetic message operations; ${recordedDownloads.length} captured exports.`;
@@ -180,6 +217,7 @@ async function run(all: boolean): Promise<void> {
     checks.replaceChildren(); downloads.replaceChildren(); recordedDownloads.length = 0;
     const buttons = [...document.querySelectorAll<HTMLButtonElement>('header button')]; buttons.forEach(button => button.disabled = true);
     try {
+        await initHistoryButtonPreferences();
         if (all) for (const key of Object.keys(scenarios)) { scenario.value = key; await load(); await verifyCurrent(); }
         else { await load(); await verifyCurrent(); }
         document.documentElement.dataset.checkResult = 'passed';

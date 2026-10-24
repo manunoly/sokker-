@@ -6,6 +6,10 @@ General Skills ++ lee el historial del primer equipo ya guardado en IndexedDB. A
 
 Las páginas beta admitidas de plantilla y jugador usan el mismo historial y los mismos cálculos que las clásicas. El formato se reconoce por la ruta y estructura, también si una ruta beta se sirve desde el dominio principal. Tabla y tarjetas comparten la lectura del historial de cada jugador. En los botones de habilidades beta se conserva el clic nativo de Sokker; un control separado fija la gráfica de la extensión. La configuración y los informes beta tienen sus propios adaptadores de filas. El [registro de verificación](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) distingue estructuras observadas y pruebas de ejecución.
 
+Los controles `+` se ofrecen tanto en las vistas clásicas como en las beta: junto al nombre fijan el resumen y junto a una habilidad fijan su curva. Los nombres conservan un borde discreto; las habilidades muestran un `+` sin borde ni fondo en reposo, con foco visible para el teclado. Se mantienen las acciones nativas de Sokker.
+
+El popup incluye **Mostrar botones + de historial**, activado por defecto. La preferencia se guarda por instalación y perfil de la extensión y se aplica entre los hosts admitidos, también en pestañas abiertas. Ocultar los controles conserva el hover y el foco de los nombres y habilidades. Esta opción se almacena separada del histórico y no modifica los datos ni las copias JSON.
+
 La [galería de capturas](SCREENSHOTS.md#general-skills-summary) muestra un ejemplo del resumen y la tabla semanal.
 
 ## Significado de las dos cifras

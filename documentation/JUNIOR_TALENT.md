@@ -6,6 +6,10 @@ The junior card appears when you hover or focus a junior's name in a training re
 
 Beta academy pages at `/juniors/{teamId}` and beta report details at `/training/reports/details/{id}` use the same weekly coordinator and chart. The academy still requires your own team. Routes are recognized independently of the subdomain. Beta native name actions remain available. See the [verification record](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) for the tested scope.
 
+A subtly bordered `+` beside a junior's name opens and pins the card on supported classic and beta pages. A pinned card stays open when the pointer leaves; its visible close button or Escape dismisses it. Controls retain the same own-team eligibility check and native name actions.
+
+The popup's **Show + history buttons** option, enabled by default, also controls these shortcuts. It is saved per extension installation and browser profile and shared across supported hosts. Hiding controls preserves existing hover/focus interactions; the preference does not change history or JSON backups.
+
 See [screenshots of the card and its PNG export](SCREENSHOTS.md#junior-talent-card).
 
 ## Data and weekly synchronization

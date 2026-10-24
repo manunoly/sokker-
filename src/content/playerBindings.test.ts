@@ -224,3 +224,34 @@ it('does not close a newer valid card when an older obsolete presentation finish
     await Promise.resolve();
     expect(hideTooltip).not.toHaveBeenCalled();
 });
+
+
+it('provides classic + controls and updates variants, labels and player IDs on reused nodes', () => {
+    history.replaceState({}, '', '/app/squad');
+    document.body.innerHTML = '<a id="name" data-sokkerpp-layout="legacy" href="/player/PID/12345">One</a><span id="skill" data-sokkerpp-layout="legacy">Pace</span>';
+    bindPlayerAnchors(anchors());
+    const controls = [...document.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]')];
+    expect(controls).toHaveLength(2);
+    controls[0].click();
+    expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, 12345, controls[0], { pinned: true });
+    controls[1].click();
+    expect(openZoomChart).toHaveBeenLastCalledWith(12345, 'pace', controls[1]);
+    const name = document.querySelector<HTMLElement>('#name')!;
+    name.setAttribute('href', '/player/PID/12346');
+    bindPlayerAnchors([{ playerId: 12346, names: [], skills: [{ key: 'passing', anchor: name }] }]);
+    expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);
+    expect(controls[0].dataset.historyVariant).toBe('skill');
+    expect(controls[0].getAttribute('aria-label')).toContain('Passing');
+    controls[0].click();
+    expect(openZoomChart).toHaveBeenLastCalledWith(12346, 'passing', controls[0]);
+});
+
+it('leaves hover and focus available when the + controls are hidden', () => {
+    document.body.innerHTML = '<a id="name" href="/player/12345">Player</a><button id="skill">Pace</button>';
+    bindPlayerAnchors(anchors());
+    document.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]').forEach(button => { button.hidden = true; });
+    document.querySelector<HTMLElement>('#name')!.dispatchEvent(new MouseEvent('mouseenter'));
+    document.querySelector<HTMLElement>('#skill')!.focus();
+    expect(showHistoryTooltip).toHaveBeenCalledOnce();
+    expect(showTooltip).toHaveBeenCalledOnce();
+});

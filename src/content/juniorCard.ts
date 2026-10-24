@@ -1,3 +1,4 @@
+import { getPlayerStrings } from './playerLocale';
 import { getJuniorRecord } from '../core/storageClient';
 import { getJuniorSyncState, subscribeJuniorUpdates } from '../core/juniorSync';
 import type { JuniorPoint, JuniorRecord } from '../core/juniorTypes';
@@ -8,7 +9,8 @@ import { createJuniorExportCanvas } from '../ui-components/juniorExport';
 import { formatJuniorNumber, getJuniorLanguage, getJuniorStrings, type JuniorStrings } from './juniorLocale';
 
 type CardSide = 'left' | 'right';
-interface Selection { anchor: HTMLElement; teamId: number; juniorId: number; name: string; side: CardSide }
+interface CardOptions { pinned?: boolean; returnFocus?: HTMLElement; isCurrent?: () => boolean }
+interface Selection extends CardOptions { anchor: HTMLElement; teamId: number; juniorId: number; name: string; side: CardSide }
 
 let card: HTMLDivElement | null = null;
 let selected: Selection | null = null;
@@ -16,6 +18,7 @@ let unsubscribe: (() => void) | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 let pointerInCard = false;
 let renderToken = 0;
+let restoringFocus = false;
 const cardId = 'sokkerpp-junior-card';
 const hintId = 'sokkerpp-junior-card-hint';
 
@@ -24,6 +27,14 @@ function setAnchorReference(anchor: HTMLElement, attribute: string, id: string, 
     const next = add ? [...new Set([...ids, id])] : ids.filter((value) => value !== id);
     if (next.length) anchor.setAttribute(attribute, next.join(' '));
     else anchor.removeAttribute(attribute);
+}
+
+function setSelectionReferences(selection: Selection, add: boolean): void {
+    for (const anchor of new Set([selection.anchor, selection.returnFocus].filter((node): node is HTMLElement => !!node))) {
+        setAnchorReference(anchor, 'aria-controls', cardId, add);
+        setAnchorReference(anchor, 'aria-describedby', hintId, add);
+    }
+    if (selection.returnFocus) setAnchorReference(selection.returnFocus, 'aria-keyshortcuts', 'ArrowDown', add);
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
@@ -145,6 +156,17 @@ function render(record: JuniorRecord | null, syncState: ReturnType<typeof getJun
         });
         headerActions.append(button, error);
     }
+    if (selected.pinned) {
+        const closeLabel = getPlayerStrings(location.pathname, document.documentElement.lang, navigator.language).close;
+        const close = element('button', '×');
+        close.type = 'button';
+        close.dataset.juniorClose = 'true';
+        close.title = closeLabel;
+        close.setAttribute('aria-label', closeLabel);
+        close.style.cssText = 'padding:2px 7px;border:1px solid #64748b;border-radius:4px;background:transparent;color:#f8fafc;font:700 18px system-ui;cursor:pointer';
+        close.addEventListener('click', dismissCard);
+        headerActions.appendChild(close);
+    }
     header.append(heading, headerActions);
     card.setAttribute('aria-label', name);
 
@@ -212,6 +234,7 @@ function render(record: JuniorRecord | null, syncState: ReturnType<typeof getJun
         const focusInside = card.contains(focusedElement);
         const focusList = focusedElement?.tagName === 'OL';
         const focusSummary = focusedElement?.tagName === 'SUMMARY';
+        const focusClose = (focusedElement as HTMLElement | null)?.dataset?.juniorClose === 'true';
         const details = element('details');
         details.open = wasOpen;
         details.style.cssText = 'margin-top:8px';
@@ -236,14 +259,16 @@ function render(record: JuniorRecord | null, syncState: ReturnType<typeof getJun
         if (focusInside) {
             if (focusList && wasOpen) list.focus();
             else if (focusSummary) summary.focus();
+            else if (focusClose) card.querySelector<HTMLElement>('[data-junior-close]')?.focus();
             else card.focus();
         }
         const ctx = canvas.getContext('2d');
         if (ctx) drawJuniorChart(ctx, points, canvas.width, canvas.height, estimate.slope, weeksLeft);
     } else {
         const focusInside = card.contains(document.activeElement);
+        const focusClose = (document.activeElement as HTMLElement | null)?.dataset?.juniorClose === 'true';
         card.replaceChildren(...children);
-        if (focusInside) card.focus();
+        if (focusInside) (focusClose ? card.querySelector<HTMLElement>('[data-junior-close]') ?? card : card).focus();
     }
     positionCard(anchor);
 }
@@ -255,39 +280,57 @@ async function refresh(): Promise<void> {
     try {
         const record = await getJuniorRecord(teamId, juniorId);
         if (token !== renderToken || selected?.teamId !== teamId || selected?.juniorId !== juniorId) return;
+        if (selected?.isCurrent && !selected.isCurrent()) { hideJuniorCard(); return; }
         render(record, getJuniorSyncState(teamId, juniorId));
     } catch {
         if (token !== renderToken || selected?.teamId !== teamId || selected?.juniorId !== juniorId) return;
+        if (selected?.isCurrent && !selected.isCurrent()) { hideJuniorCard(); return; }
         render(null, getJuniorSyncState(teamId, juniorId), true);
+    }
+}
+
+function dismissCard(): void {
+    if (!selected) return;
+    const restore = selected.returnFocus ?? selected.anchor;
+    hideJuniorCard();
+    if (restore.isConnected) {
+        restoringFocus = true;
+        try { restore.focus(); } finally { restoringFocus = false; }
     }
 }
 
 function onKeydown(event: KeyboardEvent): void {
     if (!selected) return;
-    if (event.key === 'ArrowDown' && document.activeElement === selected.anchor) {
+    if (event.key === 'ArrowDown' && (document.activeElement === selected.anchor || document.activeElement === selected.returnFocus)) {
         (card?.querySelector<HTMLElement>('summary') ?? card)?.focus();
         event.preventDefault();
     } else if (event.key === 'Escape') {
-        const anchor = selected.anchor;
-        const focusInside = card?.contains(document.activeElement) ?? false;
-        if (focusInside && anchor.isConnected) anchor.focus();
-        hideJuniorCard();
+        event.preventDefault();
+        dismissCard();
     }
 }
 
 /** Reads only the local junior store. Page entry handles all synchronization. */
-export async function showJuniorCard(anchor: HTMLElement, teamId: number, juniorId: number, name: string, side: CardSide = 'right'): Promise<void> {
+export async function showJuniorCard(anchor: HTMLElement, teamId: number, juniorId: number, name: string, side: CardSide = 'right', options: CardOptions = {}): Promise<void> {
+    if (restoringFocus || (selected?.pinned && !options.pinned)) return;
     cancelScheduledHide();
     if (selected?.anchor === anchor && selected.teamId === teamId && selected.juniorId === juniorId &&
-        selected.side === side && card) return;
+        selected.side === side && card) {
+        if (options.pinned) {
+            setSelectionReferences(selected, false);
+            Object.assign(selected, options);
+            setSelectionReferences(selected, true);
+            render(null, getJuniorSyncState(teamId, juniorId));
+            await refresh();
+        }
+        return;
+    }
     if (selected) {
-        setAnchorReference(selected.anchor, 'aria-controls', cardId, false);
-        setAnchorReference(selected.anchor, 'aria-describedby', hintId, false);
+        setSelectionReferences(selected, false);
     }
     if (!card) card = createCard();
-    selected = { anchor, teamId, juniorId, name, side };
-    setAnchorReference(anchor, 'aria-controls', cardId, true);
-    setAnchorReference(anchor, 'aria-describedby', hintId, true);
+    selected = { anchor, teamId, juniorId, name, side, ...options };
+    setSelectionReferences(selected, true);
     pointerInCard = false;
     unsubscribe?.();
     unsubscribe = subscribeJuniorUpdates((updatedTeam, updatedJunior) => {
@@ -302,6 +345,7 @@ export async function showJuniorCard(anchor: HTMLElement, teamId: number, junior
 /** Use on name mouseout/focusout; entering the card or keeping name focus cancels closure. */
 export function scheduleJuniorCardHide(): void {
     cancelScheduledHide();
+    if (selected?.pinned) return;
     hideTimer = setTimeout(() => {
         hideTimer = null;
         if (!selected || pointerInCard || selected.anchor === document.activeElement ||
@@ -315,8 +359,7 @@ export function hideJuniorCard(): void {
     cancelScheduledHide();
     ++renderToken;
     if (selected) {
-        setAnchorReference(selected.anchor, 'aria-controls', cardId, false);
-        setAnchorReference(selected.anchor, 'aria-describedby', hintId, false);
+        setSelectionReferences(selected, false);
     }
     unsubscribe?.();
     unsubscribe = null;

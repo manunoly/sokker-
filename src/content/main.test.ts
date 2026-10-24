@@ -4,7 +4,9 @@ const mocks = vi.hoisted(() => ({
     syncData: vi.fn(), reconcileGaps: vi.fn(), migrateCurrentOrigin: vi.fn(), ensureStorageReady: vi.fn(), getLastSyncWeek: vi.fn(), subscribeStorageChanges: vi.fn(),
     fetchTodayInfo: vi.fn(), invalidateJuniorSync: vi.fn(), cancelQueuedJuniorSync: vi.fn(), hideJuniorCard: vi.fn(), hideTooltip: vi.fn(), leavePlayerBindings: vi.fn(),
     scanJuniorPage: vi.fn(), handleJuniorPage: vi.fn(), leaveJuniorPage: vi.fn(), scanTrainingPlayerPage: vi.fn(), handleTrainingPlayerPage: vi.fn(), leaveTrainingPlayerPage: vi.fn(),
+    initHistoryButtonPreferences: vi.fn(),
 }));
+vi.mock('../core/historyButtonPreferences', () => ({ initHistoryButtonPreferences: mocks.initHistoryButtonPreferences }));
 vi.mock('./observer', () => ({ initObserver: mocks.initObserver, refreshObserver: mocks.refreshObserver }));
 vi.mock('./ui', () => ({ processSquadTable: mocks.processSquadTable, processPlayerPage: mocks.processPlayerPage, processBetaPlayers: mocks.processBetaPlayers, invalidatePlayerCache: mocks.invalidatePlayerCache }));
 vi.mock('../core/gapDetector', () => ({ reconcileGaps: mocks.reconcileGaps }));
@@ -29,12 +31,26 @@ beforeEach(() => {
     mocks.invalidateJuniorSync.mockResolvedValue(undefined);
     mocks.syncData.mockResolvedValue({ status: 'synced' });
     mocks.reconcileGaps.mockResolvedValue({ gapsFilled: 0 });
+    mocks.initHistoryButtonPreferences.mockResolvedValue(undefined);
 });
 afterEach(() => vi.unstubAllGlobals());
 
 async function load(): Promise<any[]> { await import('./main'); return mocks.initObserver.mock.calls[0]; }
 
 describe('shared history bootstrap', () => {
+    it('initializes preferences independently and still synchronizes when preferences fail', async () => {
+        mocks.initHistoryButtonPreferences.mockRejectedValue(new Error('Preference read failed'));
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+            const callbacks = await load();
+            callbacks[5]({ kind: 'squad', layout: 'beta', pathname: '/squad', teamId: null });
+            await vi.waitFor(() => expect(mocks.syncData).toHaveBeenCalledOnce());
+            expect(mocks.initHistoryButtonPreferences).toHaveBeenCalledOnce();
+            expect(warn).toHaveBeenCalledWith('Sokker++ page operation failed:', expect.objectContaining({ message: 'Preference read failed' }));
+            expect(document.getElementById('sokkerpp-storage-status')).toBeNull();
+        } finally { warn.mockRestore(); }
+    });
+
     it('waits for migration before auto-sync or page reads', async () => {
         let finish!: () => void; mocks.migrateCurrentOrigin.mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
         const callbacks = await load();

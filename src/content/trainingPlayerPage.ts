@@ -1,3 +1,5 @@
+import { createHistoryButton, updateHistoryButton } from './historyButton';
+import { getPlayerStrings } from './playerLocale';
 import { contextFromPath, resolvePageContext, type PageContext } from './pageContext';
 import { hideTooltip, scheduleHide, showHistoryTooltip } from './tooltip';
 
@@ -9,6 +11,8 @@ export interface TrainingPlayerView {
 const playerIds = new WeakMap<HTMLElement, number>();
 const boundNames = new WeakSet<HTMLElement>();
 let active: TrainingPlayerView | null = null;
+const controls = new Map<HTMLElement, { id: number; button: HTMLButtonElement }>();
+let presentation = 0;
 
 function positiveId(value: string): number | null {
     if (!/^[1-9]\d*$/.test(value)) return null;
@@ -18,7 +22,12 @@ function positiveId(value: string): number | null {
 
 function playerIdFromLink(link: HTMLAnchorElement): number | null {
     let context: PageContext | null;
-    try { context = resolvePageContext(new URL(link.getAttribute('href') ?? '', 'https://sokker.org')); }
+    try {
+        const url = new URL(link.getAttribute('href') ?? '', 'https://sokker.org');
+        const development = /^\/player\/([1-9]\d*)\/development\/?$/.exec(url.pathname);
+        if (development) url.pathname = `/player/${development[1]}`;
+        context = resolvePageContext(url);
+    }
     catch { return null; }
     return context?.kind === 'player' ? context.playerId : null;
 }
@@ -70,32 +79,32 @@ export function scanTrainingPlayerPage(page: PageContext | string | null, root: 
 
 function selectedId(name: HTMLElement): number | null {
     const id = playerIds.get(name);
+    if (name instanceof HTMLAnchorElement && playerIdFromLink(name) !== id) return null;
     const row = name.closest<HTMLElement>('tr[data-row-id]');
     if (row && positiveId(row.dataset.rowId ?? '') !== id) return null;
     return id !== undefined && name.isConnected && active?.pathname === window.location.pathname && active.names.get(id) === name
         ? id : null;
 }
 
+function presentName(name: HTMLElement, trigger: HTMLElement, pinned = false, event?: MouseEvent): void {
+    const id = selectedId(name);
+    if (id === null) return;
+    const token = ++presentation;
+    const rect = trigger.getBoundingClientRect();
+    const opening = pinned
+        ? showHistoryTooltip(rect.right, rect.top, id, trigger, { pinned: true })
+        : showHistoryTooltip(event?.pageX ?? rect.right, event?.pageY ?? rect.top, id, trigger);
+    void opening.then(() => {
+        if (token === presentation && selectedId(name) !== id) hideTooltip();
+    }).catch(error => console.warn('Could not show saved player history:', error));
+}
+
 function bindName(name: HTMLElement): void {
     if (boundNames.has(name)) return;
     boundNames.add(name);
     if (name.tabIndex < 0) name.tabIndex = 0;
-
-    name.addEventListener('mouseenter', (event) => {
-        const id = selectedId(name);
-        if (id === null) return;
-        void showHistoryTooltip(event.pageX, event.pageY, id, name).catch((error) => {
-            console.warn('Could not show saved player history:', error);
-        });
-    });
-    name.addEventListener('focus', () => {
-        const id = selectedId(name);
-        if (id === null) return;
-        const rect = name.getBoundingClientRect();
-        void showHistoryTooltip(rect.right, rect.top, id, name).catch((error) => {
-            console.warn('Could not show saved player history:', error);
-        });
-    });
+    name.addEventListener('mouseenter', event => presentName(name, name, false, event));
+    name.addEventListener('focus', () => presentName(name, name));
     name.addEventListener('mouseleave', () => { if (selectedId(name) !== null) scheduleHide(); });
     name.addEventListener('blur', () => { if (selectedId(name) !== null) scheduleHide(); });
 }
@@ -103,15 +112,35 @@ function bindName(name: HTMLElement): void {
 /** Called on SPA renders; replaced names receive listeners without duplicate bindings. */
 export function handleTrainingPlayerPage(view: TrainingPlayerView): void {
     if (view.pathname !== window.location.pathname) return;
-    if (active?.pathname !== view.pathname) hideTooltip();
+    if (active?.pathname !== view.pathname) leaveTrainingPlayerPage();
+    for (const [name, control] of controls) {
+        if (!name.isConnected || view.names.get(control.id) !== name) {
+            control.button.remove();
+            controls.delete(name);
+            ++presentation;
+            hideTooltip();
+        }
+    }
     active = view;
+    const strings = getPlayerStrings(location.pathname, document.documentElement.lang, navigator.language);
     for (const [id, name] of view.names) {
         playerIds.set(name, id);
         bindName(name);
+        let control = controls.get(name);
+        if (!control?.button.isConnected) {
+            const button = createHistoryButton(name, trigger => presentName(name, trigger, true));
+            if (!button) continue;
+            control = { id, button };
+            controls.set(name, control);
+        }
+        updateHistoryButton(control.button, 'name', `${strings.history}: ${name.textContent?.trim() ?? ''}`);
     }
 }
 
 export function leaveTrainingPlayerPage(): void {
+    ++presentation;
+    for (const { button } of controls.values()) button.remove();
+    controls.clear();
     if (!active) return;
     active = null;
     hideTooltip();

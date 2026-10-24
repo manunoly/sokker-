@@ -6,6 +6,10 @@ La tarjeta aparece al pasar el cursor o enfocar el nombre de un juvenil en el de
 
 La cantera beta `/juniors/{teamId}` y el informe beta `/training/reports/details/{id}` usan el mismo coordinador semanal y la misma gráfica. La cantera sigue exigiendo que sea tu equipo. Las rutas se reconocen con independencia del subdominio. Se conservan las acciones nativas de los nombres beta. El [registro de verificación](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) detalla el alcance probado.
 
+Un control `+` con borde discreto junto al nombre abre y fija la tarjeta juvenil en las páginas clásicas y beta admitidas. La tarjeta fijada permanece abierta al retirar el cursor; se cierra con su botón visible o Escape. Los controles respetan la misma comprobación de equipo propio y las acciones nativas de los nombres.
+
+La opción del popup **Mostrar botones + de historial**, activada por defecto, también controla estos accesos. Se guarda por instalación y perfil y se comparte entre los hosts admitidos. Ocultarlos conserva el hover y el foco existentes; la preferencia no modifica el historial ni las copias JSON.
+
 La [galería de capturas](SCREENSHOTS.md#junior-talent-card) muestra la tarjeta y el PNG exportado.
 
 ## Datos y sincronización semanal
