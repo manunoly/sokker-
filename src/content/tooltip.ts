@@ -1,4 +1,4 @@
-import { getPlayerHistory } from '../core/repository';
+import { getPlayerHistory } from '../core/storageClient';
 import { computeSkillProgress } from '../core/talent';
 import { PLAYER_SKILL_COLUMNS, preparePlayerTimeline, type PlayerSkill } from '../core/playerTimeline';
 import { createPlayerSkillContent, createPlayerSummaryContent } from './playerCard';
@@ -24,23 +24,35 @@ let outsideClickHandler: ((event: MouseEvent) => void) | null = null;
 let keyHandlerBound = false;
 let suppressFocusAnchor: HTMLElement | null = null;
 const keyboardAnchors = new WeakSet<HTMLElement>();
+let annotatedAnchor: { anchor: HTMLElement; added: Map<string, string>; native: boolean } | null = null;
 
 function currentStrings() {
     return getPlayerStrings(location.pathname, document.documentElement.lang, navigator.language);
 }
 
 function clearAnchor(): void {
-    if (!selection?.anchor) return;
-    selection.anchor.removeAttribute('aria-expanded');
-    selection.anchor.removeAttribute('aria-controls');
-    selection.anchor.removeAttribute('aria-keyshortcuts');
+    if (!annotatedAnchor) return;
+    for (const [attribute, value] of annotatedAnchor.added) {
+        if (annotatedAnchor.anchor.getAttribute(attribute) === value) annotatedAnchor.anchor.removeAttribute(attribute);
+    }
+    annotatedAnchor = null;
+}
+
+function annotateAnchor(anchor: HTMLElement): void {
+    const native = (anchor.matches('button, input, select, textarea, summary') && !anchor.hasAttribute('data-sokkerpp-owned'))
+        || anchor.hasAttribute('aria-haspopup') || anchor.hasAttribute('aria-expanded') || anchor.hasAttribute('aria-controls');
+    annotatedAnchor = { anchor, added: new Map(), native };
+    if (native) return;
+    for (const [attribute, value] of [['aria-expanded', 'true'], ['aria-controls', cardId], ['aria-keyshortcuts', 'ArrowDown']]) {
+        if (!anchor.hasAttribute(attribute)) { anchor.setAttribute(attribute, value); annotatedAnchor.added.set(attribute, value); }
+    }
 }
 
 function bindAnchorKeyboard(anchor: HTMLElement): void {
     if (keyboardAnchors.has(anchor)) return;
     keyboardAnchors.add(anchor);
     anchor.addEventListener('keydown', (event) => {
-        if (event.key !== 'ArrowDown' || selection?.anchor !== anchor || card?.style.display !== 'block') return;
+        if (event.key !== 'ArrowDown' || selection?.anchor !== anchor || card?.style.display !== 'block' || annotatedAnchor?.native) return;
         event.preventDefault();
         card.focus();
     });
@@ -169,9 +181,7 @@ async function showCard(next: Selection, pin = false): Promise<void> {
     cancelHide();
     clearAnchor();
     selection = next;
-    next.anchor?.setAttribute('aria-expanded', 'true');
-    next.anchor?.setAttribute('aria-controls', cardId);
-    next.anchor?.setAttribute('aria-keyshortcuts', 'ArrowDown');
+    if (next.anchor) annotateAnchor(next.anchor);
     if (next.anchor) bindAnchorKeyboard(next.anchor);
     setPinned(pin);
     if (!card || !content) return;

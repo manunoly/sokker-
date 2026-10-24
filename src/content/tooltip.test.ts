@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getPlayerHistory } from '../core/repository';
+import { getPlayerHistory } from '../core/storageClient';
 import type { PlayerData, PlayerHistoryEntry } from '../types/index';
 import { hideTooltip, openZoomChart, scheduleHide, showHistoryTooltip, showTooltip } from './tooltip';
 
-vi.mock('../core/repository', () => ({ getPlayerHistory: vi.fn() }));
+vi.mock('../core/storageClient', () => ({ getPlayerHistory: vi.fn() }));
 vi.mock('../ui-components/playerSkillCanvas', () => ({ drawPlayerSkillChart: vi.fn(), PLAYER_SKILL_CHART_WIDTH: 680, PLAYER_SKILL_CHART_HEIGHT: 400 }));
 
 const skills = { stamina: 7, pace: 10, technique: 8, passing: 9, keeper: 0, defending: 6, playmaking: 11, striker: 5, form: 10, teamwork: 8, tacticalDiscipline: 5, experience: 4 };
@@ -55,6 +55,18 @@ describe('first-team hover integration', () => {
         expect(card.querySelector('table')).not.toBeNull();
         expect(card.style.width).toBe('640px');
         expect(card.firstElementChild?.getAttribute('style')).toContain('height: 100%');
+    });
+
+    it('preserves native button accessibility and ArrowDown behavior during hover and close', async () => {
+        const trigger=document.createElement('button');trigger.setAttribute('aria-expanded','false');
+        trigger.setAttribute('aria-controls','native-menu');trigger.setAttribute('aria-keyshortcuts','ArrowDown');
+        document.body.appendChild(trigger);const native=vi.fn();trigger.addEventListener('keydown',native);
+        await showTooltip(130,110,7,'pace',trigger);
+        const event=new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true});trigger.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);expect(native).toHaveBeenCalledOnce();
+        expect(trigger.getAttribute('aria-expanded')).toBe('false');expect(trigger.getAttribute('aria-controls')).toBe('native-menu');
+        hideTooltip();expect(trigger.getAttribute('aria-expanded')).toBe('false');expect(trigger.getAttribute('aria-controls')).toBe('native-menu');
+        expect(trigger.getAttribute('aria-keyshortcuts')).toBe('ArrowDown');
     });
 
     it('ignores a stale IndexedDB result after selecting another skill', async () => {

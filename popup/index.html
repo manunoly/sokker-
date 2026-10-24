@@ -66,7 +66,17 @@
     <h1>Sokker++</h1>
 
     <div class="card">
-        <div class="status" id="status">Sync Status: Checking...</div>
+        <label for="historyButtonsVisible">
+            <input type="checkbox" id="historyButtonsVisible" checked disabled aria-describedby="historyButtonsHint historyButtonsError">
+            <span id="historyButtonsLabel">Show + history buttons</span>
+        </label>
+        <p id="historyButtonsHint" style="font-size:12px;">Applies to all Sokker pages in this browser profile.</p>
+        <p id="historyButtonsError" role="alert" hidden style="font-size:12px;color:#a31621;"></p>
+    </div>
+
+    <div class="card">
+        <div class="status" id="status" role="status">Checking shared history...</div>
+        <p id="recovery" hidden style="font-size:12px;">To recover previous history, open a classic page on sokker.org.</p>
         <button id="syncBtn" class="btn">Sync Data Now</button>
         <button id="repairBtn" class="btn btn-secondary">Repair History</button>
     </div>
@@ -82,7 +92,7 @@
     </div>
 
     <div style="font-size: 10px; color: #999; text-align: center; margin-top: 10px;">
-        Data is stored only in this browser ·
+        Shared history is stored in this browser profile ·
         <a href="https://github.com/manunoly/sokker-/blob/main/PRIVACY.md" target="_blank" rel="noopener"
             style="color: inherit;">Privacy</a>
     </div>

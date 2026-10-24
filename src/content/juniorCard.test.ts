@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JuniorRecord } from '../core/juniorTypes';
-import { getJuniorRecord } from '../core/juniorRepository';
+import { getJuniorRecord } from '../core/storageClient';
 import { getJuniorSyncState, subscribeJuniorUpdates } from '../core/juniorSync';
 import { drawJuniorChart } from '../ui-components/juniorCanvas';
 import { createJuniorExportCanvas } from '../ui-components/juniorExport';
 import { hideJuniorCard, scheduleJuniorCardHide, showJuniorCard } from './juniorCard';
 
-vi.mock('../core/juniorRepository', () => ({ getJuniorRecord: vi.fn() }));
+vi.mock('../core/storageClient', () => ({ getJuniorRecord: vi.fn() }));
 vi.mock('../core/juniorSync', () => ({
     getJuniorSyncState: vi.fn(), subscribeJuniorUpdates: vi.fn(() => () => undefined)
 }));
@@ -342,4 +342,67 @@ describe('junior hover card', () => {
         expect(document.activeElement).toBe(trigger);
         expect(trigger.hasAttribute('aria-controls')).toBe(false);
     });
+});
+
+
+it('keeps a pinned junior open on mouseout and closes visibly with focus restored to +', async () => {
+    vi.useFakeTimers();
+    const trigger = anchor('Junior');
+    const control = document.createElement('button'); document.body.appendChild(control);
+    await showJuniorCard(trigger, 1, 2, 'Junior', 'right', { pinned: true, returnFocus: control });
+    scheduleJuniorCardHide(); vi.advanceTimersByTime(300);
+    expect(document.querySelector('#sokkerpp-junior-card')).not.toBeNull();
+    const close = document.querySelector<HTMLButtonElement>('[data-junior-close]')!;
+    expect(close.getAttribute('aria-label')).toBe('Cerrar');
+    close.focus(); close.click();
+    expect(document.querySelector('#sokkerpp-junior-card')).toBeNull();
+    expect(document.activeElement).toBe(control);
+});
+
+it('promotes an existing hover to pinned and ignores later hover until Escape closes it', async () => {
+    vi.useFakeTimers();
+    const trigger = anchor('Junior');
+    await showJuniorCard(trigger, 1, 2, 'Junior');
+    await showJuniorCard(trigger, 1, 2, 'Junior', 'right', { pinned: true });
+    await showJuniorCard(anchor('Other'), 1, 3, 'Other');
+    expect(cardText()).toContain('Junior');
+    expect(cardText()).not.toContain('Other');
+    scheduleJuniorCardHide(); vi.advanceTimersByTime(300);
+    expect(document.querySelector('[data-junior-close]')).not.toBeNull();
+    trigger.addEventListener('focus', () => { void showJuniorCard(trigger, 1, 2, 'Junior'); });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.querySelector('#sokkerpp-junior-card')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+});
+
+it('discards a pinned local read after its row identity becomes obsolete', async () => {
+    let resolve!: (record: JuniorRecord) => void;
+    vi.mocked(getJuniorRecord).mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    const trigger = anchor('Junior');
+    let valid = true;
+    const pending = showJuniorCard(trigger, 1, 2, 'Junior', 'right', { pinned: true, isCurrent: () => valid });
+    valid = false; resolve(sample()); await pending;
+    expect(document.querySelector('#sokkerpp-junior-card')).toBeNull();
+});
+
+
+it('lets the pinned + trigger enter the junior card with ArrowDown and cleans its ARIA on close', async () => {
+    const trigger = anchor('Junior');
+    trigger.setAttribute('aria-describedby', 'native-hint');
+    const control = document.createElement('button');
+    control.textContent = '+';
+    document.body.appendChild(control);
+    control.focus();
+    await showJuniorCard(trigger, 1, 2, 'Junior', 'right', { pinned: true, returnFocus: control });
+    expect(control.getAttribute('aria-controls')).toBe('sokkerpp-junior-card');
+    expect(control.getAttribute('aria-describedby')).toBe('sokkerpp-junior-card-hint');
+    expect(control.getAttribute('aria-keyshortcuts')).toBe('ArrowDown');
+    control.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    expect(document.activeElement).toBe(document.querySelector('#sokkerpp-junior-card summary'));
+    document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.activeElement).toBe(control);
+    expect(control.hasAttribute('aria-controls')).toBe(false);
+    expect(control.hasAttribute('aria-describedby')).toBe(false);
+    expect(control.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(trigger.getAttribute('aria-describedby')).toBe('native-hint');
 });
