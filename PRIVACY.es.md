@@ -6,7 +6,7 @@
 
 9 de octubre de 2026
 
-Última actualización: 16 de octubre de 2026.
+Última actualización: 23 de octubre de 2026.
 
 ## Datos a los que accede la extensión
 
@@ -21,11 +21,13 @@ Sokker++ accede y guarda los datos del juego necesarios para mostrar cambios de 
 
 ## Cómo se accede a los datos
 
-En páginas de `https://sokker.org`, Sokker++ realiza solicitudes del mismo origen a `/api/current`, `/api/training?filter[week]=N` y `/api/player?filter[team]=ID` usando la sesión existente del usuario en Sokker. En páginas juveniles admitidas también solicita `/api/junior?filter[limit]=100` y `/api/junior/{id}/graph`. No solicita ni guarda las credenciales de inicio de sesión.
+En páginas admitidas de `https://sokker.org` y sus subdominios, Sokker++ realiza solicitudes GET fijas desde el worker de la extensión a `https://sokker.org/api/current`, `/api/training?filter[week]=N` y `/api/player?filter[team]=ID` usando la sesión existente del usuario en Sokker. En páginas juveniles admitidas también solicita `/api/junior?filter[limit]=100` y `/api/junior/{id}/graph`. La API canónica permanece en `sokker.org` aunque la página esté en un subdominio. La extensión no lee, copia ni guarda manualmente credenciales ni cookies.
 
 ## Dónde se almacenan
 
-La extensión guarda el historial del primer equipo, el historial juvenil y los metadatos de sincronización en IndexedDB del navegador, en la base `SokkerTalentTrackerDB`, en el dispositivo del usuario. Como la base la crea el content script de la extensión, el navegador la guarda en el almacenamiento del sitio `https://sokker.org`. No mantiene un servidor propio ni una copia en la nube. Una copia JSON exportada por el usuario puede contener ambos historiales y debe almacenarse y compartirse con ese cuidado.
+La extensión guarda el historial del primer equipo, el historial juvenil y los metadatos de sincronización en IndexedDB local a la extensión, en la base `SokkerPlusPlusDB`, en el dispositivo del usuario. Esta base se comparte entre las páginas admitidas de Sokker de la misma instalación de la extensión y perfil. No se comparte entre perfiles, instalaciones o dispositivos. No se mantiene un servidor propio ni una copia en la nube.
+
+Al recuperar una antigua `SokkerTalentTrackerDB` del almacenamiento del sitio Sokker, la extensión lee y copia todos sus stores, claves, valores y metadatos accesibles del esquema en un archivo de recuperación verificado, incluidos los campos que no puede usar en las gráficas. Conserva los conflictos de migración y un destino anterior recuperable. No modifica ni borra la base fuente. Una copia JSON puede contener ambos historiales, archivos íntegros de recuperación y conflictos, y debe almacenarse y compartirse con ese cuidado.
 
 ## Compartición
 
@@ -37,7 +39,9 @@ La sincronización del primer equipo se intenta automáticamente al cargar una p
 
 ## Controles del usuario y conservación
 
-La ventana emergente ofrece Sincronizar ahora, Reparar historial, Exportar copia JSON, Importar copia JSON y Borrar todos los datos. Los datos permanecen en IndexedDB local hasta que los borres. Usa **Borrar todos los datos** en la ventana emergente antes de desinstalar, o borra los datos del sitio `sokker.org` en la configuración del navegador; desinstalar la extensión por sí solo no elimina esta base.
+La ventana emergente ofrece Sincronizar ahora, Reparar historial, Exportar copia JSON, Importar copia JSON y Borrar todos los datos. Exportar, importar y borrar funcionan sin una pestaña Sokker abierta; sincronizar y reparar necesitan una página Sokker con sesión. Exporta una copia antes de cambiar o desinstalar la extensión.
+
+**Borrar todos los datos** elimina el historial común, los conflictos y las copias internas de recuperación tras la confirmación. Solo conserva marcadores mínimos de control para impedir la reimportación automática de las bases antiguas del sitio. No borra la base antigua ni una copia independiente guardada en un archivo. Para eliminar también la fuente conservada, utiliza los controles de datos del sitio del navegador para el origen Sokker correspondiente. Después de borrar sigue siendo posible importar explícitamente una copia elegida por el usuario.
 
 ## Uso limitado
 

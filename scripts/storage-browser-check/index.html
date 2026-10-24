@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Sokker++ native IndexedDB storage checks</title>
+        <style>
+            body {
+                max-width: 1040px;
+                margin: 32px auto;
+                padding: 0 20px;
+                color: #16324f;
+                background: #f4f7f9;
+                font: 16px/1.5 system-ui;
+            }
+            button {
+                padding: 12px 20px;
+                background: #143e61;
+                color: white;
+                border: 0;
+                border-radius: 5px;
+                font: inherit;
+                cursor: pointer;
+            }
+            button:disabled {
+                opacity: 0.6;
+            }
+            li {
+                margin: 10px 0;
+                padding: 8px;
+                background: white;
+                border-left: 4px solid #64748b;
+            }
+            .passed {
+                border-color: #16803c;
+            }
+            .failed {
+                border-color: #b91c1c;
+            }
+            pre {
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+                font: 12px/1.5 monospace;
+                background: #fff;
+                padding: 16px;
+            }
+            small {
+                color: #526476;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Native IndexedDB storage checks</h1>
+        <p>
+            Only synthetic databases in this isolated loopback origin. The
+            actual storage, publication, archive codec and transfer modules run
+            here. No Sokker session or API is used.
+        </p>
+        <p>
+            <strong>This is not a loaded Chrome extension.</strong> Service
+            restart means replacing service instances against the same native
+            IndexedDB. Runtime messaging and browser shutdown are outside this
+            harness.
+        </p>
+        <p>
+            The large check generates and imports/exports more than 64 MiB in
+            memory. It can take a few minutes. Unknown existing databases block
+            the entire run.
+        </p>
+        <button id="run">Run storage checks</button>
+        <p id="status" role="status">Ready. No database has been opened.</p>
+        <ol id="checks"></ol>
+        <details open>
+            <summary>Evidence (synthetic inventory and digests only)</summary>
+            <pre id="evidence">No run yet.</pre>
+        </details>
+        <script type="module" src="./main.ts"></script>
+    </body>
+</html>

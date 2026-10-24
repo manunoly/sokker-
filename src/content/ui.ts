@@ -1,673 +1,178 @@
-import { getPlayerHistory } from '../core/repository';
-import { fetchTodayInfo } from '../core/api';
-import { showTooltip, scheduleHide, openZoomChart, showHistoryTooltip } from './tooltip';
-import { PlayerData, Skills } from '../types/index';
+import { getPlayerHistory } from '../core/storageClient';
+import { fetchTodayInfo } from '../core/apiClient';
+import type { Skills } from '../types/index';
+import { PLAYER_SKILL_COLUMNS, type PlayerSkill } from '../core/playerTimeline';
 import { mapSkillLabelToKey } from './i18n';
+import { contextFromPath, resolvePageContext, type PageContext } from './pageContext';
+import { scanBetaPlayers } from './betaPlayerPage';
+import { bindPlayerAnchors, isPlayerAnchorActive, type PlayerAnchors } from './playerBindings';
 
-// Inject CSS for skill arrows
-const style = document.createElement('style');
-style.textContent = `
-    .skill-arrow {
-        display: inline-block;
-        margin-left: 4px;
-        font-size: 10px;
-        vertical-align: middle;
-        font-weight: bold;
+const skills = new Set<string>(PLAYER_SKILL_COLUMNS.flat());
+let renderGeneration = 0;
+const highlighted = new Map<HTMLElement, { color: string; weight: string; title: string }>();
+function clearHighlights(): void {
+    for (const [value, original] of highlighted) {
+        value.style.color = original.color;
+        value.style.fontWeight = original.weight;
+        value.title = original.title;
     }
-    .skill-arrow-up {
-        color: #28a745; /* Green */
-    }
-    .skill-arrow-up::after {
-        content: '\\25B2'; /* Unicode Triangle Up */
-    }
-    .skill-arrow-down {
-        color: #dc3545; /* Red */
-    }
-    .skill-arrow-down::after {
-        content: '\\25BC'; /* Unicode Triangle Down */
-    }
-`;
-document.head.appendChild(style);
+    highlighted.clear();
+}
+interface HistoryEntryWithSkills { skills: Skills }
 
-interface HistoryEntryWithSkills {
-    skills: Skills;
+function selectComparisonEntries<T extends HistoryEntryWithSkills>(history: T[], usePreviousWeek: boolean): { targetCurrent: T | null; targetPrevious: T | null } {
+    if (!history.length) return { targetCurrent: null, targetPrevious: null };
+    if (usePreviousWeek && history.length >= 2) {
+        return { targetCurrent: history.at(-2)!, targetPrevious: history.at(-3) ?? null };
+    }
+    return { targetCurrent: history.at(-1)!, targetPrevious: usePreviousWeek ? null : history.at(-2) ?? null };
 }
 
-function selectComparisonEntries<T extends HistoryEntryWithSkills>(history: T[], usePreviousWeek: boolean): { targetCurrent: T | null, targetPrevious: T | null } {
-    if (history.length === 0) {
-        return { targetCurrent: null, targetPrevious: null };
-    }
+function legacyPlayerLink(link: HTMLAnchorElement): number | null {
+    let context: PageContext | null;
+    try { context = resolvePageContext(new URL(link.getAttribute('href') ?? '', 'https://sokker.org')); }
+    catch { return null; }
+    return context?.kind === 'player' && context.layout === 'legacy' ? context.playerId : null;
+}
 
-    if (usePreviousWeek) {
-        // Pre-training period: show last completed jump (X-1 vs X-2).
-        if (history.length >= 2) {
-            return {
-                targetCurrent: history[history.length - 2],
-                targetPrevious: history.length >= 3 ? history[history.length - 3] : null
-            };
+function legacyNames(root: HTMLElement): Array<{ playerId: number; name: HTMLAnchorElement }> {
+    return [...root.querySelectorAll<HTMLAnchorElement>('a[href*="/player/"]')]
+        .map(name => ({ name, playerId: legacyPlayerLink(name) }))
+        .filter((item): item is { playerId: number; name: HTMLAnchorElement } => item.playerId !== null);
+}
+
+function legacyLabel(element: HTMLElement): PlayerSkill | null {
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('[data-sokkerpp-owned], .skill-arrow').forEach(node => node.remove());
+    const key = mapSkillLabelToKey(clone.textContent?.trim() ?? '');
+    return key && skills.has(key) ? key as PlayerSkill : null;
+}
+
+function markLegacy(players: PlayerAnchors[]): void {
+    for (const player of players) {
+        for (const name of player.names) name.dataset.sokkerppLayout = 'legacy';
+        for (const { anchor } of player.skills) anchor.dataset.sokkerppLayout = 'legacy';
+    }
+}
+
+function showChange(anchor: HTMLElement, skill: PlayerSkill, current?: Skills, previous?: Skills | null): void {
+    let arrow = anchor.querySelector<HTMLElement>('[data-sokkerpp-owned="change"]');
+    const curr = current?.[skill];
+    const prev = previous?.[skill];
+    const changed = typeof curr === 'number' && typeof prev === 'number' && curr !== prev;
+    const value = anchor.dataset.sokkerppValue === 'true' ? anchor : anchor.querySelector<HTMLElement>('.skillNameNumber');
+    if (value && changed) {
+        highlighted.set(value, { color: value.style.color, weight: value.style.fontWeight, title: value.title });
+        value.style.color = curr > prev ? '#28a745' : '#dc3545';
+        value.style.fontWeight = 'bold';
+        value.title = `Previous: ${prev}`;
+    }
+    if (anchor.dataset.sokkerppValue === 'true') { arrow?.remove(); return; }
+    if (typeof curr !== 'number' || typeof prev !== 'number' || curr === prev) { arrow?.remove(); return; }
+    if (!arrow) {
+        arrow = document.createElement('span');
+        arrow.dataset.sokkerppOwned = 'change';
+        arrow.className = 'skill-arrow';
+        arrow.style.cssText = 'display:inline-block;margin-inline-start:4px;font-size:10px;font-weight:bold;vertical-align:middle';
+        // The indicator has its own slot, outside the native bar's children.
+        anchor.appendChild(arrow);
+    }
+    const glyph = curr > prev ? '▲' : '▼';
+    if (arrow.textContent !== glyph) arrow.textContent = glyph;
+    arrow.style.color = curr > prev ? '#28a745' : '#dc3545';
+    arrow.title = `Previous: ${prev}`;
+}
+
+async function renderPlayers(players: PlayerAnchors[], pathname: string): Promise<void> {
+    const generation = ++renderGeneration;
+    clearHighlights();
+    bindPlayerAnchors(players);
+    if (!players.length) return;
+    let today;
+    try { today = await fetchTodayInfo(); }
+    catch (error) { console.warn('Could not read current comparison week:', error); }
+    if (generation !== renderGeneration || location.pathname !== pathname) return;
+    const usePreviousWeek = !!today && today.day < 5;
+    // Share each read across every table/card anchor for this player in the scan.
+    const reads = new Map<number, ReturnType<typeof getPlayerHistory>>();
+    for (const player of players) if (!reads.has(player.playerId)) reads.set(player.playerId, getPlayerHistory(player.playerId));
+    await Promise.all(players.map(async player => {
+        const saved = await reads.get(player.playerId)!;
+        if (generation !== renderGeneration || location.pathname !== pathname) return;
+        const { targetCurrent, targetPrevious } = selectComparisonEntries(saved?.history ?? [], usePreviousWeek);
+        for (const { key, anchor } of player.skills) {
+            if (isPlayerAnchorActive(anchor, player.playerId)) showChange(anchor, key, targetCurrent?.skills, targetPrevious?.skills);
         }
-        return { targetCurrent: history[history.length - 1], targetPrevious: null };
-    }
-
-    // Post-training period: show current jump (X vs X-1).
-    return {
-        targetCurrent: history[history.length - 1],
-        targetPrevious: history.length >= 2 ? history[history.length - 2] : null
-    };
+    }));
 }
 
-/**
- * Processes the Squad View (Cards layout) to inject analytics.
- * @param {HTMLElement} container 
- */
+/** Legacy cards continue to use their semantic labels and existing weekly comparison. */
 export async function processSquadTable(container: HTMLElement): Promise<void> {
-    // console.log('Processing Squad View...');
-
-    // Find all player cards
-    const playerBoxes = container.querySelectorAll('.player-box, .player-box--sm');
-    // console.log(`[Sokker++] Found ${playerBoxes.length} player boxes.`);
-
-    // Get current time info to decide which weeks to compare
-    let todayInfo;
-    try {
-        todayInfo = await fetchTodayInfo();
-    } catch (e) {
-        console.error('[Sokker++] Failed to fetch today info, defaulting to standard comparison', e);
-    }
-
-    // Rule: If day < 5 (Sun-Thu), training hasn't happened for the current week yet.
-    // So currentData (Week X) is identical to Week X-1. 
-    // We should show the change from the PREVIOUS training: Week X-1 vs Week X-2.
-    const usePreviousWeek = todayInfo && todayInfo.day < 5;
-    // console.log(`[Sokker++] Day: ${todayInfo?.day}, Using previous week for comparison: ${usePreviousWeek}`);
-
-    for (const box of playerBoxes) {
-        const playerId = extractPlayerId(box as HTMLElement);
-        if (!playerId) {
-            console.warn('[Sokker++] Could not extract player ID from box', box);
-            continue;
-        }
-
-        // Fetch history
-        const historyData = await getPlayerHistory(playerId);
-        const history = historyData?.history || [];
-
-        if (history.length === 0) continue;
-
-        const { targetCurrent, targetPrevious } = selectComparisonEntries(history, !!usePreviousWeek);
-
-        if (targetCurrent && targetCurrent.skills) {
-            // Highlight changes and attach tooltips
-            // Note: We are passing targetCurrent.skills as "current" and targetPrevious.skills as "previous"
-            // This determines the ARROWS. 
-            // The actual displayed text (values) in the HTML is whatever Sokker rendered (current week).
-            processPlayerSkills(box as HTMLElement, playerId, targetCurrent.skills, targetPrevious?.skills);
-        }
-    }
-}
-
-/**
- * Extracts Player ID from a player box.
- * @param {HTMLElement} box 
- * @returns {number|null}
- */
-function extractPlayerId(box: HTMLElement): number | null {
-    // Updated to handle /PID/ as seen in recent HTML
-    // Look for link in the header: <a href=".../app/player/PID/..." ...>
-    const link = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
-    if (link) {
-        // Match both formats
-        const match = link.href.match(/\/player\/(?:PID|ID_player)\/(\d+)/);
-        if (match) return parseInt(match[1], 10);
-    }
-    return null;
-}
-
-/**
- * Processes skills for a single player card.
- * @param {HTMLElement} box 
- * @param {number} playerId 
- * @param {Object} currentSkills 
- * @param {Object} currentSkills 
- * @param {Object} [previousSkills] 
- */
-function processPlayerSkills(box: HTMLElement, playerId: number, currentSkills: Skills, previousSkills?: Skills | null): void {
-    // Skills are in .skill-list__item or .skill-list-item
-    const skillItems = box.querySelectorAll('.skill-list__item, .skill-list-item');
-
-    skillItems.forEach(item => {
-        // Try to find the skill name in the button text first (new layout)
-        // Structure: .skill-list-item > button > ... > .text-overflow (Stamina)
-        // Or .skill-list-item > .headline (in some views)
-        let descEl = item.querySelector('.skillLabel, .text-overflow, .headline');
-
-        if (!descEl) {
-            descEl = item.querySelector('.skill-list-desc .text-overflow, .skill-list__desc .text-overflow');
-        }
-
-        if (!descEl) {
-            // Fallback to direct description element
-            descEl = item.querySelector('.skill-list__desc, .skill-list-desc, .skill-list-desc--t1');
-        }
-
-        if (!descEl) {
-            // console.log('[Sokker++] No descEl found in item:', item.className);
-            return;
-        }
-
-        const skillLabel = descEl.textContent ? descEl.textContent.trim() : '';
-        const skillKey = mapSkillLabelToKey(skillLabel);
-
-        if (!skillKey) {
-            // console.warn(`[Sokker++] Unknown skill label: "${skillLabel}"`);
-            return;
-        }
-
-        // Attach data for tooltip to the label (descEl)
-        (descEl as HTMLElement).dataset.skillName = skillKey;
-
-        // Loop continues...
-
-
-
-
-        // Do NOT mark label as clickable to avoid interfering with native functionality
-        // ... rest of the code for values ...
-
-        // Do NOT mark label as clickable to avoid interfering with native functionality
-
-        // Try to find value element (Number)
-        let valueEl = item.querySelector<HTMLElement>('.skill-list__value');
-
-        // Also try to find the text description element (e.g. "(Good)")
-        // It's often a sibling span or div without a specific class in some views, 
-        // or .skill-list__level-desc, or just inside the item text.
-        // We'll look for elements containing parenthesis that aren't the label or value.
-        const allChildren = Array.from(item.children) as HTMLElement[];
-        let textDescEl: HTMLElement | null = null;
-
-        for (const child of allChildren) {
-            if (child === descEl || child === valueEl) continue;
-
-            // Check if it has parenthesis
-            if (child.textContent && child.textContent.includes('(') && child.textContent.includes(')')) {
-                textDescEl = child;
-                break;
+    const players: PlayerAnchors[] = [];
+    for (const box of container.querySelectorAll<HTMLElement>('.player-box, .player-box--sm')) {
+        const linked = legacyNames(box);
+        const ids = new Set(linked.map(item => item.playerId));
+        if (ids.size !== 1) continue;
+        const player: PlayerAnchors = { playerId: linked[0].playerId, names: linked.map(item => item.name), skills: [] };
+        for (const item of box.querySelectorAll<HTMLElement>('.skill-list__item, .skill-list-item')) {
+            const label = item.querySelector<HTMLElement>('.skillLabel, .text-overflow, .headline, .skill-list__desc, .skill-list-desc, .skill-list-desc--t1');
+            const key = label ? legacyLabel(label) : null;
+            if (!key) continue;
+            player.skills.push({ key, anchor: label! });
+            const values = [...item.querySelectorAll<HTMLElement>('.skill-list__value, .skill-list__level-desc')];
+            const description = [...item.children].find(child => child !== label && !values.includes(child as HTMLElement) && child.textContent?.includes('(') && child.textContent.includes(')')) as HTMLElement | undefined;
+            if (description) values.push(description);
+            for (const value of values) {
+                value.dataset.clickable = 'true';
+                value.dataset.sokkerppValue = 'true';
+                player.skills.push({ key, anchor: value });
             }
         }
-
-        // If not found via parenthesis, try common classes
-        if (!textDescEl) {
-            textDescEl = item.querySelector('.skill-list__level-desc');
-        }
-
-        if (valueEl) {
-            valueEl.dataset.skillName = skillKey;
-            valueEl.dataset.clickable = 'true'; // Mark as clickable
-        }
-
-        if (textDescEl) {
-            textDescEl.dataset.skillName = skillKey;
-            textDescEl.dataset.clickable = 'true'; // Mark as clickable
-        }
-
-
-
-        // Highlight changes
-        if (currentSkills && previousSkills) {
-            const curr = currentSkills[skillKey] as number;
-            const prev = previousSkills[skillKey] as number;
-
-            if (curr !== undefined && prev !== undefined && curr !== prev) {
-                const isImprovement = curr > prev;
-                // console.log(`[Sokker++] Skill change detected for ${skillLabel} (${skillKey}): ${prev} -> ${curr}`);
-
-                // 1. Colorize the numeric value if it exists
-                if (valueEl) {
-                    valueEl.style.color = isImprovement ? '#28a745' : '#dc3545';
-                    valueEl.style.fontWeight = 'bold';
-                    valueEl.title = `Previous: ${prev}`;
-                }
-
-                // 2. Add visual indicator (arrow) next to the text (descEl)
-                const parent = descEl.parentElement;
-
-                // Check if we already added an arrow to this specific skill item
-                let existingArrow = item.querySelector('.skill-arrow');
-
-                if (!existingArrow) {
-                    const arrow = document.createElement('span');
-                    arrow.className = 'skill-arrow';
-                    arrow.innerText = isImprovement ? '▲' : '▼'; // Direct text content
-                    // Updated Style for absolute positioning relative to label
-                    // This prevents wrapping to the next line ("too low")
-                    arrow.style.position = 'absolute';
-                    arrow.style.right = '0';
-                    arrow.style.top = '0';
-                    arrow.style.fontSize = '9px';
-                    arrow.style.fontWeight = 'bold';
-                    arrow.style.color = isImprovement ? '#28a745' : '#dc3545';
-                    arrow.title = `Previous: ${prev}`;
-
-                    // Ensure the label container handles this absolute child
-                    // We need relative positioning on the parent (descEl) 
-                    // and overflow visible so it doesn't get clipped if it goes outside (though right:0 is inside)
-                    (descEl as HTMLElement).style.position = 'relative';
-                    (descEl as HTMLElement).style.display = 'inline-block'; // Ensure it wraps content if possible, or respects width
-                    (descEl as HTMLElement).style.overflow = 'visible';
-
-                    // Append INSIDE the label element so it uses that coordinate system
-                    descEl.appendChild(arrow);
-                }
-
-            }
-        }
-    });
-
-    // Two ways to open the history tooltip:
-    //  - Hover on the name → ephemeral (auto-hide).
-    //  - Floating "+" button → pinned.
-    const nameLink = box.querySelector<HTMLAnchorElement>('a[href*="/player/PID/"], a[href*="/player/ID_player/"]');
-    if (nameLink) {
-        if (!nameLink.dataset.sokkerPlusHoverBound) {
-            nameLink.dataset.sokkerPlusHoverBound = 'true';
-            nameLink.addEventListener('mouseenter', (e) => {
-                showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink);
-            });
-            nameLink.addEventListener('focus', () => {
-                const rect = nameLink.getBoundingClientRect();
-                showHistoryTooltip(rect.right, rect.top, playerId, nameLink);
-            });
-            nameLink.addEventListener('mouseleave', () => {
-                scheduleHide();
-            });
-            nameLink.addEventListener('blur', scheduleHide);
-        }
-        // Floating "+" button disabled for now (hover alone is enough).
-        // attachFloatingHistoryButton(nameLink, (e) => {
-        //     showHistoryTooltip(e.pageX, e.pageY, playerId, nameLink, { pinned: true });
-        // });
+        players.push(player);
     }
-
-    attachTooltipEventsToSkills(box, playerId);
+    markLegacy(players);
+    await renderPlayers(players, location.pathname);
 }
 
-/**
- * Attaches tooltip event listeners.
- * @param {HTMLElement} box 
- * @param {number} playerId 
- */
-function attachTooltipEventsToSkills(box: HTMLElement, playerId: number): void {
-    // We attach to anything with data-skill-name (values and labels)
-    const targets = box.querySelectorAll<HTMLElement>('[data-skill-name]');
-
-    targets.forEach(val => {
-        if (!val.dataset.skillName) return;
-        if (val.dataset.sokkerPlusEventsBound === 'true') return;
-        val.dataset.sokkerPlusEventsBound = 'true';
-
-        val.addEventListener('mouseenter', (e) => {
-            // Show tooltip
-            // const rect = val.getBoundingClientRect();
-            // Pass pageX/Y or calculated? Tooltip expects pageX/Y
-            showTooltip(e.pageX, e.pageY, playerId, val.dataset.skillName!, val);
-        });
-
-        if (val.dataset.clickable === 'true') {
-            if (val.tabIndex < 0) val.tabIndex = 0;
-            val.addEventListener('focus', () => {
-                const rect = val.getBoundingClientRect();
-                showTooltip(rect.right, rect.top, playerId, val.dataset.skillName!, val);
-            });
-            val.addEventListener('blur', scheduleHide);
-            val.addEventListener('keydown', (event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                openZoomChart(playerId, val.dataset.skillName!, val);
-            });
-        }
-
-
-
-        val.addEventListener('mouseleave', () => {
-            scheduleHide();
-        });
-
-        // Click to open Zoom Modal directly - ONLY if marked as clickable
-        // The user wants to avoid overwriting native functionality on the label.
-        if (val.dataset.clickable === 'true') {
-            val.style.cursor = 'pointer';
-            val.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent bubbling if needed
-                e.preventDefault();  // Prevent default link action if any
-                openZoomChart(playerId, val.dataset.skillName!, val);
-            });
-        }
-    });
-}
-
-/**
- * Processes the Player Detail Page.
- * @param {HTMLElement} container
- */
+/** Legacy profile identity comes from its full route, including localized /app variants. */
 export async function processPlayerPage(container: HTMLElement): Promise<void> {
-    const pid = extractPlayerIdFromUrl();
-    if (!pid) {
-        console.warn('[Sokker++] Could not extract player ID from URL');
-        return;
+    const context = contextFromPath(location.pathname);
+    if (context?.kind !== 'player' || context.layout !== 'legacy') return;
+    const player: PlayerAnchors = { playerId: context.playerId, names: [], skills: [] };
+    const header = container.querySelector<HTMLElement>('.h5.title-block-1 a[href*="/player/"]');
+    if (header) player.names.push(header);
+    const navbar = document.querySelector<HTMLElement>('.navbar-brand');
+    if (navbar) player.names.push(navbar);
+    for (const cell of container.querySelectorAll<HTMLElement>('.table-skills td')) {
+        const clone = cell.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('strong, .strong, [data-sokkerpp-owned], .skill-arrow').forEach(node => node.remove());
+        const key = legacyLabel(clone);
+        if (!key) continue;
+        cell.dataset.clickable = 'true';
+        player.skills.push({ key, anchor: cell });
     }
+    markLegacy([player]);
+    await renderPlayers([player], context.pathname);
+}
 
-    // console.log(`[Sokker++] Processing player page for ${pid}`);
-
-    let todayInfo;
-    try {
-        todayInfo = await fetchTodayInfo();
-    } catch (e) {
-        console.error('[Sokker++] Failed to fetch today info on player page, defaulting to standard comparison', e);
+export async function processBetaPlayers(context: PageContext, root: Document = document): Promise<void> {
+    if (context.pathname !== location.pathname) return;
+    const players = scanBetaPlayers(context, root);
+    // A SPA can retain nodes and our attributes while switching between layouts.
+    for (const player of players) {
+        for (const anchor of [...player.names, ...player.skills.map(skill => skill.anchor)]) {
+            delete anchor.dataset.sokkerppLayout;
+            delete anchor.dataset.clickable;
+            delete anchor.dataset.sokkerppValue;
+        }
     }
-
-    const usePreviousWeek = !!todayInfo && todayInfo.day < 5;
-
-    const historyData = await getPlayerHistory(pid);
-    const history = historyData?.history || [];
-    const { targetCurrent, targetPrevious } = selectComparisonEntries(history, usePreviousWeek);
-
-    // Process skills in the table-skills
-    const skillTable = container.querySelector('.table-skills');
-    if (skillTable) {
-        processPlayerPageTable(skillTable as HTMLElement, pid, targetCurrent?.skills, targetPrevious?.skills);
-    }
-
-    // Attach History Tooltip to Player Name Headers
-    // 1. Panel Header (Primary) - be specific to avoid matching other icons (like briefcase)
-    const panelNameLink = container.querySelector<HTMLElement>('.h5.title-block-1 a[href*="player/PID/"]');
-    // 2. Navbar Brand (Secondary/Fallback) - note: might be outside container if container is inner
-    // If container is .l-main__inner, navbar might be outside. 
-    // But let's try document.querySelector for navbar as fallback if not found in container?
-    // Actually, let's stick to container first.
-
-    const attachHistory = (el: HTMLElement) => {
-        if (!el.dataset.sokkerPlusHoverBound) {
-            el.dataset.sokkerPlusHoverBound = 'true';
-            el.style.cursor = 'help';
-            el.addEventListener('mouseenter', (e) => {
-                showHistoryTooltip(e.pageX, e.pageY, pid, el);
-            });
-            if (el.tabIndex < 0) el.tabIndex = 0;
-            el.addEventListener('focus', () => {
-                const rect = el.getBoundingClientRect();
-                showHistoryTooltip(rect.right, rect.top, pid, el);
-            });
-            el.addEventListener('mouseleave', () => {
-                scheduleHide();
-            });
-            el.addEventListener('blur', scheduleHide);
-        }
-        // Floating "+" button disabled for now (hover alone is enough).
-        // attachFloatingHistoryButton(el, (e) => {
-        //     showHistoryTooltip(e.pageX, e.pageY, pid, el, { pinned: true });
-        // });
-    };
-
-    if (panelNameLink) attachHistory(panelNameLink);
-
-    // Also try global navbar if not found in container (since container might be just the inner content)
-    const navNameLabel = document.querySelector<HTMLElement>('.navbar-brand');
-    if (navNameLabel) attachHistory(navNameLabel);
+    await renderPlayers(players, context.pathname);
 }
 
-function extractPlayerIdFromUrl(): number | null {
-    const match = window.location.href.match(/\/player\/(?:PID|ID_player)\/(\d+)/);
-    if (match) return parseInt(match[1], 10);
-    return null;
+
+/** Invalidate pending saved-history reads after a shared storage change. */
+export function invalidatePlayerCache(): void {
+    ++renderGeneration;
+    clearHighlights();
+    document.querySelectorAll('[data-sokkerpp-owned="change"]').forEach(node => node.remove());
 }
-
-/**
- * Processes skills in the player page table.
- */
-function processPlayerPageTable(table: HTMLElement, playerId: number, currentSkills?: Skills, previousSkills?: Skills | null): void {
-    const cells = table.querySelectorAll('td');
-
-    cells.forEach(td => {
-        // Skill Name is usually the text content of the TD, ignoring the strong/span
-        // Structure: <td><strong class="">Level <span class="skillNameNumber">[N]</span></strong> Skill Name</td>
-
-        // Extract Skill Name from text nodes
-        const clone = td.cloneNode(true) as HTMLElement;
-        // Clean up clone to extract text
-        const strong = clone.querySelector('strong, .strong');
-        if (strong) strong.remove();
-
-        let skillLabel = '';
-        const link = clone.querySelector('a');
-        if (link) {
-            skillLabel = link.textContent?.trim() || '';
-        } else {
-            skillLabel = clone.textContent?.trim() || '';
-        }
-
-        // console.log(`[Sokker++] Extracted label: "${skillLabel}"`);
-        const skillKey = mapSkillLabelToKey(skillLabel);
-
-        if (!skillKey) return;
-
-        // The value element is inside the strong tag
-        const valEl = td.querySelector('.skillNameNumber') as HTMLElement;
-        // The text description "Level" is inside strong but outside span
-        // Support both <strong> tag and <span class="strong">
-        const levelDescEl = td.querySelector('strong, .strong') as HTMLElement;
-
-        // Tag elements for tooltips
-        td.dataset.skillName = skillKey;
-        if (valEl) valEl.dataset.skillName = skillKey;
-        if (levelDescEl) levelDescEl.dataset.skillName = skillKey;
-
-        // Make clickable
-        td.style.cursor = 'pointer';
-        td.tabIndex = 0;
-        td.addEventListener('focus', () => {
-            const rect = td.getBoundingClientRect();
-            showTooltip(rect.right, rect.top, playerId, skillKey, td);
-        });
-        td.addEventListener('blur', scheduleHide);
-        td.addEventListener('keydown', (e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return;
-            e.preventDefault();
-            openZoomChart(playerId, skillKey, td);
-        });
-        td.addEventListener('click', (e) => {
-            // Avoid double trigger if clicking inner elements
-            if (e.target !== valEl && e.target !== levelDescEl) {
-                openZoomChart(playerId, skillKey, td);
-            }
-        });
-
-        if (valEl) {
-            valEl.dataset.clickable = 'true';
-            valEl.style.cursor = 'pointer';
-            valEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openZoomChart(playerId, skillKey, valEl);
-            });
-        }
-
-        if (levelDescEl) {
-            levelDescEl.dataset.clickable = 'true';
-            levelDescEl.style.cursor = 'pointer';
-            levelDescEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openZoomChart(playerId, skillKey, levelDescEl);
-            });
-        }
-
-        // Highlight changes
-        if (currentSkills && previousSkills) {
-            const curr = currentSkills[skillKey] as number;
-            const prev = previousSkills[skillKey] as number;
-
-            if (curr !== undefined && prev !== undefined && curr !== prev) {
-                const isImprovement = curr > prev;
-
-                // Colorize value
-                if (valEl) {
-                    valEl.style.color = isImprovement ? '#28a745' : '#dc3545';
-                    valEl.style.fontWeight = 'bold';
-                    valEl.title = `Previous: ${prev}`;
-                }
-
-                // Add arrow
-                const arrow = document.createElement('span');
-                arrow.className = 'skill-arrow';
-                arrow.innerText = isImprovement ? '▲' : '▼';
-                arrow.style.color = isImprovement ? '#28a745' : '#dc3545';
-                arrow.style.marginLeft = '5px';
-                arrow.title = `Previous: ${prev}`;
-
-                // TARGETED PLACEMENT
-                const existing = td.querySelectorAll('.skill-arrow');
-                existing.forEach(el => el.remove());
-
-                // Find the link again in the real TD (not clone)
-                const realLink = td.querySelector('a');
-
-                if (realLink) {
-                    // console.log(`[Sokker++] Inserting arrow after link for ${skillKey}`);
-                    realLink.insertAdjacentElement('afterend', arrow);
-                } else {
-                    // console.log(`[Sokker++] Appending arrow to TD for ${skillKey}`);
-                    td.appendChild(arrow);
-                }
-            }
-        }
-
-        // Hover events for tooltip are attached via class selector on container usually,
-        // but here we can attach directly
-        td.addEventListener('mouseenter', (e) => showTooltip(e.pageX, e.pageY, playerId, skillKey, td));
-        td.addEventListener('mouseleave', () => scheduleHide());
-    });
-}
-
-// Map each target element to its floating button. Strong Map so we can
-// iterate during scroll/resize repositioning. Entries are cleaned up by the
-// per-target MutationObserver below when the target leaves the DOM.
-const floatingButtonsByTarget = new Map<HTMLElement, HTMLButtonElement>();
-let floatingRepositionBound = false;
-
-/**
- * Attaches a floating "HISTORY +" button that sits next to `target` but
- * actually lives in document.body (outside Vue's reach). Repositions on
- * scroll, resize, and observer ticks. Clicking calls `onClick` with the
- * synthetic MouseEvent.
- */
-function attachFloatingHistoryButton(target: HTMLElement, onClick: (e: MouseEvent) => void): void {
-    ensureHistoryIconStyles();
-    ensureGlobalRepositioner();
-
-    const existing = floatingButtonsByTarget.get(target);
-    if (existing && document.body.contains(existing)) {
-        // Just reposition in case the target has moved.
-        positionFloatingButton(existing, target);
-        return;
-    }
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'sokker-plus-history-icon';
-    btn.textContent = '+';
-    btn.title = 'Open skill history';
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        onClick(e);
-    });
-    document.body.appendChild(btn);
-    floatingButtonsByTarget.set(target, btn);
-    positionFloatingButton(btn, target);
-
-    // Individual observer: if target is removed from DOM, drop the button.
-    const targetObserver = new MutationObserver(() => {
-        if (!document.body.contains(target)) {
-            btn.remove();
-            floatingButtonsByTarget.delete(target);
-            targetObserver.disconnect();
-            return;
-        }
-        positionFloatingButton(btn, target);
-    });
-    const targetParent = target.parentElement;
-    if (targetParent) {
-        targetObserver.observe(targetParent, { childList: true, subtree: true });
-    }
-}
-
-function positionFloatingButton(btn: HTMLButtonElement, target: HTMLElement): void {
-    if (!document.body.contains(target)) return;
-    const rect = target.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) return; // not laid out yet
-    // Sit the button just to the right of the target, vertically centered.
-    const top = rect.top + window.scrollY + (rect.height / 2) - 11;
-    const left = rect.right + window.scrollX + 6;
-    btn.style.setProperty('top', `${top}px`, 'important');
-    btn.style.setProperty('left', `${left}px`, 'important');
-}
-
-function ensureGlobalRepositioner(): void {
-    if (floatingRepositionBound) return;
-    floatingRepositionBound = true;
-    const reposition = () => {
-        floatingButtonsByTarget.forEach((btn, target) => {
-            if (!document.body.contains(target)) {
-                btn.remove();
-                floatingButtonsByTarget.delete(target);
-                return;
-            }
-            positionFloatingButton(btn, target);
-        });
-    };
-    window.addEventListener('scroll', reposition, { passive: true });
-    window.addEventListener('resize', reposition, { passive: true });
-}
-
-/**
- * Injects a global stylesheet for the history-icon badge once per document.
- * We use !important to defeat Sokker's own CSS (which otherwise hides or
- * collapses the injected <span>).
- */
-function ensureHistoryIconStyles(): void {
-    const STYLE_ID = 'sokker-plus-icon-styles';
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `
-        button.sokker-plus-history-icon {
-            position: absolute !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            width: 22px !important;
-            height: 22px !important;
-            min-width: 22px !important;
-            padding: 0 !important;
-            border: 2px solid #fff !important;
-            border-radius: 50% !important;
-            background-color: #007bff !important;
-            color: #fff !important;
-            font-family: Arial, sans-serif !important;
-            font-size: 14px !important;
-            font-weight: 700 !important;
-            line-height: 1 !important;
-            cursor: pointer !important;
-            user-select: none !important;
-            text-decoration: none !important;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.35) !important;
-            z-index: 2147483646 !important;
-        }
-        button.sokker-plus-history-icon:hover {
-            background-color: #0056b3 !important;
-        }
-    `;
-    document.head.appendChild(style);
-}
-

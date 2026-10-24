@@ -4,6 +4,12 @@
 
 General Skills ++ reads the first-team history already saved in IndexedDB. Hover or focus a player's name on the squad, player, training setup, or training report details page to open the same two-column summary and weekly table. The training report keeps its separate junior hover on junior names. Hover or focus a skill value in the first-team view to see its native Canvas curve; clicking the value pins that card. Hovering does not sync, fetch, or write data.
 
+The supported beta squad and player pages use the same saved history and chart calculations as the classic pages. Their layout is recognized by route and structure, including when a beta route is served from the main domain. Table and card views share a player history read. On beta skill buttons, the native Sokker click remains available; a separate chart control pins the extension card. Beta training setup and report rows have their own adapters. See the [verification record](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) for observed structures and runtime checks.
+
+The `+` controls are available in classic and beta views: the name control pins the summary, and a skill control pins its curve. Name controls keep a subtle border; skill controls have no resting border or background and retain visible keyboard focus. Native Sokker actions remain available.
+
+The popup includes **Show + history buttons**, enabled by default. This preference is saved per extension installation and browser profile and applies across supported hosts, including open tabs. Hiding the controls preserves existing name and skill hover/focus interactions. The preference is stored separately from history and does not change data or JSON backups.
+
 See the [General Skills ++ screenshot](SCREENSHOTS.md#general-skills-summary) for an example of the summary and weekly table.
 
 ## What the two numbers mean

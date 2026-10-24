@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchTodayInfo } from '../core/api';
-import { getPlayerHistory } from '../core/repository';
+import { fetchTodayInfo } from '../core/apiClient';
+import { getPlayerHistory } from '../core/storageClient';
 import { openZoomChart, showHistoryTooltip, showTooltip } from './tooltip';
 import { processPlayerPage } from './ui';
 
-vi.mock('../core/api', () => ({ fetchTodayInfo: vi.fn() }));
-vi.mock('../core/repository', () => ({ getPlayerHistory: vi.fn() }));
+vi.mock('../core/apiClient', () => ({ fetchTodayInfo: vi.fn() }));
+vi.mock('../core/storageClient', () => ({ getPlayerHistory: vi.fn() }));
 vi.mock('./tooltip', () => ({
-    showTooltip: vi.fn(), showHistoryTooltip: vi.fn(), openZoomChart: vi.fn(), scheduleHide: vi.fn()
+    showTooltip: vi.fn(), showHistoryTooltip: vi.fn(), openZoomChart: vi.fn(), scheduleHide: vi.fn(), hideTooltip: vi.fn()
 }));
 
 beforeEach(() => {

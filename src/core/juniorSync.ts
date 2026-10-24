@@ -1,12 +1,12 @@
-import { fetchJuniorGraph, fetchJuniorRoster } from './api';
+import { fetchJuniorGraph, fetchJuniorRoster } from './apiClient';
 import {
     getJuniorRecords,
     getJuniorRosterSnapshot,
-    getJuniorWriteGeneration,
+    getWriteContext,
     saveJuniorGraph,
     saveJuniorResolution,
     saveJuniorRosterSnapshot
-} from './juniorRepository';
+} from './storageClient';
 import type { JuniorRosterSnapshot } from './juniorTypes';
 
 export type JuniorSyncState = 'idle' | 'queued' | 'loading' | 'error';
@@ -113,7 +113,7 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
     activeControllers.add(controller);
     let pending: number[] = ids;
     try {
-        const writeGeneration = await getJuniorWriteGeneration();
+        const ctx = await getWriteContext(teamId);
         if (!isCurrent(route, data)) return;
         const records = await getJuniorRecords(teamId, ids);
         if (!isCurrent(route, data)) return;
@@ -156,7 +156,7 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
                 complete: roster.length < 100,
                 weeksLeftCaptured: true
             } satisfies JuniorRosterSnapshot;
-            await trackWrite(saveJuniorRosterSnapshot(snapshot, roster, writeGeneration));
+            await trackWrite(saveJuniorRosterSnapshot(ctx, snapshot, roster));
             if (!isCurrent(route, data)) return;
             for (const id of new Set([...pending, ...(needsBackfill ? backfillIds : [])])) notify(teamId, id);
         }
@@ -169,7 +169,7 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
                 graphIds.push(id);
             } else {
                 resolutionSaves.push(trackWrite(saveJuniorResolution(
-                    teamId, id, week, snapshot.complete ? 'absent' : 'unknown', writeGeneration
+                    ctx, id, week, snapshot.complete ? 'absent' : 'unknown'
                 )).then(() => { if (isCurrent(route, data)) setState(teamId, id, 'idle'); })
                     .catch(() => { if (isCurrent(route, data)) setState(teamId, id, 'error'); }));
             }
@@ -186,7 +186,7 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
                 try {
                     const points = await fetchJuniorGraph(id, controller.signal);
                     if (!hasCurrentData(data)) return;
-                    await trackWrite(saveJuniorGraph(teamId, id, week, points, writeGeneration));
+                    await trackWrite(saveJuniorGraph(ctx, id, week, points));
                     if (!hasCurrentData(data)) return;
                     setState(teamId, id, 'idle');
                 } catch {

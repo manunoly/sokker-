@@ -4,11 +4,17 @@
 
 La tarjeta aparece al pasar el cursor o enfocar el nombre de un juvenil en el detalle de un informe de entrenamiento (`/{idioma}/app/training/reports/details/{semana}/`) o en la página de **tu propia cantera** `/juniors/teamID/{teamId}/`. Se sitúa a la izquierda del nombre en el informe y a la derecha en la cantera. La extensión verifica el ID del equipo antes de activar la tarjeta en la cantera. El hover lee IndexedDB; no solicita la gráfica a la API.
 
+La cantera beta `/juniors/{teamId}` y el informe beta `/training/reports/details/{id}` usan el mismo coordinador semanal y la misma gráfica. La cantera sigue exigiendo que sea tu equipo. Las rutas se reconocen con independencia del subdominio. Se conservan las acciones nativas de los nombres beta. El [registro de verificación](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) detalla el alcance probado.
+
+Un control `+` con borde discreto junto al nombre abre y fija la tarjeta juvenil en las páginas clásicas y beta admitidas. La tarjeta fijada permanece abierta al retirar el cursor; se cierra con su botón visible o Escape. Los controles respetan la misma comprobación de equipo propio y las acciones nativas de los nombres.
+
+La opción del popup **Mostrar botones + de historial**, activada por defecto, también controla estos accesos. Se guarda por instalación y perfil y se comparte entre los hosts admitidos. Ocultarlos conserva el hover y el foco existentes; la preferencia no modifica el historial ni las copias JSON.
+
 La [galería de capturas](SCREENSHOTS.md#junior-talent-card) muestra la tarjeta y el PNG exportado.
 
 ## Datos y sincronización semanal
 
-En una página admitida, la extensión consulta la semana actual y el equipo en `/api/current`. Lee los IDs juveniles visibles, usa `/api/junior?filter[limit]=100` para la cantera actual, el `talent` de Sokker y `weeksLeft`, y solicita `/api/junior/{id}/graph` cuando hacen falta los niveles observados. Ejecuta hasta tres consultas de gráfica a la vez. Guarda el resultado en una tabla juvenil de la misma `SokkerTalentTrackerDB` del primer equipo.
+En una página admitida, la extensión consulta la semana actual y el equipo en `/api/current`. Lee los IDs juveniles visibles, usa `/api/junior?filter[limit]=100` para la cantera actual, el `talent` de Sokker y `weeksLeft`, y solicita `/api/junior/{id}/graph` cuando hacen falta los niveles observados. Ejecuta hasta tres consultas de gráfica a la vez. Guarda el resultado en una tabla juvenil de `SokkerPlusPlusDB`, local a la extensión y compartida con el primer equipo entre los hosts admitidos de Sokker en el mismo perfil.
 
 Si un juvenil ya está resuelto en la semana actual, reutiliza su gráfica. Un ID nuevo en la página o un cambio de semana puede requerir otra consulta. Si la lista completa no contiene a un juvenil, registra su ausencia para esa semana; la tarjeta todavía puede mostrar el historial guardado. Si se alcanza el límite de 100 juveniles, la ausencia queda como desconocida. Al salir de la página se cancela el trabajo en cola. La copia JSON puede incluir el historial juvenil; al restaurarla no se considera vigente una antigua captura de la cantera.
 

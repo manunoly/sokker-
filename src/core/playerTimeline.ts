@@ -35,7 +35,7 @@ interface ParsedDate {
 }
 
 /** Parse the written calendar date, never the host's local calendar day. */
-function parseCaptureDate(value: string): ParsedDate | null {
+export function parseCaptureDate(value: string): ParsedDate | null {
     if (typeof value !== 'string') return null;
     const match = /^(\d{4})-(\d{2})-(\d{2})(?:T.+)?$/.exec(value);
     if (!match) return null;

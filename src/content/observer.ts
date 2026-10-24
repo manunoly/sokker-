@@ -1,107 +1,109 @@
-/**
- * DOM Observer for Single Page Application (SPA) navigation.
- * Detects when the squad table is ready in the DOM.
- */
 import { scheduleIdle } from '../utils/scheduleIdle';
+import { resolvePageContext, type PageContext } from './pageContext';
 
-let observer: MutationObserver | null = null;
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let dispose: (() => void) | null = null;
+let refresh: (() => void) | null = null;
+const OWNED = '[data-sokkerpp-owned], .skill-arrow, .sokker-plus-history-icon, #sokkerpp-history-tooltip, #sokkerpp-junior-card';
 
-/**
- * Initializes the MutationObserver.
- * @param {Function} onTableFound - Callback when the target table is detected.
- * @param {Function} [onPlayerPageFound] - Callback when the player page is detected.
- * @param {Function} [onSquadReady] - Callback fired (in idle) when the user lands on /app/squad/.
- * @param {Function} [onJuniorPageChanged] - Callback on each SPA render, independent of squad cooldown.
- */
+function owned(node: Node): boolean {
+    const element = node instanceof Element ? node : node.parentElement;
+    return !!element?.closest(OWNED);
+}
+
+function extensionMutation(mutation: MutationRecord): boolean {
+    if (owned(mutation.target)) return true;
+    const changed = [...mutation.addedNodes, ...mutation.removedNodes];
+    return mutation.type === 'childList' && changed.length > 0 && changed.every(owned);
+}
+
+/** Observe native renders and history navigation, retaining the final deferred pass. */
 export function initObserver(
     onTableFound: (container: HTMLElement) => void,
     onPlayerPageFound?: (container: HTMLElement) => void,
     onSquadReady?: () => void,
-    onJuniorPageChanged?: () => void
+    onJuniorPageChanged?: () => void,
+    onBetaPlayersFound?: (context: PageContext) => void,
+    onPageContextChanged?: (context: PageContext | null) => void,
 ): void {
-    if (observer) return;
-
-    const targetNode = document.body;
-    const config = { childList: true, subtree: true };
-    let lastProcessedUrl = '';
-    let lastProcessedAt = 0;
-    const COOLDOWN_MS = 2000;
-
-    const runPageProcessing = () => {
-        const currentPath = window.location.href;
-        const now = Date.now();
-
-        // Junior rows can arrive incrementally inside the same route. The squad/player
-        // cooldown below must not postpone the discovery of a newly visible junior.
+    if (dispose) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastPath: string | null = null;
+    let lastProcessedAt = -Infinity;
+    let stopped = false;
+    const cooldown = 2000;
+    const currentKey = () => `${location.origin}${location.pathname}`;
+    const process = () => {
+        timer = null;
+        if (stopped) return;
+        const key = currentKey();
+        const context = resolvePageContext(new URL(location.href));
+        if (key !== lastPath) {
+            lastPath = key;
+            lastProcessedAt = -Infinity;
+            onPageContextChanged?.(context);
+        }
         onJuniorPageChanged?.();
-
-        // SPA frameworks (Vue here) re-render frequently. Without a cooldown,
-        // each mutation triggers a new processing pass — hammering network
-        // calls and causing UI effects to churn. We still process immediately
-        // when the URL changes (user navigated).
-        if (currentPath === lastProcessedUrl && now - lastProcessedAt < COOLDOWN_MS) {
+        const remaining = cooldown - (Date.now() - lastProcessedAt);
+        if (remaining > 0) {
+            timer = setTimeout(process, remaining);
             return;
         }
-        lastProcessedUrl = currentPath;
-        lastProcessedAt = now;
-
-        if (currentPath.includes('/app/squad')) {
-            const squadContainer = findSquadContainer();
-            if (squadContainer) {
-                onTableFound(squadContainer);
-                if (onSquadReady) {
-                    scheduleIdle(onSquadReady);
-                }
+        lastProcessedAt = Date.now();
+        if (!context) return;
+        if (context.layout === 'beta') {
+            if (context.kind === 'squad' || context.kind === 'player') onBetaPlayersFound?.(context);
+            if (context.kind === 'squad' && document.querySelector('td.table__cell--name, [class~="@container/player"]')) {
+                scheduleIdle(() => { if (!stopped && key === currentKey()) onSquadReady?.(); });
             }
-        } else if (currentPath.includes('/player/PID/') || currentPath.includes('/player/ID_player/')) {
-            const playerContainer = findPlayerContainer();
-            if (playerContainer && onPlayerPageFound) {
-                onPlayerPageFound(playerContainer);
+            return;
+        }
+        if (context.kind === 'squad') {
+            const container = document.querySelector<HTMLElement>('.view-squad') ??
+                (document.querySelector('.player-box, .player-box--sm') ? document.body : null);
+            if (container) {
+                onTableFound(container);
+                scheduleIdle(() => { if (!stopped && key === currentKey()) onSquadReady?.(); });
             }
+        } else if (context.kind === 'player' && document.querySelector('.table-skills')) {
+            onPlayerPageFound?.(document.querySelector<HTMLElement>('.l-main__inner') ?? document.body);
         }
     };
-
-    observer = new MutationObserver((mutationsList) => {
-        // Debounce to avoid multiple calls during rendering
-        if (debounceTimer) clearTimeout(debounceTimer);
-
-        debounceTimer = setTimeout(() => {
-            runPageProcessing();
-        }, 500); // 500ms debounce
+    const schedule = () => {
+        if (timer !== null) clearTimeout(timer);
+        timer = setTimeout(process, 100);
+    };
+    const observer = new MutationObserver(mutations => {
+        if (mutations.some(mutation => !extensionMutation(mutation))) schedule();
     });
-
-    observer.observe(targetNode, config);
-    runPageProcessing();
-    // console.log('Sokker++ Observer initialized');
+    observer.observe(document.body, {
+        childList: true, subtree: true, characterData: true, attributes: true,
+        attributeFilter: ['data-row-id', 'href', 'id', 'class', 'aria-hidden'],
+    });
+    refresh = () => { lastProcessedAt = -Infinity; schedule(); };
+    const originalPush = history.pushState;
+    const originalReplace = history.replaceState;
+    const push: History['pushState'] = function (this: History, ...args) { originalPush.apply(this, args); schedule(); };
+    const replace: History['replaceState'] = function (this: History, ...args) { originalReplace.apply(this, args); schedule(); };
+    history.pushState = push;
+    history.replaceState = replace;
+    window.addEventListener('popstate', schedule);
+    window.addEventListener('hashchange', schedule);
+    dispose = () => {
+        stopped = true;
+        observer.disconnect();
+        if (timer !== null) clearTimeout(timer);
+        if (history.pushState === push) history.pushState = originalPush;
+        if (history.replaceState === replace) history.replaceState = originalReplace;
+        window.removeEventListener('popstate', schedule);
+        window.removeEventListener('hashchange', schedule);
+    };
+    process();
 }
 
-/**
- * Heuristic to find the squad container.
- * @returns {HTMLElement|null}
- */
-function findSquadContainer(): HTMLElement | null {
-    // The new layout uses .view-squad as the main container
-    const viewSquad = document.querySelector<HTMLElement>('.view-squad');
-    if (viewSquad) return viewSquad;
-
-    // Fallback: look for player boxes directly
-    const playerBoxes = document.querySelectorAll('.player-box');
-    if (playerBoxes.length > 0) return document.body; // Return body or a parent if boxes found
-
-    return null;
+export function stopObserver(): void {
+    dispose?.();
+    dispose = null;
+    refresh = null;
 }
 
-/**
- * Heuristic to find the player profile container.
- * @returns {HTMLElement|null}
- */
-function findPlayerContainer(): HTMLElement | null {
-    // We look for the skills table which is unique to the player view
-    const skillsTable = document.querySelector<HTMLElement>('.table-skills');
-    if (skillsTable) {
-        // Return the closest container or body
-        return document.querySelector('.l-main__inner') as HTMLElement || document.body;
-    }
-    return null;
-}
+export function refreshObserver(): void { refresh?.(); }
