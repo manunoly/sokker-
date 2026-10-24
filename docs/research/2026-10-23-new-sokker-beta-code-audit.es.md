@@ -47,3 +47,11 @@ El veredicto de código es favorable dentro de los alcances revisados. No certif
 Astra high revisó por separado `scripts/mv3-browser-check/cli.ts`, `run.mjs`, `tsconfig.json` y `README.md`. El P2 encontrado permitía aceptar cambios de procedencia juvenil al cotejar archivos. Sol lo reprodujo en rojo y añadió comparación de los campos omitidos. Astra revalidó cada alteración individual, sin reportes de éxito, y los casos positivos de archivo válido y unión de puntos.
 
 La revisión final de esos cuatro archivos fue favorable, sin hallazgos accionables. Las salidas son nuevas y exclusivas, sin borrado/sobrescritura; los reportes explicitan que el CLI no establece ejecución del popup. La inspección usó fuente directa porque `scripts/` está excluido del grafo. No hubo cambios de producto, navegador ni datos reales en esta revisión.
+
+## Revalidación del refresco tras commits: 24 de octubre de 2026
+
+Después del reporte manual del propietario, el coordinador detectó que la migración y las escrituras ordinarias no enviaban avisos a las páginas. Sol reprodujo siete fallos por ausencia de avisos y añadió `afterCommit` en `storageService.ts`, con regresiones en `storageService.test.ts`. El alcance no cambia esquema ni políticas de persistencia.
+
+Astra high revisó ese diff contra `ddb4393` y sus consumidores. Veredicto favorable, sin hallazgos accionables P0–P3: los avisos esperan al commit; abortos, epoch inválido y lecturas no notifican; recibos, identidades y CAS se conservan. El observador agrupa refrescos, la reconciliación comparte trabajo en curso y no vuelve a rellenar semanas ya cubiertas; la cola juvenil mantiene sus protecciones ante revisiones ordinarias.
+
+La batería propia de Astra pasó **80 pruebas en seis archivos**, incluido servicio 17/17; diff check correcto. Se usó fuente exacta por metadata desactualizada del grafo y exclusión de tests. El test root/app utiliza consumidores simulados sobre fake IndexedDB y coteja la fuente sintética antes/después; no acredita una nueva ejecución MV3 ni integridad registro a registro de los datos reales del propietario.

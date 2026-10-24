@@ -7,7 +7,7 @@ Registro de ejecución del plan aprobado el 23 de octubre de 2026. Se distinguen
 - Rama: `codex/new-sokker-beta` en el worktree administrado `new-sokker-beta`.
 - Base: `2f6a51507c4d790074c9404115410316e15a7f2f`; registro del plan: `0047c54`.
 - El checkout original y sus modificaciones ajenas a esta tarea permanecen separados.
-- No se ha leído, migrado ni modificado la BD real del propietario. Las pruebas de persistencia usan datos sintéticos aislados.
+- El coordinador y los subagentes no han leído ni modificado directamente la BD real del propietario. Sus pruebas de persistencia usan datos sintéticos aislados; la prueba manual posterior del propietario se registra por separado.
 - El propietario confirmó que la API permanece en `https://sokker.org/api`, también para la beta.
 
 ## Base antes de implementar
@@ -86,7 +86,7 @@ El propietario eligió preparar un **Chrome de prueba conectado**, con perfil va
 
 Permanecen pendientes: cargar el artefacto, comprobar popup sin pestaña, worker real y su reinicio, lectura común entre pestañas, transporte autenticado desde páginas clásica y beta y backup grande a través de mensajería de extensión. Los ensayos anteriores no sustituyen estas verificaciones.
 
-Antes de cualquier piloto con el historial real: obtener una copia independiente íntegra fuera de Git, demostrar restauración aislada y cotejar inventarios/huellas, y recargar las pestañas para retirar escritores antiguos. Las pruebas sintéticas no satisfacen por sí solas esta condición. El piloto real no se ha ejecutado.
+Antes de cualquier piloto con el historial real: obtener una copia independiente íntegra fuera de Git, demostrar restauración aislada y cotejar inventarios/huellas, y recargar las pestañas para retirar escritores antiguos. Las pruebas sintéticas no satisfacen por sí solas esta condición. No se ha registrado un piloto controlado con restauración independiente e inventarios verificados; la prueba manual posterior no acredita por sí sola ese cotejo.
 
 ## Dependencia de pruebas y auditoría npm
 
@@ -94,7 +94,7 @@ Se añadió únicamente `fake-indexeddb` 6.2.6 como dependencia de desarrollo. L
 
 La auditoría online posterior informó 12 entradas en herramientas de desarrollo preexistentes (`@vitest/mocker`, `brace-expansion`, `esbuild`, `minimatch`, `nanoid`, `picomatch`, `postcss`, `rollup`, `source-map-js`, `undici`, `vite`, `vitest`), ninguna atribuida a `fake-indexeddb`. El cero de la instalación offline no era una comprobación online de avisos actuales. No se ejecutó una actualización masiva ajena al plan.
 
-## Inspección estática del artefacto final
+## Inspección estática del artefacto del 23 de octubre
 
 Se confirmó que el manifiesto MV3 apunta a `background.js` como módulo y que existen worker, popup y contenido. El AST de `dist/content.js` no contiene declaraciones import/export ni import dinámico. Los permisos son `https://sokker.org/*` y `https://*.sokker.org/*`.
 
@@ -122,3 +122,19 @@ El conjunto `430df988-b352-4dfc-a594-a166ca2f88af` contiene un backup antiguo de
 Astra high revisó los cuatro archivos auxiliares. Detectó un falso positivo al cotejar metadatos juveniles y revalidó su corrección: alteraciones individuales de `weeksLeft`, `graphWeek`, `resolvedWeek` y `resolution` se rechazan sin escribir reportes; una unión válida de puntos se acepta. El cotejador comprueba seis campos juveniles contra estas fixtures, observaciones del jugador, coherencia de `latest`, archivos íntegros y payload. La revisión acotada terminó sin hallazgos accionables pendientes.
 
 Los reportes declaran `chromePopupExecution: not-established-by-cli`. Cotejar el propio archivo generado verifica la herramienta; no acredita una exportación del popup. La fuente del producto y el artefacto MV3 no cambiaron desde los resultados de 407 pruebas/tipos/build y las auditorías registradas. Los servidores de los harnesses terminados se cerraron. La carga y ejecución real de Chrome sigue pendiente de la conexión elegida por el propietario.
+
+## Prueba manual del propietario y refresco inicial: 24 de octubre de 2026
+
+El propietario probó la compilación en su Chrome y comunicó funcionamiento general de las gráficas. Abrió primero la beta (`app.sokker.org`), observó inicialmente unas diez semanas recientes y vio después su histórico al alternar con la página clásica y recargar. Confirmó que inicialmente estaban activas tanto la versión oficial como la nueva y que después desactivó la oficial. Este registro recoge su observación; el coordinador no inspeccionó su BD ni obtuvo capturas, valores o IDs reales.
+
+La primera parte encaja con el diseño por origen: la beta solo inspecciona su propia antigua base del sitio; abrir una página admitida en `https://sokker.org` permite recuperar la fuente de ese origen y fusionarla con el historial común. `sync.ts` consulta hasta 30 semanas recientes; no puede sustituir el histórico local más antiguo con informes que la API no devuelva. No se verificó cuántos informes devolvió la API en esa prueba ni se atribuyen todas las recargas a una sola causa. La convivencia inicial de versiones puede añadir escrituras y handlers de la versión anterior.
+
+La revisión de código encontró además una omisión independiente: `migration.publish` y las escrituras ordinarias no enviaban `STORAGE_CHANGED`. La importación y el borrado sí lo hacían. Aunque el contenido ya escuchaba cambios de revisión, las pestañas abiertas no recibían esos commits para refrescar las vistas. Sol lo reprodujo con siete fallos por avisos ausentes y corrigió la emisión mediante un helper común, posterior al commit, en el servicio. No se cambiaron esquema, fusión, epochs, CAS, recibos ni confirmación de la fuente.
+
+Las pruebas de regresión comprueban seis escrituras ordinarias, migración con semanas sintéticas antiguas y recientes (`1000`, `1001`, `1100`, `1200`), dos consumidores root/app que releen al recibir el aviso y fuente íntegra antes/después. Abortos reales de escritura/publicación, contextos antiguos, solicitudes inválidas y lecturas no generan avisos. Las 81 pruebas relacionadas, tipos y build pasaron. Astra high cerró la revisión favorable con 80 pruebas propias en seis archivos. La batería global final `npx vitest run --maxWorkers=2` pasó **418 pruebas en 47 archivos**; tipos, build y diff check terminaron con salida 0.
+
+Esta corrección se verificó con datos sintéticos. Falta que el propietario vuelva a probar el refresco con la nueva compilación y solo una instalación activa. El ensayo completo de popup, reinicio del worker, límites runtime y restauración independiente sigue pendiente según el alcance anterior; el reporte general de funcionamiento no sustituye cada comprobación.
+
+La primera ejecución global de este ajuste, concurrente con tipos/build y revisión, pasó 416 de 418 pruebas y agotó el timeout existente de cinco segundos en dos casos de recuperación preexistentes. Esos dos archivos pasaron aislados con un worker (15/15; los casos pesados duraron 464 y 1856 ms). Después se ejecutó toda la batería con dos workers y los mismos timeouts y assertions: 418/418. No se cambiaron configuraciones, umbrales, fixtures de volumen ni se omitieron pruebas; la diferencia observada es compatible con contención de recursos durante la primera ejecución.
+
+El nuevo `dist/background.js` ocupa 50095 bytes, SHA-256 `26cb660344389738a74f22f2b9dafc99303412e6e7e2f770de797df4a434224a`. `content.js` y `popup.js` conservan los hashes del artefacto anterior. Se verificó la presencia de manifiesto, worker, contenido y popup. Las guías de instalación explican el primer arranque en beta y la convivencia de instalaciones. Para cargar esta corrección, recargar la nueva extensión y después las pestañas de Sokker; la oficial ya fue desactivada por el propietario.

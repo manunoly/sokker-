@@ -238,15 +238,17 @@ export class StorageService {
             stores: string[],
             enqueue: (tx: IDBTransaction) => void,
         ) =>
-            guardedWrite<void>(
-                db,
-                stores,
-                p.ctx as WriteContext,
-                (tx, set) => {
-                    enqueue(tx);
-                    set(undefined);
-                },
-                mutationIdentity,
+            this.afterCommit(
+                guardedWrite<void>(
+                    db,
+                    stores,
+                    p.ctx as WriteContext,
+                    (tx, set) => {
+                        enqueue(tx);
+                        set(undefined);
+                    },
+                    mutationIdentity,
+                ),
             );
         const putPlayer = (
             tx: IDBTransaction,
@@ -459,24 +461,24 @@ export class StorageService {
                     p.sourceDigest,
                 );
             case 'migration.publish':
-            case 'backup.import.publish': {
-                const receipt = await publisher.publish(owner, p.stageId);
-                if (operation === 'backup.import.publish')
-                    await this.broadcast();
-                return receipt;
-            }
+            case 'backup.import.publish':
+                return this.afterCommit(publisher.publish(owner, p.stageId));
             case 'migration.absent':
                 if (p.origin !== origin) invalid('Origin differs from sender');
                 return publisher.absent(p.origin);
             case 'getPublicationReceipt':
                 return publisher.receipt(p.stageId);
             case 'clearSharedData':
-                await publisher.clear(mutationIdentity);
-                await this.broadcast();
-                return undefined;
+                return this.afterCommit(publisher.clear(mutationIdentity));
             default:
                 return invalid('Unknown storage operation');
         }
+    }
+    /** Repository promises resolve only after their IndexedDB transaction commits. */
+    private async afterCommit<T>(mutation: Promise<T>): Promise<T> {
+        const result = await mutation;
+        await this.broadcast();
+        return result;
     }
     private async broadcast(): Promise<void> {
         const message = { channel: STORAGE_CHANGED, state: await this.state() };

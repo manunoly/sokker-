@@ -8,9 +8,16 @@ import {
 } from '../core/storageDatabase';
 import { StorageService } from './storageService';
 import { PublicationService } from '../core/storageMigration';
-import { weekFixture } from '../core/storageFixtures';
+import { weekFixture, playerFixture } from '../core/storageFixtures';
+import { readLegacySnapshot, snapshotFromStores } from '../core/legacyStorage';
+import type {
+    StorageState,
+    WriteContext,
+    PreparedMigration,
+} from '../core/storageTypes';
+import type { PlayerData } from '../types';
 import { downloadTransfer } from '../core/transferProtocol';
-import { STORAGE_CHANNEL } from '../core/storageTypes';
+import { STORAGE_CHANNEL, STORAGE_CHANGED } from '../core/storageTypes';
 let db: IDBDatabase;
 let service: StorageService;
 beforeEach(async () => {
@@ -22,7 +29,10 @@ beforeEach(async () => {
     db = await openSharedDatabase();
     service = new StorageService(undefined, db);
 });
-afterEach(() => db.close());
+afterEach(() => {
+    db.close();
+    vi.unstubAllGlobals();
+});
 it('two clients share history, scopes sync markers by team, and transports juvenile Map as pairs', async () => {
     const ctx = await service.execute('one', 'getWriteContext', { teamId: 42 });
     await service.execute('one', 'savePlayerCarryOverEntry', {
@@ -250,4 +260,337 @@ it('disconnecting one port preserves another port and API transfers in the same 
     expect(service.transfers.read(owner, api.transferId, 0).text).toContain(
         'API',
     );
+});
+function observeTabNotices(isCommitted: () => boolean) {
+    const notices: Array<{
+        tabId: number;
+        state: StorageState;
+        committed: boolean;
+    }> = [];
+    chrome.tabs.query = vi.fn().mockResolvedValue([
+        { id: 1, url: 'https://sokker.org/app/squad' },
+        { id: 2, url: 'https://app.sokker.org/squad' },
+    ]) as typeof chrome.tabs.query;
+    chrome.tabs.sendMessage = vi.fn(
+        (tabId: number, message: { channel: string; state: StorageState }) => {
+            notices.push({
+                tabId,
+                state: message.state,
+                committed: isCommitted(),
+            });
+            return Promise.resolve(undefined);
+        },
+    ) as typeof chrome.tabs.sendMessage;
+    return notices;
+}
+const ordinaryWrites = [
+    { operation: 'saveWeekData', payload: { week: 1200, players: [] } },
+    { operation: 'markWeekEmpty', payload: { week: 1200 } },
+    {
+        operation: 'savePlayerCarryOverEntry',
+        payload: { id: 12345, name: 'Synthetic', entry: weekFixture(1200) },
+    },
+    {
+        operation: 'saveJuniorRosterSnapshot',
+        payload: {
+            snapshot: { teamId: 42, week: 1200, ids: [555], complete: true },
+            entries: [{ id: 555, teamId: 42, talent: 3, weeksLeft: 5 }],
+        },
+    },
+    {
+        operation: 'saveJuniorGraph',
+        payload: {
+            id: 555,
+            week: 1200,
+            points: [{ x: 10, y: 6, source: 'graph' }],
+        },
+    },
+    {
+        operation: 'saveJuniorResolution',
+        payload: { id: 555, week: 1200, resolution: 'absent' },
+    },
+];
+it.each(ordinaryWrites)(
+    '$operation notifies root and app only after its transaction commits',
+    async ({ operation, payload }) => {
+        const ctx = (await service.execute('root', 'getWriteContext', {
+            teamId: 42,
+        })) as WriteContext;
+        let committed = false;
+        const notices = observeTabNotices(() => committed);
+        const original = db.transaction.bind(db);
+        const transactions = vi
+            .spyOn(db, 'transaction')
+            .mockImplementation(
+                (...args: Parameters<IDBDatabase['transaction']>) => {
+                    const tx = original(...args);
+                    if (args[1] === 'readwrite')
+                        tx.addEventListener('complete', () => {
+                            committed = true;
+                        });
+                    return tx;
+                },
+            );
+        try {
+            await service.execute('root', operation, { ctx, ...payload });
+            expect(notices.map((notice) => notice.tabId)).toEqual([1, 2]);
+            expect(notices.every((notice) => notice.committed)).toBe(true);
+            const persisted = await service.state();
+            expect(persisted.epoch).toBe(ctx.epoch);
+            expect(persisted.revision).toBe(1);
+            expect(
+                notices.every(
+                    (notice) =>
+                        notice.state.epoch === ctx.epoch &&
+                        notice.state.revision === persisted.revision,
+                ),
+            ).toBe(true);
+            expect(chrome.runtime.sendMessage).toHaveBeenCalledExactlyOnceWith({
+                channel: STORAGE_CHANGED,
+                state: persisted,
+            });
+            expect(chrome.tabs.query).toHaveBeenCalledExactlyOnceWith({
+                url: ['https://sokker.org/*', 'https://*.sokker.org/*'],
+            });
+        } finally {
+            transactions.mockRestore();
+        }
+    },
+);
+it('legacy publication refreshes both existing tab histories with weeks older than the API range and leaves the source intact', async () => {
+    const ctx = (await service.execute('app', 'getWriteContext', {
+        teamId: 42,
+    })) as WriteContext;
+    await service.execute('app', 'savePlayerCarryOverEntry', {
+        ctx,
+        id: 12345,
+        name: 'Synthetic',
+        entry: weekFixture(1200),
+    });
+    vi.mocked(chrome.runtime.sendMessage).mockClear();
+    vi.mocked(chrome.tabs.query).mockClear();
+    vi.stubGlobal('location', { origin: 'https://sokker.org' });
+    const source = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('SokkerTalentTrackerDB', 3);
+        request.onupgradeneeded = () => {
+            request.result
+                .createObjectStore('players', { keyPath: 'id' })
+                .put(playerFixture(1000, 1001, 1100));
+            request.result
+                .createObjectStore('opaque')
+                .put(
+                    { unknown: undefined, bytes: new Uint8Array([1, 2]) },
+                    'retained',
+                );
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+    source.close();
+    const snapshot = await readLegacySnapshot();
+    expect(snapshot).not.toBeNull();
+    const prepared = (await service.execute(
+        'root',
+        'migration.prepare',
+        { snapshot },
+        'https://sokker.org',
+    )) as PreparedMigration;
+    const confirmed = await readLegacySnapshot();
+    expect(confirmed).toEqual(snapshot);
+    await service.execute('root', 'migration.confirmSource', {
+        stageId: prepared.stageId,
+        sourceDigest: confirmed!.digest,
+    });
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+    expect(chrome.tabs.query).not.toHaveBeenCalled();
+    const cachedHistories = new Map<number, number[]>([
+        [1, [1200]],
+        [2, [1200]],
+    ]);
+    const refreshes: Promise<void>[] = [];
+    let committed = false;
+    const notices = observeTabNotices(() => committed);
+    const observe = chrome.tabs.sendMessage;
+    chrome.tabs.sendMessage = vi.fn((tabId: number, message: unknown) => {
+        (observe as (id: number, message: unknown) => Promise<unknown>)(
+            tabId,
+            message,
+        );
+        refreshes.push(
+            service
+                .execute(`tab:${tabId}`, 'getPlayerHistory', { id: 12345 })
+                .then((record) => {
+                    cachedHistories.set(
+                        tabId,
+                        (record as PlayerData).history.map(
+                            (entry) => entry.week,
+                        ),
+                    );
+                }),
+        );
+        return Promise.resolve(undefined);
+    }) as typeof chrome.tabs.sendMessage;
+    const original = db.transaction.bind(db);
+    const transactions = vi
+        .spyOn(db, 'transaction')
+        .mockImplementation(
+            (...args: Parameters<IDBDatabase['transaction']>) => {
+                const tx = original(...args);
+                if (
+                    args[1] === 'readwrite' &&
+                    Array.from(args[0] as string[]).includes('players')
+                )
+                    tx.addEventListener('complete', () => {
+                        committed = true;
+                    });
+                return tx;
+            },
+        );
+    try {
+        const receipt = await service.execute('root', 'migration.publish', {
+            stageId: prepared.stageId,
+        });
+        await Promise.all(refreshes);
+        expect(receipt).toMatchObject({
+            state: 'migrated',
+            sourceDigest: snapshot!.digest,
+        });
+        expect(notices.map((notice) => notice.tabId)).toEqual([1, 2]);
+        expect(notices.every((notice) => notice.committed)).toBe(true);
+        expect(cachedHistories.get(1)).toEqual([1000, 1001, 1100, 1200]);
+        expect(cachedHistories.get(2)).toEqual([1000, 1001, 1100, 1200]);
+        const state = await service.state();
+        expect(state.epoch).toBe(ctx.epoch);
+        expect(
+            notices.every((notice) => notice.state.revision === state.revision),
+        ).toBe(true);
+        expect(chrome.runtime.sendMessage).toHaveBeenCalledTimes(1);
+        expect(chrome.tabs.query).toHaveBeenCalledTimes(1);
+        expect(await readLegacySnapshot()).toEqual(snapshot);
+    } finally {
+        transactions.mockRestore();
+    }
+});
+it.each([
+    'savePlayerCarryOverEntry',
+    'migration.publish',
+    'backup.import.publish',
+])(
+    '%s emits no notification after an actual transaction abort',
+    async (operation) => {
+        const ctx = (await service.execute('root', 'getWriteContext', {
+            teamId: 42,
+        })) as WriteContext;
+        let input: unknown = {
+            ctx,
+            id: 12345,
+            name: 'Synthetic',
+            entry: weekFixture(1200),
+        };
+        if (operation === 'migration.publish') {
+            const snapshot = await snapshotFromStores(
+                'https://sokker.org',
+                'SokkerTalentTrackerDB',
+                3,
+                [
+                    {
+                        name: 'players',
+                        keyPath: 'id',
+                        autoIncrement: false,
+                        indexes: [],
+                        records: [{ key: 12345, value: playerFixture(1000) }],
+                    },
+                ],
+            );
+            const stage = (await service.execute(
+                'root',
+                'migration.prepare',
+                { snapshot },
+                snapshot.origin,
+            )) as PreparedMigration;
+            await service.execute('root', 'migration.confirmSource', {
+                stageId: stage.stageId,
+                sourceDigest: snapshot.digest,
+            });
+            input = { stageId: stage.stageId };
+        } else if (operation === 'backup.import.publish') {
+            const stage = await new PublicationService(db).prepareImport(
+                'root',
+                { players: [playerFixture(1000)] },
+                ctx.epoch,
+            );
+            input = { stageId: stage.stageId };
+        }
+        const before = await captureSharedData(db);
+        const notices = observeTabNotices(() => false);
+        const original = db.transaction.bind(db);
+        const transactions = vi
+            .spyOn(db, 'transaction')
+            .mockImplementation(
+                (...args: Parameters<IDBDatabase['transaction']>) => {
+                    const tx = original(...args);
+                    if (
+                        args[1] === 'readwrite' &&
+                        Array.from(args[0] as string[]).includes('players')
+                    ) {
+                        const control = tx.objectStore('control');
+                        const put = control.put.bind(control);
+                        vi.spyOn(control, 'put').mockImplementation(
+                            (...putArgs: Parameters<IDBObjectStore['put']>) => {
+                                const request = put(...putArgs);
+                                queueMicrotask(() => {
+                                    try {
+                                        tx.abort();
+                                    } catch {}
+                                });
+                                return request;
+                            },
+                        );
+                    }
+                    return tx;
+                },
+            );
+        try {
+            await expect(
+                service.execute('root', operation, input),
+            ).rejects.toThrow();
+            expect(await captureSharedData(db)).toEqual(before);
+            expect(notices).toEqual([]);
+            expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+            expect(chrome.tabs.query).not.toHaveBeenCalled();
+        } finally {
+            transactions.mockRestore();
+        }
+    },
+);
+it('rejected writes and repeated reads emit no change events', async () => {
+    const ctx = await service.execute('root', 'getWriteContext', {
+        teamId: 42,
+    });
+    await new PublicationService(db).clear();
+    const notices = observeTabNotices(() => false);
+    await expect(
+        service.execute('root', 'savePlayerCarryOverEntry', {
+            ctx,
+            id: 12345,
+            name: 'Synthetic',
+            entry: weekFixture(1200),
+        }),
+    ).rejects.toMatchObject({ code: 'STALE_EPOCH' });
+    await expect(
+        service.execute('root', 'getPlayerHistory', { id: -1 }),
+    ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+    for (let pass = 0; pass < 3; pass++) {
+        await service.execute('app', 'ensureStorageReady', {});
+        await service.execute('app', 'getPlayerHistory', { id: 12345 });
+        await service.execute('app', 'getAllPlayers', {});
+        await service.execute('app', 'getAllData', {});
+        await service.execute('app', 'getJuniorRecords', {
+            teamId: 42,
+            ids: [555],
+        });
+    }
+    expect(notices).toEqual([]);
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+    expect(chrome.tabs.query).not.toHaveBeenCalled();
 });
