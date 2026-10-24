@@ -4,11 +4,13 @@
 
 The junior card appears when you hover or focus a junior's name in a training report details page (`/{locale}/app/training/reports/details/{week}/`) or on **your own** `/juniors/teamID/{teamId}/` page. It opens left of the name in a report and right of the name in the academy. The extension checks the current team ID before enabling the academy card. The hover reads IndexedDB; it does not fetch the graph on hover.
 
+Beta academy pages at `/juniors/{teamId}` and beta report details at `/training/reports/details/{id}` use the same weekly coordinator and chart. The academy still requires your own team. Routes are recognized independently of the subdomain. Beta native name actions remain available. See the [verification record](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) for the tested scope.
+
 See [screenshots of the card and its PNG export](SCREENSHOTS.md#junior-talent-card).
 
 ## Data and weekly synchronization
 
-On an eligible page, the extension obtains the current game week and team from `/api/current`. It reads visible junior IDs, uses `/api/junior?filter[limit]=100` for the current roster, Sokker's own `talent`, and `weeksLeft`, and requests `/api/junior/{id}/graph` for observed level points when needed. Up to three graph requests run at once. Results are saved in the junior store of the same `SokkerTalentTrackerDB` as the first-team history.
+On an eligible page, the extension obtains the current game week and team from `/api/current`. It reads visible junior IDs, uses `/api/junior?filter[limit]=100` for the current roster, Sokker's own `talent`, and `weeksLeft`, and requests `/api/junior/{id}/graph` for observed level points when needed. Up to three graph requests run at once. Results are saved in the junior store of the extension-local `SokkerPlusPlusDB`, shared with first-team history across supported Sokker hosts in the same browser profile.
 
 For a junior already resolved in the current game week, the saved graph is reused. A newly visible ID or a new game week may require another roster or graph request. An absent junior is recorded for the week when the roster is complete; the card can still show previously saved history. If the 100-entry roster limit is reached, absence is treated as unknown. Leaving the page cancels queued work. Imported JSON backups can include junior history; a restore does not treat an old roster snapshot as current.
 

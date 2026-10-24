@@ -4,6 +4,8 @@
 
 General Skills ++ lee el historial del primer equipo ya guardado en IndexedDB. Al pasar el cursor o enfocar el nombre en la plantilla, la ficha del jugador, la configuración de entrenamiento o el detalle de un informe, se abre el mismo resumen en dos columnas con la tabla semanal. En los informes se conserva el hover juvenil separado para los nombres de juveniles. Al pasar por una habilidad del primer equipo o enfocarla aparece su curva nativa en Canvas; un clic fija la tarjeta. Estas acciones no sincronizan ni consultan la API.
 
+Las páginas beta admitidas de plantilla y jugador usan el mismo historial y los mismos cálculos que las clásicas. El formato se reconoce por la ruta y estructura, también si una ruta beta se sirve desde el dominio principal. Tabla y tarjetas comparten la lectura del historial de cada jugador. En los botones de habilidades beta se conserva el clic nativo de Sokker; un control separado fija la gráfica de la extensión. La configuración y los informes beta tienen sus propios adaptadores de filas. El [registro de verificación](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) distingue estructuras observadas y pruebas de ejecución.
+
 La [galería de capturas](SCREENSHOTS.md#general-skills-summary) muestra un ejemplo del resumen y la tabla semanal.
 
 ## Significado de las dos cifras
