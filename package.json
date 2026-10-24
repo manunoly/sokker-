@@ -1,6 +1,6 @@
 {
   "name": "sokker-plus-plus",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Sokker++ Chrome extension",
   "type": "module",
   "scripts": {
