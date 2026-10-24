@@ -1,3 +1,6 @@
+import betaSetup from './fixtures/betaTrainingSetup.html?raw';
+import betaReport from './fixtures/betaTrainingReport.html?raw';
+import { resolvePageContext } from './pageContext';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hideTooltip, scheduleHide, showHistoryTooltip } from './tooltip';
 import { handleTrainingPlayerPage, leaveTrainingPlayerPage, scanTrainingPlayerPage } from './trainingPlayerPage';
@@ -84,5 +87,33 @@ describe('training first-team names', () => {
         expect(hideTooltip).toHaveBeenCalled();
         name.dispatchEvent(new MouseEvent('mouseenter'));
         expect(showHistoryTooltip).not.toHaveBeenCalled();
+    });
+});
+
+describe('observed beta training structures', () => {
+    const context = () => resolvePageContext(new URL(location.pathname, 'https://sokker.org'))!;
+    it('selects setup links only when structural identity matches, preserving their native action', () => {
+        setPage('/training/training-setup/', betaSetup);
+        const view = scanTrainingPlayerPage(context(), document)!;
+        expect([...view.names.keys()]).toEqual([12345, 12346]);
+        handleTrainingPlayerPage(view);
+        const link = view.names.get(12345)!;
+        const native = vi.fn(); link.addEventListener('click', event => { native(); event.preventDefault(); });
+        link.focus(); expect(showHistoryTooltip).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 12345, link);
+        link.click(); expect(native).toHaveBeenCalledOnce();
+        expect(link.getAttribute('href')).toBe('/player/12345/development?from=training');
+        document.querySelectorAll('tr')[1].dataset.rowId = '12345';
+        expect([...scanTrainingPlayerPage(context(), document)!.names.keys()]).toEqual([12345]);
+        link.setAttribute('href', 'https://example.test/player/12345/development?from=training');
+        expect(scanTrainingPlayerPage(context(), document)!.names.size).toBe(0);
+    });
+    it('separates report first-team names from juniors and rejects development as a profile', () => {
+        setPage('/training/reports/details/1000/', betaReport);
+        const view = scanTrainingPlayerPage(context(), document)!;
+        expect([...view.names.keys()]).toEqual([12345]);
+        handleTrainingPlayerPage(view);
+        view.names.get(12345)!.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 12345, view.names.get(12345));
+        expect(resolvePageContext(new URL('https://sokker.org/player/12345/development?from=training'))).toBeNull();
     });
 });

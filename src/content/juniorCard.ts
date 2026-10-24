@@ -1,4 +1,4 @@
-import { getJuniorRecord } from '../core/juniorRepository';
+import { getJuniorRecord } from '../core/storageClient';
 import { getJuniorSyncState, subscribeJuniorUpdates } from '../core/juniorSync';
 import type { JuniorPoint, JuniorRecord } from '../core/juniorTypes';
 import { estimateJuniorTalent } from '../core/juniorTalent';

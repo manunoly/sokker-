@@ -1,6 +1,7 @@
 import { PlayerHistoryEntry, PlayerData, RosterPlayer } from '../types/index';
-import { fetchRoster, fetchTodayInfo } from './api';
-import { getAllPlayers, savePlayerCarryOverEntry } from './repository';
+import { fetchRoster, fetchTodayInfo } from './apiClient';
+import { getAllPlayers, getWriteContext, savePlayerCarryOverEntry } from './storageClient';
+import type { WriteContext } from './storageTypes';
 
 /**
  * Given a player's history (any source) and the current week, returns the list
@@ -184,16 +185,19 @@ let inFlight: Promise<ReconcileResult> | null = null;
  * repository + API dependencies. Guarded by an in-flight promise so
  * overlapping triggers share a single run.
  */
-export async function reconcileGaps(): Promise<ReconcileResult> {
+export async function reconcileGaps(context?: ReconcileContext & { writeContext: WriteContext }): Promise<ReconcileResult> {
     if (inFlight) return inFlight;
-    inFlight = reconcileGapsWithDeps({
-        fetchCurrentContext: async () => {
+    inFlight = (async () => {
+        const current = context ?? await (async () => {
             const info = await fetchTodayInfo();
-            return { week: info.week, teamId: info.teamId };
-        },
-        fetchRoster,
-        getAllPlayers,
-        savePlayerCarryOverEntry
-    }).finally(() => { inFlight = null; });
+            return { week: info.week, teamId: info.teamId, writeContext: await getWriteContext(info.teamId) };
+        })();
+        return reconcileGapsWithDeps({
+            fetchCurrentContext: async () => ({ week: current.week, teamId: current.teamId }),
+            fetchRoster,
+            getAllPlayers,
+            savePlayerCarryOverEntry: (id, name, entry) => savePlayerCarryOverEntry(current.writeContext, id, name, entry),
+        });
+    })().finally(() => { inFlight = null; });
     return inFlight;
 }

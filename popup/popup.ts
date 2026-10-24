@@ -1,162 +1,78 @@
+import { clearSharedData, ensureStorageReady, exportBackup, importBackup, recoverPendingPublication } from '../src/core/storageClient';
+
+function supportedTab(url: string | undefined): boolean {
+    try { const parsed = new URL(url ?? ''); return parsed.protocol === 'https:' && (parsed.hostname === 'sokker.org' || parsed.hostname.endsWith('.sokker.org')); }
+    catch { return false; }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    const syncBtn = document.getElementById('syncBtn') as HTMLButtonElement;
-    const exportBtn = document.getElementById('exportBtn') as HTMLButtonElement;
-    const importBtn = document.getElementById('importBtn') as HTMLButtonElement;
+    const status = document.getElementById('status')!;
+    const recovery = document.getElementById('recovery');
     const importFile = document.getElementById('importFile') as HTMLInputElement;
-    const statusDiv = document.getElementById('status') as HTMLElement;
-
-    function isValidBackupPayload(data: unknown): data is { players?: unknown[]; metadata?: unknown[]; weeks?: unknown[] } {
-        if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
-        const payload = data as { players?: unknown; metadata?: unknown; weeks?: unknown };
-        if (payload.players !== undefined && !Array.isArray(payload.players)) return false;
-        if (payload.metadata !== undefined && !Array.isArray(payload.metadata)) return false;
-        if (payload.weeks !== undefined && !Array.isArray(payload.weeks)) return false;
-        return true;
-    }
-
-    // Helper to send message to active tab
-    function sendMessageToContentScript(message: any, callback?: (response: any) => void) {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs.length === 0) {
-                if (statusDiv) statusDiv.textContent = 'Error: No active tab found.';
-                return;
-            }
-            if (tabs[0].id) {
-                chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
-                    if (chrome.runtime.lastError) {
-                        if (statusDiv) statusDiv.innerHTML = 'Error: Content script not found.<br>Please refresh Sokker.org page.';
-                        console.error(chrome.runtime.lastError);
-                        return;
-                    }
-                    if (callback) callback(response);
-                });
-            }
-        });
-    }
-
-    if (syncBtn) {
-        syncBtn.addEventListener('click', () => {
-            if (statusDiv) statusDiv.textContent = 'Sync Status: Syncing...';
-            sendMessageToContentScript({ action: 'FORCE_SYNC' }, (response) => {
-                if (response && response.status === 'success') {
-                    const result = response.result;
-                    if (result.status === 'up-to-date') {
-                        if (statusDiv) statusDiv.textContent = `Already up-to-date (Week ${result.lastWeek || result.week})`;
-                    } else if (result.status === 'synced') {
-                        if (statusDiv) statusDiv.textContent = `Sync Complete. Synced ${result.weeks} weeks (Latest: ${result.lastWeek})`;
-                    } else {
-                        if (statusDiv) statusDiv.textContent = `Sync Complete. Last Week: ${result.lastWeek}`;
-                    }
-                } else {
-                    if (statusDiv) statusDiv.textContent = 'Sync Failed.';
-                }
+    const setStatus = (text: string): void => { status.textContent = text; };
+    const fail = (error: unknown): void => setStatus(`Error: ${error instanceof Error ? error.message : 'Operation failed.'}`);
+    const activeTabMessage = (action: string): Promise<any> => new Promise((resolve, reject) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+            const tab = tabs.find(tab => tab.id !== undefined && supportedTab(tab.url));
+            if (!tab?.id) { reject(new Error('Open a Sokker page to synchronize or repair history.')); return; }
+            chrome.tabs.sendMessage(tab.id, { action }, response => {
+                const error = chrome.runtime.lastError;
+                if (error) { reject(new Error('Refresh the Sokker page, then retry.')); return; }
+                if (response?.status !== 'success') { reject(new Error(response?.message ?? 'Sokker page did not complete the operation.')); return; }
+                resolve(response.result);
             });
         });
-    }
-
-    const repairBtn = document.getElementById('repairBtn') as HTMLButtonElement;
-    if (repairBtn) {
-        repairBtn.addEventListener('click', () => {
-            if (statusDiv) statusDiv.textContent = 'Repairing history...';
-            sendMessageToContentScript({ action: 'REPAIR_HISTORY' }, (response) => {
-                if (response && response.status === 'success') {
-                    const r = response.result;
-                    if (r.error) {
-                        if (statusDiv) statusDiv.textContent = `Repair error: ${r.error}`;
-                        return;
-                    }
-                    if (statusDiv) {
-                        statusDiv.textContent = `Repair done. ${r.gapsFilled} gap(s) filled across ${r.rosterSize} roster player(s).`;
-                    }
-                } else {
-                    if (statusDiv) statusDiv.textContent = 'Repair Failed.';
-                }
-            });
-        });
-    }
-
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            if (statusDiv) statusDiv.textContent = 'Exporting...';
-            sendMessageToContentScript({ action: 'EXPORT_DATA' }, (response) => {
-                if (response && response.status === 'success') {
-                    const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `sokker-backup-${new Date().toISOString().slice(0, 10)}.json`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    if (statusDiv) statusDiv.textContent = 'Export Successful.';
-                } else {
-                    if (statusDiv) statusDiv.textContent = 'Export Failed.';
-                }
-            });
-        });
-    }
-
-    const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
-
-    // ... existing export code ...
-
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to DELETE ALL DATA? This cannot be undone.')) {
-                if (statusDiv) statusDiv.textContent = 'Clearing Data...';
-                sendMessageToContentScript({ action: 'CLEAR_DATA' }, (response) => {
-                    if (response && response.status === 'success') {
-                        if (statusDiv) statusDiv.textContent = 'Data Cleared. Please refresh the page.';
-                    } else {
-                        if (statusDiv) statusDiv.textContent = 'Clear Failed.';
-                    }
-                });
-            }
-        });
-    }
-
-    if (importBtn && importFile) {
-        importBtn.addEventListener('click', () => {
-            importFile.click();
-        });
-
-        importFile.addEventListener('change', (event) => {
-            const target = event.target as HTMLInputElement;
-            if (!target.files || target.files.length === 0) return;
-
-            const file = target.files[0];
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const result = e.target?.result as string;
-                    const data = JSON.parse(result);
-                    if (!isValidBackupPayload(data)) {
-                        if (statusDiv) statusDiv.textContent = 'Invalid backup format.';
-                        return;
-                    }
-                    if (statusDiv) statusDiv.textContent = 'Importing...';
-                    sendMessageToContentScript({ action: 'IMPORT_DATA', data }, (response) => {
-                        if (response && response.status === 'success') {
-                            if (statusDiv) statusDiv.textContent = 'Import Successful.';
-                        } else {
-                            if (statusDiv) statusDiv.textContent = 'Import Failed.';
-                        }
-                    });
-                } catch (err) {
-                    console.error(err);
-                    if (statusDiv) statusDiv.textContent = 'Invalid JSON file.';
-                }
-            };
-            reader.readAsText(file);
-        });
-    }
-
-    // Check status on load
-    sendMessageToContentScript({ action: 'CHECK_STATUS' }, (response) => {
-        if (response && response.status === 'alive') {
-            if (statusDiv) statusDiv.textContent = `Sync Status: Ready. Last Week: ${response.lastWeek || 'Never'}`;
-        } else {
-            if (statusDiv) statusDiv.textContent = 'Sync Status: Connect Error (Refresh Page)';
-        }
     });
+    document.getElementById('syncBtn')?.addEventListener('click', () => {
+        setStatus('Syncing...');
+        void activeTabMessage('FORCE_SYNC').then(result => setStatus(result.status === 'up-to-date'
+            ? `Already up-to-date (Week ${result.lastWeek ?? result.week})`
+            : `Sync complete. Synced ${result.weeks ?? 0} weeks (Latest: ${result.lastWeek ?? 'unknown'}).`)).catch(fail);
+    });
+    document.getElementById('repairBtn')?.addEventListener('click', () => {
+        setStatus('Repairing history...');
+        void activeTabMessage('REPAIR_HISTORY').then(result => {
+            if (result.error) throw new Error(result.error);
+            setStatus(`Repair done. ${result.gapsFilled} gap(s) filled across ${result.rosterSize} roster player(s).`);
+        }).catch(fail);
+    });
+    document.getElementById('exportBtn')?.addEventListener('click', () => {
+        setStatus('Exporting...');
+        void exportBackup().then(data => {
+            const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+            const anchor = document.createElement('a'); anchor.href = url;
+            anchor.download = `sokker-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+            setStatus('Export successful.');
+        }).catch(fail);
+    });
+    document.getElementById('clearBtn')?.addEventListener('click', () => {
+        if (!confirm('Are you sure you want to DELETE ALL DATA? This cannot be undone.')) return;
+        setStatus('Clearing data...');
+        void clearSharedData().then(() => setStatus('Data cleared.')).catch(fail);
+    });
+    document.getElementById('importBtn')?.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', () => {
+        const file = importFile.files?.[0]; if (!file) return;
+        setStatus('Importing...');
+        const reader = new FileReader();
+        reader.onerror = () => fail(new Error('Could not read the backup file.'));
+        reader.onload = () => {
+            let data: unknown;
+            try { data = JSON.parse(String(reader.result)); }
+            catch { fail(new Error('Invalid JSON file.')); return; }
+            void importBackup(data).then(() => setStatus('Import successful.')).catch(fail);
+        };
+        reader.readAsText(file); importFile.value = '';
+    });
+    void (async () => {
+        const receipt = await recoverPendingPublication();
+        const state = await ensureStorageReady();
+        if (recovery) recovery.hidden = state.automaticMigrationBlocked === true ||
+            state.migration['https://sokker.org']?.state === 'migrated';
+        let pending = false;
+        try { pending = localStorage.getItem('sokker++:pending-publication') !== null; } catch { /* State remains usable without local storage. */ }
+        setStatus(receipt ? 'Previous import confirmed. Shared history is ready.' : pending
+            ? 'Previous import result is not confirmed. Reconnect before retrying.' : 'Shared history is ready.');
+    })().catch(fail);
 });

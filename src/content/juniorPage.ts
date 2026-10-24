@@ -1,10 +1,11 @@
-import { fetchTodayInfo, type TodayInfo } from '../core/api';
+import { fetchTodayInfo, type TodayInfo } from '../core/apiClient';
 import { cancelQueuedJuniorSync, syncVisibleJuniors } from '../core/juniorSync';
+import { contextFromPath, type PageContext } from './pageContext';
 import { hideJuniorCard, scheduleJuniorCardHide, showJuniorCard } from './juniorCard';
 
 export type JuniorPageView =
     | { kind: 'report'; pathname: string; names: Map<number, HTMLElement> }
-    | { kind: 'academy'; pathname: string; routeTeamId: number; names: Map<number, HTMLElement> };
+    | { kind: 'academy'; pathname: string; routeTeamId: number; layout?: 'legacy' | 'beta'; names: Map<number, HTMLElement> };
 
 interface ActiveEntry {
     pathname: string;
@@ -39,46 +40,55 @@ function currentEntry(entry: ActiveEntry): boolean {
 function juniorNameFromTarget(target: EventTarget | null, view: JuniorPageView):
     { id: number; name: HTMLElement } | null {
     if (!(target instanceof Element)) return null;
-    if (view.kind === 'report') {
-        const name = target.closest<HTMLElement>('td.table__cell--player .text.c-text-link');
-        const row = name?.closest<HTMLElement>('tr.table-row[data-row-id]');
-        const id = row ? positiveId(row.getAttribute('data-row-id') ?? '') : null;
-        if (id === null || !row?.querySelector('td.table__cell--exp') ||
-            !row.querySelector('td.table__cell--weeks')) return null;
-        return { id, name: name! };
+    for (const [id, name] of view.names) {
+        if (!name.isConnected || !name.contains(target)) continue;
+        const currentRow = name.closest<HTMLElement>('tr');
+        if (view.kind === 'report' && positiveId(currentRow?.dataset.rowId ?? '') !== id) return null;
+        if (view.kind === 'academy' && view.layout !== 'beta' && currentRow?.id !== "juniorRow" + id) return null;
+        if (view.kind === 'academy' && view.layout === 'beta') {
+            const row = name.closest<HTMLElement>('tr.table-row[data-row-id]');
+            if (row?.dataset.rowId !== String(id) || name.closest('[id^="junior-row-"]')?.id !== `junior-row-${id}`) return null;
+        }
+        return { id, name };
     }
-    const name = target.closest<HTMLElement>('tr[id^="juniorRow"] td:first-child strong');
-    const row = name?.closest<HTMLElement>('tr[id^="juniorRow"]');
-    const id = row ? positiveId(row.id.slice('juniorRow'.length)) : null;
-    return id === null ? null : { id, name: name! };
+    return null;
 }
 
 /** Scan only structural junior rows; all labels and saved IDs remain language-neutral. */
-export function scanJuniorPage(pathname: string, root: Document): JuniorPageView | null {
-    const reportRoute = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?app\/training\/reports\/details\/([1-9]\d*)\/?$/i.exec(pathname);
-    if (reportRoute && positiveId(reportRoute[1]) !== null) {
+export function scanJuniorPage(page: PageContext | string | null, root: Document): JuniorPageView | null {
+    const context = typeof page === 'string' ? contextFromPath(page) : page;
+    if (!context) return null;
+    const { pathname } = context;
+    if (context.kind === 'training-report') {
         const names = new Map<number, HTMLElement>();
-        root.querySelectorAll<HTMLElement>('tr.table-row[data-row-id]').forEach((row) => {
-            if (!row.querySelector('td.table__cell--exp') || !row.querySelector('td.table__cell--weeks')) return;
+        const selector = context.layout === 'beta' ? '.boxes-training__junior-team tr.table-row[data-row-id]' : 'tr.table-row[data-row-id]';
+        root.querySelectorAll<HTMLElement>(selector).forEach(row => {
+            if (row.closest('[aria-hidden="true"]') || !row.querySelector('td.table__cell--exp') || !row.querySelector('td.table__cell--weeks')) return;
             const id = positiveId(row.getAttribute('data-row-id') ?? '');
-            const name = row.querySelector<HTMLElement>('td.table__cell--player .text.c-text-link');
-            if (id !== null && name) names.set(id, name);
+            const name = row.querySelector<HTMLElement>(context.layout === 'beta' ? 'td.table__cell--player .rich-text' : 'td.table__cell--player .text.c-text-link');
+            if (id !== null && name && !name.closest('[aria-hidden="true"]')) names.set(id, name);
         });
         return { kind: 'report', pathname, names };
     }
-
-    const academyRoute = /^\/juniors\/teamID\/([1-9]\d*)\/?$/.exec(pathname);
-    const routeTeamId = academyRoute ? positiveId(academyRoute[1]) : null;
-    if (routeTeamId === null) return null;
+    if (context.kind !== 'academy') return null;
     const names = new Map<number, HTMLElement>();
-    root.querySelectorAll<HTMLElement>('tr[id^="juniorRow"]').forEach((row) => {
-        const id = positiveId(row.id.slice('juniorRow'.length));
-        const name = row.querySelector<HTMLElement>('td:first-child strong');
-        if (id !== null && name) names.set(id, name);
-    });
-    return { kind: 'academy', pathname, routeTeamId, names };
+    if (context.layout === 'beta') {
+        root.querySelectorAll<HTMLElement>('tr.table-row[data-row-id]').forEach(row => {
+            if (row.closest('[aria-hidden="true"]') || !row.querySelector('td.table__cell--weeksIn') || !row.querySelector('td.table__cell--weeksLeft')) return;
+            const id = positiveId(row.getAttribute('data-row-id') ?? '');
+            const name = row.querySelector<HTMLElement>('td.table__cell--surname button');
+            const label = name?.closest<HTMLElement>('span[id^="junior-row-"]');
+            if (id !== null && name && label?.id === `junior-row-${id}` && !name.closest('[aria-hidden="true"]')) names.set(id, name);
+        });
+    } else {
+        root.querySelectorAll<HTMLElement>('tr[id^="juniorRow"]').forEach(row => {
+            const id = positiveId(row.id.slice('juniorRow'.length));
+            const name = row.querySelector<HTMLElement>('td:first-child strong');
+            if (id !== null && name) names.set(id, name);
+        });
+    }
+    return { kind: 'academy', pathname, routeTeamId: context.teamId, layout: context.layout, names };
 }
-
 function eligible(entry: ActiveEntry): boolean {
     const today = entry.today;
     if (!today || !validCurrent(today)) return false;

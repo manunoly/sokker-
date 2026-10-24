@@ -1,5 +1,5 @@
-import { fetchCurrentWeek, fetchTrainingData } from './api';
-import { initDB, getLastSyncWeek, saveWeekData, isWeekSynced, markWeekEmpty } from './repository';
+import { fetchTodayInfo, fetchTrainingData } from './apiClient';
+import { ensureStorageReady, getWriteContext, getLastSyncWeek, saveWeekData, isWeekSynced, markWeekEmpty } from './storageClient';
 import { reconcileGaps } from './gapDetector';
 import { scheduleIdle } from '../utils/scheduleIdle';
 
@@ -18,10 +18,12 @@ interface SyncResult {
  */
 export async function syncData(): Promise<SyncResult> {
     try {
-        await initDB();
+        await ensureStorageReady();
 
-        const currentWeek = await fetchCurrentWeek();
-        const lastSyncWeek = await getLastSyncWeek();
+        const today = await fetchTodayInfo();
+        const currentWeek = today.week;
+        const ctx = await getWriteContext(today.teamId);
+        const lastSyncWeek = await getLastSyncWeek(today.teamId);
 
         // Logic:
         // 1. We want to sync up to MAX_WEEKS_TO_FETCH weeks back from currentWeek.
@@ -33,7 +35,7 @@ export async function syncData(): Promise<SyncResult> {
         if (lastSyncWeek && lastSyncWeek < currentWeek) {
             const baselineData = await fetchTrainingData(lastSyncWeek);
             if (baselineData && baselineData.length > 0) {
-                await saveWeekData(lastSyncWeek, baselineData);
+                await saveWeekData(ctx, lastSyncWeek, baselineData);
             }
         }
 
@@ -50,7 +52,7 @@ export async function syncData(): Promise<SyncResult> {
         const pastWeekStates = await Promise.all(
             candidatePastWeeks.map(async (week) => ({
                 week,
-                alreadySynced: await isWeekSynced(week)
+                alreadySynced: await isWeekSynced(today.teamId, week)
             }))
         );
 
@@ -65,10 +67,10 @@ export async function syncData(): Promise<SyncResult> {
         for (const week of weeksToSync) {
             const playersData = await fetchTrainingData(week);
             if (playersData && playersData.length > 0) {
-                await saveWeekData(week, playersData);
+                await saveWeekData(ctx, week, playersData);
             } else if (week < currentWeek) {
                 // Past weeks never gain data later: remember them so we stop re-requesting them.
-                await markWeekEmpty(week);
+                await markWeekEmpty(ctx, week);
             } else {
                 console.warn(`No data found for week ${week}`);
             }
@@ -78,7 +80,7 @@ export async function syncData(): Promise<SyncResult> {
         // synced status to the caller. Failures here do not surface to the UI —
         // gap detection is an enhancement, not a correctness requirement.
         scheduleIdle(() => {
-            reconcileGaps().catch((err) => console.warn('reconcileGaps failed:', err));
+            reconcileGaps({ week: currentWeek, teamId: today.teamId, writeContext: ctx }).catch((err) => console.warn('reconcileGaps failed:', err));
         });
 
         return { status: 'synced', weeks: weeksToSync.length, lastWeek: currentWeek };

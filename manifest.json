@@ -5,12 +5,14 @@
   "default_locale": "en",
   "description": "__MSG_extensionDescription__",
   "host_permissions": [
-    "https://sokker.org/*"
+    "https://sokker.org/*",
+    "https://*.sokker.org/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://sokker.org/*"
+        "https://sokker.org/*",
+        "https://*.sokker.org/*"
       ],
       "js": [
         "content.js"
@@ -33,5 +35,9 @@
     "32": "assets/icons/icon-32.png",
     "48": "assets/icons/icon-48.png",
     "128": "assets/icons/icon-128.png"
+  },
+  "background": {
+    "type": "module",
+    "service_worker": "background.js"
   }
 }

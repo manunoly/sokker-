@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchJuniorGraph, fetchJuniorRoster } from './api';
+import { fetchJuniorGraph, fetchJuniorRoster } from './apiClient';
 import {
-    getJuniorRecords, getJuniorRosterSnapshot, getJuniorWriteGeneration, saveJuniorGraph, saveJuniorResolution,
+    getJuniorRecords, getJuniorRosterSnapshot, getWriteContext, saveJuniorGraph, saveJuniorResolution,
     saveJuniorRosterSnapshot
-} from './juniorRepository';
+} from './storageClient';
 import type { JuniorPoint, JuniorRecord, JuniorRosterEntry, JuniorRosterSnapshot } from './juniorTypes';
 import {
     cancelQueuedJuniorSync, getJuniorSyncState, invalidateJuniorSync,
     subscribeJuniorUpdates, syncVisibleJuniors
 } from './juniorSync';
 
-vi.mock('./api', () => ({ fetchJuniorRoster: vi.fn(), fetchJuniorGraph: vi.fn() }));
-vi.mock('./juniorRepository', () => ({
-    getJuniorRecords: vi.fn(), getJuniorRosterSnapshot: vi.fn(), getJuniorWriteGeneration: vi.fn(),
+vi.mock('./apiClient', () => ({ fetchJuniorRoster: vi.fn(), fetchJuniorGraph: vi.fn() }));
+vi.mock('./storageClient', () => ({
+    getJuniorRecords: vi.fn(), getJuniorRosterSnapshot: vi.fn(), getWriteContext: vi.fn(),
     saveJuniorRosterSnapshot: vi.fn(), saveJuniorGraph: vi.fn(), saveJuniorResolution: vi.fn()
 }));
 
@@ -43,15 +43,15 @@ beforeEach(async () => {
     records = new Map();
     snapshot = null;
     persistedGeneration = 'generation-1';
-    vi.mocked(getJuniorWriteGeneration).mockImplementation(async () => persistedGeneration);
+    vi.mocked(getWriteContext).mockImplementation(async () => ({teamId,epoch:persistedGeneration}));
     vi.mocked(getJuniorRecords).mockImplementation(async (_team, ids) =>
         new Map(ids.flatMap((id) => {
             const value = records.get(key(id));
             return value ? [[id, { ...value }] as [number, JuniorRecord]] : [];
         })));
     vi.mocked(getJuniorRosterSnapshot).mockImplementation(async () => snapshot);
-    vi.mocked(saveJuniorRosterSnapshot).mockImplementation(async (value, entries, expectedGeneration) => {
-        if (expectedGeneration !== persistedGeneration) throw new Error('Junior storage generation changed');
+    vi.mocked(saveJuniorRosterSnapshot).mockImplementation(async (ctx, value, entries) => {
+        if (ctx.epoch !== persistedGeneration) throw new Error('Junior storage generation changed');
         snapshot = value;
         for (const entry of entries) {
             records.set(key(entry.id), {
@@ -60,15 +60,15 @@ beforeEach(async () => {
             });
         }
     });
-    vi.mocked(saveJuniorGraph).mockImplementation(async (_team, id, week, points, expectedGeneration) => {
-        if (expectedGeneration !== persistedGeneration) throw new Error('Junior storage generation changed');
+    vi.mocked(saveJuniorGraph).mockImplementation(async (ctx, id, week, points) => {
+        if (ctx.epoch !== persistedGeneration) throw new Error('Junior storage generation changed');
         records.set(key(id), {
             ...(records.get(key(id)) ?? record(id)), points: [...points],
             resolvedWeek: week, resolution: 'graph'
         });
     });
-    vi.mocked(saveJuniorResolution).mockImplementation(async (_team, id, week, resolution, expectedGeneration) => {
-        if (expectedGeneration !== persistedGeneration) throw new Error('Junior storage generation changed');
+    vi.mocked(saveJuniorResolution).mockImplementation(async (ctx, id, week, resolution) => {
+        if (ctx.epoch !== persistedGeneration) throw new Error('Junior storage generation changed');
         records.set(key(id), {
             ...(records.get(key(id)) ?? record(id)), resolvedWeek: week, resolution
         });
@@ -116,12 +116,12 @@ describe('weekly junior synchronization', () => {
 
     it('passes one captured write generation to roster, resolution and graph writes', async () => {
         await syncVisibleJuniors({ teamId, week: 1213, kind: 'report', ids: [101, 102] });
-        expect(getJuniorWriteGeneration).toHaveBeenCalledTimes(1);
+        expect(getWriteContext).toHaveBeenCalledTimes(1);
         expect(saveJuniorRosterSnapshot).toHaveBeenCalledWith(
-            expect.objectContaining({ teamId, week: 1213 }), roster(101), 'generation-1'
+            { teamId, epoch: 'generation-1' }, expect.objectContaining({ teamId, week: 1213 }), roster(101)
         );
-        expect(saveJuniorResolution).toHaveBeenCalledWith(teamId, 102, 1213, 'absent', 'generation-1');
-        expect(saveJuniorGraph).toHaveBeenCalledWith(teamId, 101, 1213, [point(10, 5)], 'generation-1');
+        expect(saveJuniorResolution).toHaveBeenCalledWith({teamId,epoch:'generation-1'}, 102, 1213, 'absent');
+        expect(saveJuniorGraph).toHaveBeenCalledWith({teamId,epoch:'generation-1'}, 101, 1213, [point(10, 5)]);
     });
 
     it('persists an empty graph as a valid weekly check and makes no juvenile request on revisit', async () => {
@@ -224,12 +224,12 @@ describe('weekly junior synchronization', () => {
         persistedGeneration = 'generation-2';
         graphResponse.resolve([point(10, 5)]);
         await running;
-        expect(saveJuniorGraph).toHaveBeenCalledWith(teamId, 101, 1213, [point(10, 5)], 'generation-1');
+        expect(saveJuniorGraph).toHaveBeenCalledWith({teamId,epoch:'generation-1'}, 101, 1213, [point(10, 5)]);
         expect(records.get(key(101))?.resolvedWeek).toBeNull();
         expect(getJuniorSyncState(teamId, 101)).toBe('error');
         cancelQueuedJuniorSync();
         await syncVisibleJuniors(input);
-        expect(saveJuniorGraph).toHaveBeenLastCalledWith(teamId, 101, 1213, [point(10, 5)], 'generation-2');
+        expect(saveJuniorGraph).toHaveBeenLastCalledWith({teamId,epoch:'generation-2'}, 101, 1213, [point(10, 5)]);
         expect(records.get(key(101))?.resolvedWeek).toBe(1213);
     });
 

@@ -1,3 +1,4 @@
+import { contextFromPath, resolvePageContext, type PageContext } from './pageContext';
 import { hideTooltip, scheduleHide, showHistoryTooltip } from './tooltip';
 
 export interface TrainingPlayerView {
@@ -16,17 +17,41 @@ function positiveId(value: string): number | null {
 }
 
 function playerIdFromLink(link: HTMLAnchorElement): number | null {
-    const match = /\/player\/(?:PID|ID_player)\/([1-9]\d*)(?:\/|$)/.exec(link.pathname);
-    return match ? positiveId(match[1]) : null;
+    let context: PageContext | null;
+    try { context = resolvePageContext(new URL(link.getAttribute('href') ?? '', 'https://sokker.org')); }
+    catch { return null; }
+    return context?.kind === 'player' ? context.playerId : null;
 }
 
-/** Find first-team names on the two training routes without selecting junior report rows. */
-export function scanTrainingPlayerPage(pathname: string, root: Document): TrainingPlayerView | null {
-    const setup = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?app\/training\/training-setup\/?$/i.test(pathname);
-    const report = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?app\/training\/reports\/details\/[1-9]\d*\/?$/i.test(pathname);
-    if (!setup && !report) return null;
-
+/** Find first-team names only on training routes whose actual DOM has been observed. */
+export function scanTrainingPlayerPage(page: PageContext | string | null, root: Document): TrainingPlayerView | null {
+    const context = typeof page === 'string' ? contextFromPath(page) : page;
+    if (!context || (context.kind !== 'training-setup' && context.kind !== 'training-report')) return null;
+    const { pathname } = context;
     const names = new Map<number, HTMLElement>();
+    if (context.layout === 'beta') {
+        const report = context.kind === 'training-report';
+        const selector = report ? '.boxes-training__main-team tr.table-row[data-row-id]' : '.players-table tr.table-row[data-row-id]';
+        root.querySelectorAll<HTMLElement>(selector).forEach(row => {
+            if (row.closest('[aria-hidden="true"]') || row.querySelector('td.table__cell--exp, td.table__cell--weeks')) return;
+            const id = positiveId(row.dataset.rowId ?? '');
+            if (id === null) return;
+            if (report) {
+                const name = row.querySelector<HTMLElement>('td.table__cell--player .rich-text');
+                if (name && !name.closest('[aria-hidden="true"]')) names.set(id, name);
+            } else {
+                const name = row.querySelector<HTMLAnchorElement>('td.table__cell--player a.players-table__cell.players-table__player[aria-label="player"][href]');
+                if (!name || name.closest('[aria-hidden="true"]')) return;
+                let url: URL;
+                try { url = new URL(name.getAttribute('href')!, 'https://sokker.org'); }
+                catch { return; }
+                const match = /^\/player\/([1-9]\d*)\/development\/?$/.exec(url.pathname);
+                const identity = match ? resolvePageContext(new URL(`/player/${match[1]}`, url.origin)) : null;
+                if (identity?.kind === 'player' && identity.playerId === id) names.set(id, name);
+            }
+        });
+        return { pathname, names };
+    }
     root.querySelectorAll<HTMLElement>('tr.table-row[data-row-id]').forEach((row) => {
         // The junior table has these columns; its names belong to juniorPage.
         if (row.querySelector('td.table__cell--exp, td.table__cell--weeks')) return;
@@ -45,7 +70,9 @@ export function scanTrainingPlayerPage(pathname: string, root: Document): Traini
 
 function selectedId(name: HTMLElement): number | null {
     const id = playerIds.get(name);
-    return id !== undefined && active?.pathname === window.location.pathname && active.names.get(id) === name
+    const row = name.closest<HTMLElement>('tr[data-row-id]');
+    if (row && positiveId(row.dataset.rowId ?? '') !== id) return null;
+    return id !== undefined && name.isConnected && active?.pathname === window.location.pathname && active.names.get(id) === name
         ? id : null;
 }
 

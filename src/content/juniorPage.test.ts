@@ -1,10 +1,13 @@
+import academy from './fixtures/betaAcademy.html?raw';
+import betaReport from './fixtures/betaTrainingReport.html?raw';
+import { resolvePageContext } from './pageContext';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchTodayInfo } from '../core/api';
+import { fetchTodayInfo } from '../core/apiClient';
 import { syncVisibleJuniors, cancelQueuedJuniorSync } from '../core/juniorSync';
 import { showJuniorCard, hideJuniorCard } from './juniorCard';
 import { handleJuniorPage, leaveJuniorPage, scanJuniorPage } from './juniorPage';
 
-vi.mock('../core/api', () => ({ fetchTodayInfo: vi.fn() }));
+vi.mock('../core/apiClient', () => ({ fetchTodayInfo: vi.fn() }));
 vi.mock('../core/juniorSync', () => ({
     syncVisibleJuniors: vi.fn().mockResolvedValue(undefined),
     cancelQueuedJuniorSync: vi.fn()
@@ -140,5 +143,54 @@ describe('handleJuniorPage', () => {
         expect(showJuniorCard).not.toHaveBeenCalled();
         expect(cancelQueuedJuniorSync).toHaveBeenCalled();
         expect(hideJuniorCard).toHaveBeenCalled();
+    });
+});
+
+
+describe('observed beta academy and report', () => {
+    const context = () => resolvePageContext(new URL(window.location.pathname, 'https://sokker.org'))!;
+    it('validates both academy identities and syncs only an own team, preserving native clicks', async () => {
+        setPage('/juniors/42/', academy);
+        const view = scanJuniorPage(context(), document)!;
+        expect([...view.names.keys()]).toEqual([12345, 12346]);
+        const button = view.names.get(12345)!;
+        const native = vi.fn(); button.addEventListener('click', native);
+        await handleJuniorPage(view);
+        button.focus();
+        expect(showJuniorCard).toHaveBeenCalledWith(button, 42, 12345, 'Junior One', 'right');
+        button.click(); expect(native).toHaveBeenCalledOnce();
+        expect(sync).toHaveBeenCalledWith({ teamId: 42, week: 1213, kind: 'academy', ids: [12345, 12346] });
+        const requests = current.mock.calls.length;
+        button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        expect(current).toHaveBeenCalledTimes(requests);
+
+        setPage('/juniors/99/', academy);
+        await handleJuniorPage(scanJuniorPage(context(), document)!);
+        expect(sync).toHaveBeenCalledTimes(1);
+        vi.mocked(showJuniorCard).mockClear();
+        document.querySelector('button')!.focus();
+        expect(showJuniorCard).not.toHaveBeenCalled();
+    });
+    it('rejects mismatched, unsafe and hidden academy IDs and handles replaced names', async () => {
+        setPage('/juniors/42', academy);
+        document.querySelector('[id="junior-row-12346"]')!.id = 'junior-row-12345';
+        expect([...scanJuniorPage(context(), document)!.names.keys()]).toEqual([12345]);
+        await handleJuniorPage(scanJuniorPage(context(), document)!);
+        const replacement = document.createElement('button'); replacement.textContent = 'Junior One';
+        document.querySelector('button')!.replaceWith(replacement);
+        await handleJuniorPage(scanJuniorPage(context(), document)!);
+        replacement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        expect(showJuniorCard).toHaveBeenLastCalledWith(replacement, 42, 12345, 'Junior One', 'right');
+        expect(sync).toHaveBeenCalledTimes(1);
+        document.querySelector('tr')!.setAttribute('data-row-id', '9007199254740992');
+        expect(scanJuniorPage(context(), document)!.names.size).toBe(0);
+    });
+    it('keeps report juniors inside their observed section', async () => {
+        setPage('/training/reports/details/1000/', betaReport);
+        const view = scanJuniorPage(context(), document)!;
+        expect(view.kind).toBe('report');
+        expect([...view.names.keys()]).toEqual([12346]);
+        await handleJuniorPage(view);
+        expect(sync).toHaveBeenCalledWith({ teamId: 42, week: 1213, kind: 'report', ids: [12346] });
     });
 });

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JuniorRecord } from '../core/juniorTypes';
-import { getJuniorRecord } from '../core/juniorRepository';
+import { getJuniorRecord } from '../core/storageClient';
 import { getJuniorSyncState, subscribeJuniorUpdates } from '../core/juniorSync';
 import { drawJuniorChart } from '../ui-components/juniorCanvas';
 import { createJuniorExportCanvas } from '../ui-components/juniorExport';
 import { hideJuniorCard, scheduleJuniorCardHide, showJuniorCard } from './juniorCard';
 
-vi.mock('../core/juniorRepository', () => ({ getJuniorRecord: vi.fn() }));
+vi.mock('../core/storageClient', () => ({ getJuniorRecord: vi.fn() }));
 vi.mock('../core/juniorSync', () => ({
     getJuniorSyncState: vi.fn(), subscribeJuniorUpdates: vi.fn(() => () => undefined)
 }));

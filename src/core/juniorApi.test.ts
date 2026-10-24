@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchJuniorGraph, fetchJuniorRoster } from './api';
 
 function respondWith(body: unknown, ok = true): void {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok, status: ok ? 200 : 503, json: async () => body }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok, status: ok ? 200 : 503, headers: new Headers({ 'content-type': 'application/json' }), json: async () => body }));
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -18,7 +18,7 @@ describe('fetchJuniorRoster', () => {
             { id: 101, teamId: 9001, talent: 4, weeksLeft: 12 },
             { id: 102, teamId: 9001, talent: null, weeksLeft: null },
         ]);
-        expect(fetch).toHaveBeenCalledWith(`${location.origin}/api/junior?filter[limit]=100`);
+        expect(fetch).toHaveBeenCalledWith(`https://sokker.org/api/junior?filter[limit]=100`, { method: 'GET', credentials: 'include' });
     });
 
     it('accepts an empty roster but rejects a missing or malformed juniors array', async () => {
@@ -61,8 +61,8 @@ describe('fetchJuniorGraph', () => {
         respondWith({ juniorId: 101, values: [] });
         const controller = new AbortController();
         await fetchJuniorGraph(101, controller.signal);
-        expect(fetch).toHaveBeenCalledWith(`${location.origin}/api/junior/101/graph`, {
-            signal: controller.signal
+        expect(fetch).toHaveBeenCalledWith(`https://sokker.org/api/junior/101/graph`, {
+            method: 'GET', credentials: 'include', signal: controller.signal
         });
     });
 
@@ -76,7 +76,7 @@ describe('fetchJuniorGraph', () => {
             { x: 1213, y: 6, scale: 0, source: 'graph' },
             { x: 1214, y: 7, source: 'graph' },
         ]);
-        expect(fetch).toHaveBeenCalledWith(`${location.origin}/api/junior/101/graph`);
+        expect(fetch).toHaveBeenCalledWith(`https://sokker.org/api/junior/101/graph`, { method: 'GET', credentials: 'include' });
     });
 
     it('accepts an empty values array only when the requested juniorId matches', async () => {

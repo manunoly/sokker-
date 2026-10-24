@@ -66,7 +66,8 @@
     <h1>Sokker++</h1>
 
     <div class="card">
-        <div class="status" id="status">Sync Status: Checking...</div>
+        <div class="status" id="status" role="status">Checking shared history...</div>
+        <p id="recovery" hidden style="font-size:12px;">To recover previous history, open a classic page on sokker.org.</p>
         <button id="syncBtn" class="btn">Sync Data Now</button>
         <button id="repairBtn" class="btn btn-secondary">Repair History</button>
     </div>
@@ -82,7 +83,7 @@
     </div>
 
     <div style="font-size: 10px; color: #999; text-align: center; margin-top: 10px;">
-        Data is stored only in this browser ·
+        Shared history is stored in this browser profile ·
         <a href="https://github.com/manunoly/sokker-/blob/main/PRIVACY.md" target="_blank" rel="noopener"
             style="color: inherit;">Privacy</a>
     </div>
