@@ -112,3 +112,13 @@ La inspección de código modificado no encontró tests omitidos/focalizados ni 
 - `d7aed1b`: harnesses aislados de vistas e IndexedDB nativo.
 
 Los cambios permanecen en `codex/new-sokker-beta`. No se ha hecho push, merge, publicación ni piloto de datos reales. El artefacto local para el Chrome de prueba es `dist/` de este worktree.
+
+## Preparación del ensayo de popup MV3
+
+Se añadieron [generador, cotejador y pasos de Chrome](../../scripts/mv3-browser-check/README.md) para la comprobación pendiente del popup. No abren navegador, IndexedDB ni red. Cada ejecución usa un directorio nuevo bajo `node_modules/.cache/sokker-mv3-check/`, con escrituras exclusivas y sin borrados. Los JSON y reportes generados están ignorados por Git.
+
+El conjunto `430df988-b352-4dfc-a594-a166ca2f88af` contiene un backup antiguo de 2044 bytes, uno v2 de 6486 bytes y otro v2 de 68163691 bytes, con manifiesto e inventarios/huellas. Usa exclusivamente identidades sintéticas y un archivo íntegro con stores desconocidos. Se cotejaron los tres archivos con validadores reales y el payload truncado fue rechazado. El coordinador repitió el CLI sobre el grande y el typecheck del script: salida 0. SHA-256 del JSON grande: `f6eafdad87386aa4928d837e0d9194c986f072e570752918f96eadb5d8bdf43f`.
+
+Astra high revisó los cuatro archivos auxiliares. Detectó un falso positivo al cotejar metadatos juveniles y revalidó su corrección: alteraciones individuales de `weeksLeft`, `graphWeek`, `resolvedWeek` y `resolution` se rechazan sin escribir reportes; una unión válida de puntos se acepta. El cotejador comprueba seis campos juveniles contra estas fixtures, observaciones del jugador, coherencia de `latest`, archivos íntegros y payload. La revisión acotada terminó sin hallazgos accionables pendientes.
+
+Los reportes declaran `chromePopupExecution: not-established-by-cli`. Cotejar el propio archivo generado verifica la herramienta; no acredita una exportación del popup. La fuente del producto y el artefacto MV3 no cambiaron desde los resultados de 407 pruebas/tipos/build y las auditorías registradas. Los servidores de los harnesses terminados se cerraron. La carga y ejecución real de Chrome sigue pendiente de la conexión elegida por el propietario.

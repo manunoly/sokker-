@@ -41,3 +41,9 @@ Astra repitió independientemente la colisión original, una segunda colisión s
 La batería propia de Astra pasó **73 pruebas en 14 archivos**, incluidos crecimiento lineal, bootstrap bajo cuota, backups v2 anidados y transferencia superior a 64 MiB. `git diff --check` terminó con salida 0 y avisos de CRLF. No confirmó nuevos problemas materiales en ese alcance. La batería global del coordinador pasó después de S3: **407 pruebas en 47 archivos**, tipos y build con salida 0. La repetición del harness nativo pasó sus nueve escenarios.
 
 El veredicto de código es favorable dentro de los alcances revisados. No certifica mensajería, permisos, cookies o reinicio de un service worker real; tampoco autoriza el piloto de la BD real sin copia independiente y restauración verificada.
+
+## Herramientas para preparar el ensayo MV3
+
+Astra high revisó por separado `scripts/mv3-browser-check/cli.ts`, `run.mjs`, `tsconfig.json` y `README.md`. El P2 encontrado permitía aceptar cambios de procedencia juvenil al cotejar archivos. Sol lo reprodujo en rojo y añadió comparación de los campos omitidos. Astra revalidó cada alteración individual, sin reportes de éxito, y los casos positivos de archivo válido y unión de puntos.
+
+La revisión final de esos cuatro archivos fue favorable, sin hallazgos accionables. Las salidas son nuevas y exclusivas, sin borrado/sobrescritura; los reportes explicitan que el CLI no establece ejecución del popup. La inspección usó fuente directa porque `scripts/` está excluido del grafo. No hubo cambios de producto, navegador ni datos reales en esta revisión.
