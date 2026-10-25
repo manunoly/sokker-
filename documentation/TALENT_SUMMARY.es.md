@@ -12,6 +12,8 @@ El popup incluye **Mostrar botones + de historial**, activado por defecto. La pr
 
 La [galería de capturas](SCREENSHOTS.md#general-skills-summary) muestra un ejemplo del resumen y la tabla semanal.
 
+Las flechas y los colores de plantilla y ficha comparan las dos últimas observaciones reales de cada habilidad por **semana observada**, con la misma normalización de fechas que la gráfica. Las capturas repetidas de una semana se agrupan; si falta la semana actual, se conserva el último informe completado. Un informe real fechado en jueves o viernes de la semana actual ya puede mostrar su cambio. Una referencia de arrastre o de plantilla no establece por sí sola una subida o bajada. Los huecos permiten observar un cambio neto entre informes reales, sin atribuirle una semana exacta. Si una fecha es inválida, se usa la semana del informe; antes de la ventana de entrenamiento solo se omite esa entrada si pertenece a la semana actual. Este cálculo no modifica el historial ni el CSV.
+
 ## Significado de las dos cifras
 
 Las ocho habilidades siguen el orden de la ficha: Resistencia, Ritmo, Técnica y Pases a la izquierda; Portería, Defensa, Creación y Anotación a la derecha. Cada fila muestra en grande los **avanzados** y en pequeño los entrenos de **formación**. Al pasar o enfocar una cifra aparece su explicación.

@@ -14,7 +14,9 @@ Junior synchronization starts only on an eligible report details page or the use
 
 ## First-team display
 
-Squad and player views compare saved skill snapshots for the improvement arrows. Before the current week's training window, the comparison can use the preceding completed weeks; after it, the latest two saved entries are compared. See `src/content/ui.ts` for the exact page handling. Do not interpret an arrow as proof of which training caused a rise.
+Squad and player views use `src/core/skillChanges.ts` for their improvement arrows and numeric colors. It compares the two latest measured observations for each skill using the chart's observed-week normalization, source priority, and date-echo filtering. Repeated captures of the same observed week collapse into one point. A missing current-week entry never causes the latest completed report to be discarded, and a dated Thursday/Friday report from the current week can already establish the latest change regardless of the day threshold.
+
+When `/api/current` is available, future report weeks are excluded. An invalid capture date falls back to its stored report week; before the training window (`day < 5`), only an undated entry actually belonging to the current report week is excluded. If the context request fails, the saved observations still use the chart's date normalization, without guessing the current week from the computer's clock. Legacy entries without `source` count as real reports. A latest point that is only carried over or roster-derived does not establish a measured change; earlier references are skipped when finding the preceding real observation. A gap can show a net change between real reports but does not establish the exact week or cause of the rise. No history or CSV data is rewritten by this display calculation.
 
 General Skills ++ opens from first-team names on squad/player pages, training setup, and training report details. On the two training routes, `src/content/trainingPlayerPage.ts` identifies first-team rows and leaves junior report rows to `src/content/juniorPage.ts`. The card reads local history and uses the same rendering on every route.
 

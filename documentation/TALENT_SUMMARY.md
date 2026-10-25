@@ -12,6 +12,8 @@ The popup includes **Show + history buttons**, enabled by default. This preferen
 
 See the [General Skills ++ screenshot](SCREENSHOTS.md#general-skills-summary) for an example of the summary and weekly table.
 
+Squad/profile arrows and colors compare the latest two real observations of each skill by **observed week**, using the chart's date normalization. Repeated captures of a week collapse into one point; a missing current week does not discard the latest completed report. A real report dated Thursday or Friday in the current week can already show its change. A carried-over or roster reference cannot establish a rise or drop on its own. Gaps allow a net change between real reports without assigning an exact change week. Invalid dates fall back to the report week; before the training window, that entry is excluded only if it belongs to the current week. This calculation does not modify history or CSV data.
+
 ## What the two numbers mean
 
 The eight skills follow the familiar player-page order: Stamina, Pace, Technique, Passing on the left; Keeper, Defending, Playmaking, Striker on the right. Each row shows a large **advanced** count and a smaller **formation** count. Hover or focus a count for its explanation.

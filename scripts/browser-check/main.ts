@@ -29,6 +29,14 @@ const recordedDownloads: Array<{ filename: string; type: string; bytes: number; 
 const currentWeek = 1007;
 const baseSkills: Skills = { stamina: 8, pace: 10, technique: 9, passing: 8, keeper: 1, defending: 7, playmaking: 9, striker: 6, tacticalDiscipline: 9, form: 10, teamwork: 8, experience: 5 };
 function player(id: number): PlayerData {
+    if (scenario.value === 'comparison') {
+        const history: PlayerHistoryEntry[] = [
+            { week: 1000, date: '2030-01-03', skills: { ...baseSkills, passing: 8, defending: 6 }, value: 100, source: 'training' },
+            { week: 1001, date: '2030-01-10', skills: { ...baseSkills, passing: 8, defending: 7 }, value: 100, source: 'training' },
+            { week: 1002, date: '2030-01-17', skills: { ...baseSkills, passing: 9, defending: 7 }, value: 100, source: 'training' },
+        ];
+        return { id, name: 'Synthetic Player', history, latest: history.at(-1)! };
+    }
     const history: PlayerHistoryEntry[] = Array.from({ length: 8 }, (_, index) => ({
         week: 1000 + index, date: new Date(Date.UTC(2026, 7, 7 + index * 7)).toISOString().slice(0, 10),
         skills: { ...baseSkills, pace: 9 + Math.floor(index / 3), passing: 8 + Math.floor(index / 4) },
@@ -44,7 +52,9 @@ function reply(message: any): unknown {
     operations.push(message.operation);
     const input = message.input ?? {};
     switch (message.operation) {
-        case 'api.today': return { season: 80, week: currentWeek, seasonWeek: 7, day: 6, date: { value: '2026-09-25', timestamp: Date.UTC(2026, 8, 25) }, teamId: 42 };
+        case 'api.today': return scenario.value === 'comparison'
+            ? { season: 80, week: 1003, seasonWeek: 3, day: 2, date: { value: '2030-01-22', timestamp: Date.UTC(2030, 0, 22) }, teamId: 42 }
+            : { season: 80, week: currentWeek, seasonWeek: 7, day: 6, date: { value: '2026-09-25', timestamp: Date.UTC(2026, 8, 25) }, teamId: 42 };
         case 'getPlayerHistory': return [12345, 12346].includes(input.id) ? player(input.id) : null;
         case 'getJuniorRecord': return junior(input.id);
         case 'getJuniorRecords': return input.ids.map((id: number) => [id, junior(id)]);
@@ -109,6 +119,10 @@ fixture.addEventListener('click', event => {
     if ((event.target as Element).closest('a[href]')) event.preventDefault();
 });
 const scenarios: Record<string, { path: string; html: string }> = {
+    comparison: { path: '/squad', html: '<table><thead><tr><th>Player</th><th>Pace</th><th>Passing</th><th>Defending</th></tr></thead><tbody><tr class="table-row" data-row-id="12345">'
+        + '<td class="table__cell--name"><a href="https://sokker.org/player/12345">Synthetic Player</a></td>'
+        + '<td class="table__cell--pace">10</td><td class="table__cell--passing">9</td>'
+        + '<td class="table__cell--defending">7</td></tr></tbody></table>' },
     squad: { path: '/squad', html: squad }, 'other-squad': { path: '/squad/99', html: squad },
     profile: { path: '/player/12345', html: profile }, colors: { path: '/player/12345', html: colors },
     academy: { path: '/juniors/42', html: academy }, setup: { path: '/training/training-setup', html: setup },
@@ -148,6 +162,11 @@ async function verifyCurrent(): Promise<void> {
     // The following focus/Canvas checks run while the + controls are hidden.
     if (current.kind === 'squad' || current.kind === 'player') {
         const players = scanBetaPlayers(current, document);
+        if (scenario.value === 'comparison') {
+            const passing = players[0].skills.find(item => item.key === 'passing')!.anchor;
+            const defending = players[0].skills.find(item => item.key === 'defending')!.anchor;
+            check(passing.querySelector('.skill-arrow')?.textContent === '▲' && !defending.querySelector('.skill-arrow'), 'comparison: last completed passing rise is shown, old defending rise is not');
+        }
         const skill = players[0].skills.find(item => item.key === 'pace')!.anchor;
         let nativeClicks = 0;
         const onClick = () => { nativeClicks++; }; skill.addEventListener('click', onClick);
@@ -174,7 +193,7 @@ async function verifyCurrent(): Promise<void> {
         const csv = await until(() => document.querySelector<HTMLButtonElement>('#sokkerpp-history-tooltip [data-export-csv]'));
         check(!!document.querySelector('#sokkerpp-history-tooltip table'), `${scenario.value}: name focus opens saved weekly summary`);
         const csvBefore = recordedDownloads.length; csv.click(); await until(() => recordedDownloads.length > csvBefore);
-        check(recordedDownloads.at(-1)!.type.includes('text/csv') && recordedDownloads.at(-1)!.text!.includes('1007'), `${scenario.value}: CSV export contains synthetic saved history`);
+        check(recordedDownloads.at(-1)!.type.includes('text/csv') && recordedDownloads.at(-1)!.text!.includes(String(player(players[0].playerId).latest.week)), `${scenario.value}: CSV export contains synthetic saved history`);
     } else {
         const training = scanTrainingPlayerPage(current, document);
         if (training?.names.size) {

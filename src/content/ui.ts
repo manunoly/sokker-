@@ -1,6 +1,6 @@
 import { getPlayerHistory } from '../core/storageClient';
-import { fetchTodayInfo } from '../core/apiClient';
-import type { Skills } from '../types/index';
+import { fetchTodayInfo, type TodayInfo } from '../core/apiClient';
+import { computeSkillChanges, type SkillChange } from '../core/skillChanges';
 import { PLAYER_SKILL_COLUMNS, type PlayerSkill } from '../core/playerTimeline';
 import { mapSkillLabelToKey } from './i18n';
 import { contextFromPath, resolvePageContext, type PageContext } from './pageContext';
@@ -18,16 +18,6 @@ function clearHighlights(): void {
     }
     highlighted.clear();
 }
-interface HistoryEntryWithSkills { skills: Skills }
-
-function selectComparisonEntries<T extends HistoryEntryWithSkills>(history: T[], usePreviousWeek: boolean): { targetCurrent: T | null; targetPrevious: T | null } {
-    if (!history.length) return { targetCurrent: null, targetPrevious: null };
-    if (usePreviousWeek && history.length >= 2) {
-        return { targetCurrent: history.at(-2)!, targetPrevious: history.at(-3) ?? null };
-    }
-    return { targetCurrent: history.at(-1)!, targetPrevious: usePreviousWeek ? null : history.at(-2) ?? null };
-}
-
 function legacyPlayerLink(link: HTMLAnchorElement): number | null {
     let context: PageContext | null;
     try { context = resolvePageContext(new URL(link.getAttribute('href') ?? '', 'https://sokker.org')); }
@@ -55,10 +45,10 @@ function markLegacy(players: PlayerAnchors[]): void {
     }
 }
 
-function showChange(anchor: HTMLElement, skill: PlayerSkill, current?: Skills, previous?: Skills | null): void {
+function showChange(anchor: HTMLElement, change?: SkillChange): void {
     let arrow = anchor.querySelector<HTMLElement>('[data-sokkerpp-owned="change"]');
-    const curr = current?.[skill];
-    const prev = previous?.[skill];
+    const curr = change?.current;
+    const prev = change?.previous;
     const changed = typeof curr === 'number' && typeof prev === 'number' && curr !== prev;
     const value = anchor.dataset.sokkerppValue === 'true' ? anchor : anchor.querySelector<HTMLElement>('.skillNameNumber');
     if (value && changed) {
@@ -88,25 +78,24 @@ async function renderPlayers(players: PlayerAnchors[], pathname: string): Promis
     clearHighlights();
     bindPlayerAnchors(players);
     if (!players.length) return;
-    let today;
+    let today: TodayInfo | undefined;
     try { today = await fetchTodayInfo(); }
     catch (error) { console.warn('Could not read current comparison week:', error); }
     if (generation !== renderGeneration || location.pathname !== pathname) return;
-    const usePreviousWeek = !!today && today.day < 5;
     // Share each read across every table/card anchor for this player in the scan.
     const reads = new Map<number, ReturnType<typeof getPlayerHistory>>();
     for (const player of players) if (!reads.has(player.playerId)) reads.set(player.playerId, getPlayerHistory(player.playerId));
     await Promise.all(players.map(async player => {
         const saved = await reads.get(player.playerId)!;
         if (generation !== renderGeneration || location.pathname !== pathname) return;
-        const { targetCurrent, targetPrevious } = selectComparisonEntries(saved?.history ?? [], usePreviousWeek);
+        const changes = computeSkillChanges(saved?.history ?? [], today);
         for (const { key, anchor } of player.skills) {
-            if (isPlayerAnchorActive(anchor, player.playerId)) showChange(anchor, key, targetCurrent?.skills, targetPrevious?.skills);
+            if (isPlayerAnchorActive(anchor, player.playerId)) showChange(anchor, changes[key]);
         }
     }));
 }
 
-/** Legacy cards continue to use their semantic labels and existing weekly comparison. */
+/** Legacy cards use semantic labels and the shared observed-week comparison. */
 export async function processSquadTable(container: HTMLElement): Promise<void> {
     const players: PlayerAnchors[] = [];
     for (const box of container.querySelectorAll<HTMLElement>('.player-box, .player-box--sm')) {
