@@ -103,15 +103,13 @@ function bind(anchor: HTMLElement): void {
     });
 }
 
-function pinControl(anchor: HTMLElement): void {
+function pinNameControl(anchor: HTMLElement): void {
     if (controls.get(anchor)?.isConnected) return;
     const button = createHistoryButton(anchor, control => {
         const binding = selected(anchor);
-        if (!binding) return;
+        if (!binding || binding.skill) return;
         const rect = control.getBoundingClientRect();
-        present(anchor, binding, () => binding.skill
-            ? openZoomChart(binding.playerId, binding.skill, control)
-            : showHistoryTooltip(rect.right, rect.top, binding.playerId, control, { pinned: true }));
+        present(anchor, binding, () => showHistoryTooltip(rect.right, rect.top, binding.playerId, control, { pinned: true }));
     });
     if (button) controls.set(anchor, button);
 }
@@ -132,15 +130,15 @@ export function bindPlayerAnchors(players: readonly PlayerAnchors[]): void {
     }
     active = next;
     for (const [anchor, control] of controls) {
-        if (!active.has(anchor) || !anchor.isConnected) { control.remove(); controls.delete(anchor); }
+        if (active.get(anchor)?.skill !== null || !anchor.isConnected) { control.remove(); controls.delete(anchor); }
     }
     const strings = getPlayerStrings(location.pathname, document.documentElement.lang, navigator.language);
     for (const [anchor, binding] of active) {
         bind(anchor);
-        pinControl(anchor);
+        if (binding.skill) continue;
+        pinNameControl(anchor);
         const control = controls.get(anchor);
-        const label = binding.skill ? strings.skills[binding.skill] : strings.title;
-        if (control) updateHistoryButton(control, binding.skill ? 'skill' : 'name', `${strings.history}: ${label}`);
+        if (control) updateHistoryButton(control, 'name', `${strings.history}: ${strings.title}`);
     }
 }
 

@@ -135,18 +135,14 @@ async function load(): Promise<void> {
     if (current.kind === 'squad' || current.kind === 'player') await processBetaPlayers(current);
     const juniors = scanJuniorPage(current, document); if (juniors) await handleJuniorPage(juniors);
     const training = scanTrainingPlayerPage(current, document); if (training) handleTrainingPlayerPage(training);
-    status.textContent = 'Synthetic view ready. Hover or focus names and skills; + pins the first-team card.';
+    status.textContent = 'Synthetic view ready. Hover or focus skills for charts; + beside a name pins its summary.';
 }
 async function verifyCurrent(): Promise<void> {
     const apiBefore = operations.filter(operation => operation.startsWith('api.')).length;
     check(['sokker.org', 'app.sokker.org', 'future.sokker.org'].every(host => resolvePageContext(new URL(`https://${host}${current.pathname}`))?.layout === 'beta'), `${scenario.value}: same route layout on root and subdomains`);
     const buttons = [...fixture.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]')];
     check(buttons.length > 0, `${scenario.value}: history controls are present`);
-    const skillButton = buttons.find(button => button.dataset.historyVariant === 'skill');
-    if (skillButton) {
-        const style = getComputedStyle(skillButton);
-        check(style.borderTopStyle === 'none' && style.backgroundColor === 'rgba(0, 0, 0, 0)', `${scenario.value}: skill + has no resting border or background`);
-    }
+    check(buttons.every(button => button.dataset.historyVariant === 'name'), `${scenario.value}: only names have + controls`);
     await setHistoryButtonsVisible(false);
     check(buttons.every(button => button.hidden && button.getClientRects().length === 0), `${scenario.value}: preference hides every control without a rescan`);
     // The following focus/Canvas checks run while the + controls are hidden.
@@ -165,9 +161,10 @@ async function verifyCurrent(): Promise<void> {
         [...document.querySelectorAll<HTMLButtonElement>('#sokkerpp-history-tooltip button')].find(button => button.textContent === 'PNG')!.click();
         await until(() => recordedDownloads.length > pngBefore);
         check(recordedDownloads.at(-1)!.type === 'image/png' && recordedDownloads.at(-1)!.bytes > 1000, `${scenario.value}: PNG export encoded real Canvas`);
-        const control = [...(skill.parentElement?.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]') ?? [])].find(button => button.previousElementSibling === skill) ?? (skill.querySelector<HTMLButtonElement>('[data-sokkerpp-owned="pin"]'));
+        const name = players[0].names[0];
+        const control = [...fixture.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]')].find(button => button.previousElementSibling === name || button.previousElementSibling === name.closest('a'));
         await setHistoryButtonsVisible(true);
-        check(!!control && control.tabIndex === 0, `${scenario.value}: own pin control is keyboard accessible`);
+        check(!!control && control.tabIndex === 0, `${scenario.value}: name pin control is keyboard accessible`);
         control!.click();
         await until(() => document.querySelector<HTMLButtonElement>('[data-close-player-card]')?.style.display === 'block');
         check(nativeClicks === 1, `${scenario.value}: own pin does not invoke the native skill action`);
