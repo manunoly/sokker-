@@ -38,7 +38,7 @@ describe('player identity and native interactions', () => {
         expect(showHistoryTooltip).toHaveBeenCalledTimes(2);
         expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
     });
-    it('preserves the native click and pins from its own keyboard-accessible button', () => {
+    it('preserves native skill clicks and hover/focus while only names have a pin button', () => {
         document.body.innerHTML = '<span id="name">Player</span><button id="skill">Pace</button>';
         const native = document.querySelector<HTMLButtonElement>('#skill')!;
         const clicked = vi.fn(); native.addEventListener('click', clicked);
@@ -46,13 +46,17 @@ describe('player identity and native interactions', () => {
         const event = new MouseEvent('click', { bubbles: true, cancelable: true }); native.dispatchEvent(event);
         expect(clicked).toHaveBeenCalledOnce(); expect(event.defaultPrevented).toBe(false);
         expect(openZoomChart).not.toHaveBeenCalled();
-        const control = native.nextElementSibling as HTMLButtonElement;
+        expect(native.nextElementSibling).toBeNull();
+        expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);
+        const control = document.querySelector<HTMLButtonElement>('[data-history-variant="name"]')!;
         expect(control.tagName).toBe('BUTTON'); expect(control.tabIndex).toBe(0);
         expect(control.getAttribute('aria-label')).toBeTruthy();
         control.focus(); control.click();
-        expect(openZoomChart).toHaveBeenCalledWith(12345, 'pace', control);
+        expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 12345, control, { pinned: true });
+        native.dispatchEvent(new MouseEvent('mouseenter'));
         native.focus();
         expect(showTooltip).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 12345, 'pace', native);
+        expect(showTooltip).toHaveBeenCalledTimes(2);
         expect(fetchTodayInfo).not.toHaveBeenCalled(); expect(getPlayerHistory).not.toHaveBeenCalled();
     });
     it('reads each player once for table+cards and keeps a stable indicator through rescans', async () => {
@@ -159,7 +163,7 @@ it.each(['beta', 'legacy'])('ignores stale %s card identities for hover, focus a
     skill.dispatchEvent(new MouseEvent('mouseenter'));
     skill.focus();
     if (layout === 'beta') {
-        const pin = skill.nextElementSibling as HTMLButtonElement;
+        const pin = document.querySelector<HTMLButtonElement>('[data-history-variant="name"]')!;
         pin.click();
     } else {
         skill.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -195,7 +199,7 @@ it.each(['name', 'skill', 'pin'])('hides an obsolete pending %s card after a car
     const pending = new Promise<void>(resolve => { finish = resolve; });
     if (interaction === 'name') { vi.mocked(showHistoryTooltip).mockReturnValueOnce(pending); name.dispatchEvent(new MouseEvent('mouseenter')); }
     if (interaction === 'skill') { vi.mocked(showTooltip).mockReturnValueOnce(pending); skill.dispatchEvent(new MouseEvent('mouseenter')); }
-    if (interaction === 'pin') { vi.mocked(openZoomChart).mockReturnValueOnce(pending); (skill.nextElementSibling as HTMLButtonElement).click(); }
+    if (interaction === 'pin') { vi.mocked(showHistoryTooltip).mockReturnValueOnce(pending); document.querySelector<HTMLButtonElement>('[data-history-variant="name"]')!.click(); }
     name.setAttribute('href', '/player/12346');
     finish();
     await pending;
@@ -226,24 +230,28 @@ it('does not close a newer valid card when an older obsolete presentation finish
 });
 
 
-it('provides classic + controls and updates variants, labels and player IDs on reused nodes', () => {
+it('keeps classic name controls and removes them when a node is reused as a skill', () => {
     history.replaceState({}, '', '/app/squad');
     document.body.innerHTML = '<a id="name" data-sokkerpp-layout="legacy" href="/player/PID/12345">One</a><span id="skill" data-sokkerpp-layout="legacy">Pace</span>';
     bindPlayerAnchors(anchors());
     const controls = [...document.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]')];
-    expect(controls).toHaveLength(2);
+    expect(controls).toHaveLength(1);
     controls[0].click();
     expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, 12345, controls[0], { pinned: true });
-    controls[1].click();
-    expect(openZoomChart).toHaveBeenLastCalledWith(12345, 'pace', controls[1]);
+    expect(document.querySelector('[data-history-variant="skill"]')).toBeNull();
     const name = document.querySelector<HTMLElement>('#name')!;
     name.setAttribute('href', '/player/PID/12346');
     bindPlayerAnchors([{ playerId: 12346, names: [], skills: [{ key: 'passing', anchor: name }] }]);
+    expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
+    name.dispatchEvent(new MouseEvent('mouseenter'));
+    name.focus();
+    expect(showTooltip).toHaveBeenLastCalledWith(0, 0, 12346, 'passing', name);
+    expect(openZoomChart).not.toHaveBeenCalled();
+    bindPlayerAnchors([{ playerId: 12346, names: [name], skills: [] }]);
+    const restored = document.querySelector<HTMLButtonElement>('[data-history-variant="name"]')!;
     expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);
-    expect(controls[0].dataset.historyVariant).toBe('skill');
-    expect(controls[0].getAttribute('aria-label')).toContain('Passing');
-    controls[0].click();
-    expect(openZoomChart).toHaveBeenLastCalledWith(12346, 'passing', controls[0]);
+    restored.click();
+    expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, 12346, restored, { pinned: true });
 });
 
 it('leaves hover and focus available when the + controls are hidden', () => {
