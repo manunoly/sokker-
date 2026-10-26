@@ -6,6 +6,7 @@ import { processBetaPlayers, processPlayerPage, processSquadTable, invalidatePla
 import { resolvePageContext } from './pageContext';
 import { leavePlayerBindings } from './playerBindings';
 import type { PlayerData, PlayerHistoryEntry, Skills } from '../types';
+import betaSkillValues from './fixtures/betaSkillValues.html?raw';
 
 vi.mock('../core/apiClient', () => ({ fetchTodayInfo: vi.fn() }));
 vi.mock('../core/storageClient', () => ({ getPlayerHistory: vi.fn() }));
@@ -61,9 +62,9 @@ function mount(layout: Layout): () => Promise<void> {
     }
     if (layout === 'beta-profile') {
         window.history.replaceState({}, '', '/player/7');
-        document.body.innerHTML = '<div class="@container/player"><div class="[grid-area:name]"><div><span>Synthetic Player</span></div></div>'
-            + `<div class="@container/skills"><button id="passing"><span>passing</span><span>${passing}</span></button>`
-            + `<button id="defending"><span>defender</span><span>${defending}</span></button></div></div>`;
+        document.body.innerHTML = betaSkillValues;
+        document.querySelector('#passing-value')!.textContent = String(passing);
+        document.querySelector('#defending-value')!.textContent = String(defending);
     } else {
         window.history.replaceState({}, '', '/squad');
         document.body.innerHTML = '<table><tbody><tr class="table-row" data-row-id="7">'
@@ -75,8 +76,14 @@ function mount(layout: Layout): () => Promise<void> {
 }
 
 function expectChanges(passing: string | null, defending: string | null): void {
-    expect(document.querySelector('#passing .skill-arrow')?.textContent ?? null).toBe(passing);
-    expect(document.querySelector('#defending .skill-arrow')?.textContent ?? null).toBe(defending);
+    const profile = location.pathname.includes('/player/');
+    for (const [key, direction] of [['passing', passing], ['defending', defending]] as const) {
+        expect(document.querySelector(`#${key} .skill-arrow`)?.textContent ?? null).toBe(profile ? null : direction);
+        if (!profile) continue;
+        const value = document.querySelector<HTMLElement>(`#${key} .skillNameNumber, #${key}-value`)!;
+        if (direction) expect(value.style.color).toBe(direction === '▲' ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)');
+        else expect(['rgb(40, 167, 69)', 'rgb(220, 53, 69)']).not.toContain(value.style.color);
+    }
 }
 
 it.each(layouts.flatMap(layout => [0, 1, 2, 3, 4, 5, 6].map(day => ({ layout, day }))))(
@@ -101,13 +108,15 @@ it.each(layouts)('collapses a redundant Sunday capture into the preceding observ
 it.each(layouts)('uses a real Thursday report from the current week instead of the previous rise: %s', async layout => {
     saved.history.push(entry(1003, '2030-01-24', { defending: 8, passing: 9 }));
     const today = await fetchTodayInfo();
-    vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 4, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) } });
+    vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 5, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) / 1000 } });
     await mount(layout)();
     expectChanges(null, '▲');
 });
 
-it.each(layouts)('shows a drop from the latest measured report: %s', async layout => {
+it.each(layouts)('shows a drop from the latest completed report: %s', async layout => {
     saved.history.push(entry(1003, '2030-01-24', { defending: 7, passing: 8 }));
+    const today = await fetchTodayInfo();
+    vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 5, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) / 1000 } });
     await mount(layout)();
     expectChanges('▼', null);
     if (layout === 'classic-profile') {
@@ -115,19 +124,19 @@ it.each(layouts)('shows a drop from the latest measured report: %s', async layou
     }
 });
 
-it('replaces old arrows and restores native number styles through rescans and invalidation without changing saved history', async () => {
+it('updates profile colors and restores native styles through rescans and invalidation without changing saved history', async () => {
     const render = mount('classic-profile');
     const passing = document.querySelector<HTMLElement>('#passing .skillNameNumber')!;
     passing.style.color = 'blue';
     passing.title = 'Native value';
     const original = structuredClone(saved);
     await render(); await render();
-    expect(document.querySelectorAll('.skill-arrow')).toHaveLength(1);
+    expect(document.querySelectorAll('.skill-arrow')).toHaveLength(0);
     expect(saved).toEqual(original);
     saved.history.push(entry(1003, '2030-01-24', { defending: 8, passing: 9 }));
     document.querySelector('#defending .skillNameNumber')!.textContent = '8';
     const today = await fetchTodayInfo();
-    vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 4, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) } });
+    vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 5, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) / 1000 } });
     await render();
     expectChanges(null, '▲');
     expect(passing.style.color).toBe('blue');
@@ -142,4 +151,189 @@ it('keeps dated observed-week comparisons when the current-context request fails
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await mount('classic-profile')();
     expectChanges('▲', null);
+});
+
+
+it.each(layouts.flatMap(layout => [0, 1, 2, 3, 4].map(day => ({ layout, day }))))(
+    'retains the previous training result after rollover with a dated pending report: $layout day=$day', async ({ layout, day }) => {
+        saved.history.push(entry(1003, '2030-01-17', { defending: 7, passing: 9 }));
+        const today = await fetchTodayInfo();
+        const currentDate = new Date(Date.UTC(2030, 0, 19 + day));
+        vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day, date: { value: currentDate.toISOString().slice(0, 10), timestamp: currentDate.getTime() / 1000 } });
+        await mount(layout)();
+        expectChanges('▲', null);
+        if (layout === 'classic-profile') {
+            expect(document.querySelector<HTMLElement>('#passing .skillNameNumber')!.style.color).toBe('rgb(40, 167, 69)');
+        }
+    },
+);
+
+
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>(done => { resolve = done; });
+    return { promise, resolve };
+}
+
+it.each((['classic-profile', 'classic-squad', 'beta-profile'] as const).flatMap(layout =>
+    (['context', 'history'] as const).map(waitingFor => ({ layout, waitingFor })),
+))('keeps the numeric highlight while an ordinary rescan waits for $waitingFor: $layout', async ({ layout, waitingFor }) => {
+    const render = mount(layout);
+    const selector = {
+        'classic-profile': '#passing .skillNameNumber',
+        'classic-squad': '#passing ~ .skill-list__value',
+        'beta-profile': '#passing-value',
+    }[layout];
+    const value = document.querySelector<HTMLElement>(selector)!;
+    value.style.color = 'blue';
+    value.title = 'Native value';
+    await render();
+    const today = await fetchTodayInfo();
+    const pendingContext = deferred<Awaited<ReturnType<typeof fetchTodayInfo>>>();
+    const pendingHistory = deferred<PlayerData | null>();
+    const historyStarted = deferred<void>();
+    if (waitingFor === 'context') vi.mocked(fetchTodayInfo).mockReturnValueOnce(pendingContext.promise);
+    else vi.mocked(getPlayerHistory).mockImplementationOnce(() => {
+        historyStarted.resolve();
+        return pendingHistory.promise;
+    });
+    const pendingRender = render();
+    if (waitingFor === 'history') await historyStarted.promise;
+    try {
+        expect(value.style.color).toBe('rgb(40, 167, 69)');
+        expect(value.style.fontWeight).toBe('bold');
+        expect(value.title).toBe('Previous: 8');
+        expectChanges('▲', null);
+    } finally {
+        pendingContext.resolve(today);
+        pendingHistory.resolve(saved);
+        await pendingRender;
+    }
+    expect(value.style.color).toBe('rgb(40, 167, 69)');
+    expectChanges('▲', null);
+    invalidatePlayerCache();
+    expect(value.style.color).toBe('blue');
+    expect(value.title).toBe('Native value');
+});
+
+it('removes the old player highlight immediately when a reused profile changes identity during a pending read', async () => {
+    const render = mount('classic-profile');
+    const value = document.querySelector<HTMLElement>('#passing .skillNameNumber')!;
+    value.style.color = 'blue';
+    await render();
+    const today = await fetchTodayInfo();
+    const pendingContext = deferred<Awaited<ReturnType<typeof fetchTodayInfo>>>();
+    vi.mocked(fetchTodayInfo).mockReturnValueOnce(pendingContext.promise);
+    vi.mocked(getPlayerHistory).mockResolvedValueOnce(null);
+    window.history.replaceState({}, '', '/en/app/player/PID/8/');
+    const pendingRender = render();
+    try {
+        expect(value.style.color).toBe('blue');
+        expectChanges(null, null);
+    } finally {
+        pendingContext.resolve(today);
+        await pendingRender;
+    }
+    expect(value.style.color).toBe('blue');
+});
+
+it('removes a highlight immediately when the same native value is reused for a different skill', async () => {
+    const render = mount('classic-profile');
+    const value = document.querySelector<HTMLElement>('#passing .skillNameNumber')!;
+    value.style.color = 'blue';
+    await render();
+    const today = await fetchTodayInfo();
+    const pendingContext = deferred<Awaited<ReturnType<typeof fetchTodayInfo>>>();
+    vi.mocked(fetchTodayInfo).mockReturnValueOnce(pendingContext.promise);
+    const cell = document.querySelector('#passing')!;
+    [...cell.childNodes].find(node => node.nodeType === Node.TEXT_NODE)!.textContent = ' Defender';
+    const pendingRender = render();
+    try {
+        expect(value.style.color).toBe('blue');
+        expectChanges(null, null);
+    } finally {
+        pendingContext.resolve(today);
+        await pendingRender;
+    }
+    expect(value.style.color).toBe('blue');
+});
+
+
+it('keeps indicators through a normal storage revision while cancelling pending reads', async () => {
+    vi.mocked(getPlayerHistory).mockClear();
+    const render = mount('classic-profile');
+    const value = document.querySelector<HTMLElement>('#passing .skillNameNumber')!;
+    value.style.color = 'blue';
+    await render();
+    const today = await fetchTodayInfo();
+    const pendingContext = deferred<Awaited<ReturnType<typeof fetchTodayInfo>>>();
+    vi.mocked(fetchTodayInfo).mockReturnValueOnce(pendingContext.promise);
+    const staleRender = render();
+    try {
+        invalidatePlayerCache({ preserveIndicators: true });
+        expect(value.style.color).toBe('rgb(40, 167, 69)');
+        expectChanges('▲', null);
+        await render();
+    } finally {
+        pendingContext.resolve(today);
+        await staleRender;
+    }
+    expect(value.style.color).toBe('rgb(40, 167, 69)');
+    expect(getPlayerHistory).toHaveBeenCalledTimes(2);
+    invalidatePlayerCache();
+    expect(value.style.color).toBe('blue');
+    expectChanges(null, null);
+});
+
+
+it.each(['rise', 'drop'] as const)('colors the visible beta profile level for a %s without changing native bars', async direction => {
+    if (direction === 'drop') {
+        saved.history[2] = entry(1002, '2030-01-17', { defending: 7, passing: 7 });
+    }
+    const render = mount('beta-profile');
+    const value = document.querySelector<HTMLElement>('#passing-value')!;
+    const originalStyle = value.style.cssText;
+    const bars = [...document.querySelectorAll('.native-bar')].map(bar => bar.outerHTML);
+    await render();
+    expect(value.style.color).toBe(direction === 'rise' ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)');
+    expectChanges(direction === 'rise' ? '▲' : '▼', null);
+    expect(document.querySelector<HTMLElement>('#passing-measurement')!.style.color).toBe('');
+    expect(document.querySelector<HTMLElement>('#defending-value')!.style.color).toBe('var(--c-fg)');
+    expect([...document.querySelectorAll('.native-bar')].map(bar => bar.outerHTML)).toEqual(bars);
+    invalidatePlayerCache();
+    expect(value.style.cssText).toBe(originalStyle);
+});
+
+it('highlights the current beta value node when Sokker replaces it during a pending read', async () => {
+    const render = mount('beta-profile');
+    const today = await fetchTodayInfo();
+    const pending = deferred<Awaited<ReturnType<typeof fetchTodayInfo>>>();
+    vi.mocked(fetchTodayInfo).mockReturnValueOnce(pending.promise);
+    const rendering = render();
+    const original = document.querySelector<HTMLElement>('#passing-value')!;
+    const replacement = original.cloneNode(true) as HTMLElement;
+    original.replaceWith(replacement);
+    pending.resolve(today);
+    await rendering;
+    expect(replacement.style.color).toBe('rgb(40, 167, 69)');
+    expect(original.style.color).toBe('var(--c-fg)');
+    expectChanges('▲', null);
+});
+
+
+it.each(['classic-profile', 'beta-profile'] as const)('removes change arrows from the player profile: %s', async layout => {
+    const render = mount(layout);
+    const stale = document.createElement('span');
+    stale.className = 'skill-arrow'; stale.dataset.sokkerppOwned = 'change'; stale.textContent = '▲';
+    document.querySelector('#passing')!.append(stale);
+    await render();
+    expect(document.querySelectorAll('.skill-arrow')).toHaveLength(0);
+    const value = document.querySelector<HTMLElement>(layout === 'classic-profile' ? '#passing .skillNameNumber' : '#passing-value')!;
+    expect(value.style.color).toBe('rgb(40, 167, 69)');
+});
+
+it('highlights both the beta skill name and its visible numeric level', async () => {
+    await mount('beta-profile')();
+    expect(document.querySelector<HTMLElement>('#passing span span')!.style.color).toBe('rgb(40, 167, 69)');
+    expect(document.querySelector<HTMLElement>('#passing-value')!.style.color).toBe('rgb(40, 167, 69)');
 });

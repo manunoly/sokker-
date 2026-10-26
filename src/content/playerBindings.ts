@@ -8,7 +8,7 @@ export type PlayerSkillKey = PlayerSkill;
 export interface PlayerAnchors {
     playerId: number;
     names: HTMLElement[];
-    skills: Array<{ key: PlayerSkillKey; anchor: HTMLElement }>;
+    skills: Array<{ key: PlayerSkillKey; anchor: HTMLElement; getValue?: () => HTMLElement | null; getLabel?: () => HTMLElement | null }>;
 }
 interface Binding { playerId: number; skill: PlayerSkill | null; pathname: string }
 let active = new Map<HTMLElement, Binding>();

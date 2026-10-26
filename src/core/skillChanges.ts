@@ -9,10 +9,11 @@ export function computeSkillChanges(
     history: readonly PlayerHistoryEntry[],
     today?: Pick<TodayInfo, 'week' | 'day'>,
 ): Partial<Record<PlayerSkill, SkillChange>> {
-    const eligible = history.filter(entry => !today || entry.week <= today.week);
-    const rows = preparePlayerTimeline(eligible).filter(row =>
-        // Without a usable date, only an actual current-week entry needs the pre-training fallback.
-        !(today && today.day < 5 && row.reportWeek === today.week && !row.dateReliable));
+    // A valid capture date does not mean the current week's training has completed.
+    // Sokker's game-day context keeps the preceding result active through the rollover.
+    const completedWeek = today ? today.week - (today.day < 5 ? 1 : 0) : undefined;
+    const eligible = history.filter(entry => completedWeek === undefined || entry.week <= completedWeek);
+    const rows = preparePlayerTimeline(eligible);
     const changes: Partial<Record<PlayerSkill, SkillChange>> = {};
     for (const skill of PLAYER_SKILL_COLUMNS.flat()) {
         const points = observedSkillPoints(rows, skill);

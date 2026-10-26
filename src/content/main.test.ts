@@ -92,6 +92,7 @@ describe('shared history bootstrap', () => {
         await vi.waitFor(() => expect(mocks.processBetaPlayers).toHaveBeenCalled());
         mocks.subscribeStorageChanges.mock.calls[0][0]({ ...state, revision: 1 });
         expect(mocks.invalidateJuniorSync).not.toHaveBeenCalled(); expect(mocks.invalidatePlayerCache).toHaveBeenCalledOnce();
+        expect(mocks.invalidatePlayerCache).toHaveBeenCalledWith({ preserveIndicators: true });
     });
     it('keeps large backups and destructive data management out of content messages', async () => {
         await load();

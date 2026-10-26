@@ -84,7 +84,7 @@ describe('measured skill changes', () => {
         expect(computeSkillChanges(history, today)).toEqual({ passing: { current: 9, previous: 8 } });
     });
 
-    it('only applies the undated pre-training fallback to a present current-week entry', () => {
+    it('excludes a pending current-week entry even when its date is invalid', () => {
         const history = [...reports(), entry(1003, 'invalid', { defending: 7, passing: 9 })];
         expect(computeSkillChanges(history, today)).toEqual({ passing: { current: 9, previous: 8 } });
         expect(computeSkillChanges(history, { ...today, day: 5 })).toEqual({});
@@ -95,8 +95,31 @@ describe('measured skill changes', () => {
         expect(computeSkillChanges(history)).toEqual({ passing: { current: 9, previous: 8 } });
     });
 
-    it('keeps the later real capture when the current report updates a level in the same observed week', () => {
+    it('does not replace the completed training with a later capture from the pending week', () => {
         const history = [...reports(), entry(1003, '2030-01-20', { defending: 7, passing: 10 })];
-        expect(computeSkillChanges(history, today)).toEqual({ passing: { current: 10, previous: 8 } });
+        expect(computeSkillChanges(history, today)).toEqual({ passing: { current: 9, previous: 8 } });
+    });
+});
+
+
+describe('last completed training across a Saturday rollover', () => {
+    it.each([0, 1, 2, 3, 4].flatMap(day =>
+        (['training', 'carried-over', 'roster-fallback'] as const).map(source => ({ day, source })),
+    ))('retains the completed rise before training despite a dated current-week entry: day=$day source=$source', ({ day, source }) => {
+        const history = [...reports(), entry(1003, '2030-01-17', { defending: 7, passing: 9 }, source)];
+        const original = structuredClone(history);
+        expect(computeSkillChanges(history, { week: 1003, day })).toEqual({ passing: { current: 9, previous: 8 } });
+        expect(history).toEqual(original);
+    });
+
+    it.each([0, 1, 2, 3, 4])('does not replace the completed result with a pending capture: day=%s', day => {
+        const captureDate = new Date(Date.UTC(2030, 0, 19 + day)).toISOString().slice(0, 10);
+        const history = [...reports(), entry(1003, captureDate, { defending: 8, passing: 10 })];
+        expect(computeSkillChanges(history, { week: 1003, day })).toEqual({ passing: { current: 9, previous: 8 } });
+    });
+
+    it.each([5, 6])('clears the previous rise when the next completed training has no changes: day=%s', day => {
+        const history = [...reports(), entry(1003, '2030-01-24', { defending: 7, passing: 9 })];
+        expect(computeSkillChanges(history, { week: 1003, day })).toEqual({});
     });
 });
