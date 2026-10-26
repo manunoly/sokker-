@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import squad from './fixtures/betaSquad.html?raw';
 import player from './fixtures/betaPlayer.html?raw';
 import colors from './fixtures/betaPlayerColors.html?raw';
+import values from './fixtures/betaSkillValues.html?raw';
 import { resolvePageContext } from './pageContext';
 import { scanBetaPlayers } from './betaPlayerPage';
 
@@ -41,4 +42,17 @@ describe('observed beta player structures', () => {
         expect(scanBetaPlayers(context('/app/squad'), document)).toEqual([]);
         expect(scanBetaPlayers(context('/juniors/42'), document)).toEqual([]);
     });
+});
+
+
+it('resolves the visible sibling value and rejects ambiguous level copies', () => {
+    document.body.innerHTML = values;
+    const player = scanBetaPlayers(context('/player/7'), document)[0];
+    const passing = player.skills.find(skill => skill.key === 'passing')!;
+    const value = document.querySelector<HTMLElement>('#passing-value')!;
+    expect(passing.anchor).toBe(document.querySelector('#passing'));
+    expect(passing.anchor.contains(value)).toBe(false);
+    expect(passing.getValue?.()).toBe(value);
+    value.parentElement!.append(value.cloneNode(true));
+    expect(passing.getValue?.()).toBeNull();
 });

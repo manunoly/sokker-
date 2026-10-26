@@ -1,6 +1,6 @@
 import { getPlayerHistory } from '../core/storageClient';
-import { fetchTodayInfo } from '../core/apiClient';
-import type { Skills } from '../types/index';
+import { fetchTodayInfo, type TodayInfo } from '../core/apiClient';
+import { computeSkillChanges, type SkillChange } from '../core/skillChanges';
 import { PLAYER_SKILL_COLUMNS, type PlayerSkill } from '../core/playerTimeline';
 import { mapSkillLabelToKey } from './i18n';
 import { contextFromPath, resolvePageContext, type PageContext } from './pageContext';
@@ -9,25 +9,39 @@ import { bindPlayerAnchors, isPlayerAnchorActive, type PlayerAnchors } from './p
 
 const skills = new Set<string>(PLAYER_SKILL_COLUMNS.flat());
 let renderGeneration = 0;
-const highlighted = new Map<HTMLElement, { color: string; weight: string; title: string }>();
-function clearHighlights(): void {
+interface HighlightIdentity { playerId: number; skill: PlayerSkill }
+const highlighted = new Map<HTMLElement, HighlightIdentity & { color: string; weight: string; title: string }>();
+function restoreHighlight(value: HTMLElement): void {
+    const original = highlighted.get(value);
+    if (!original) return;
+    value.removeAttribute('data-sokkerpp-skill-change');
+    value.style.color = original.color;
+    value.style.fontWeight = original.weight;
+    value.title = original.title;
+    highlighted.delete(value);
+}
+function clearHighlights(retain?: ReadonlyMap<HTMLElement, HighlightIdentity>): void {
     for (const [value, original] of highlighted) {
-        value.style.color = original.color;
-        value.style.fontWeight = original.weight;
-        value.title = original.title;
+        const current = retain?.get(value);
+        if (current?.playerId === original.playerId && current.skill === original.skill) continue;
+        restoreHighlight(value);
     }
-    highlighted.clear();
 }
-interface HistoryEntryWithSkills { skills: Skills }
-
-function selectComparisonEntries<T extends HistoryEntryWithSkills>(history: T[], usePreviousWeek: boolean): { targetCurrent: T | null; targetPrevious: T | null } {
-    if (!history.length) return { targetCurrent: null, targetPrevious: null };
-    if (usePreviousWeek && history.length >= 2) {
-        return { targetCurrent: history.at(-2)!, targetPrevious: history.at(-3) ?? null };
-    }
-    return { targetCurrent: history.at(-1)!, targetPrevious: usePreviousWeek ? null : history.at(-2) ?? null };
+function highlightTargets(target: PlayerAnchors['skills'][number]): HTMLElement[] {
+    const { anchor } = target;
+    const value = target.getValue ? target.getValue()
+        : anchor.dataset.sokkerppValue === 'true' ? anchor : anchor.querySelector<HTMLElement>('.skillNameNumber');
+    return [target.getLabel?.(), value].filter((node): node is HTMLElement => !!node);
 }
-
+function ensureHighlightStyles(): void {
+    if (document.getElementById('sokkerpp-skill-colors')) return;
+    const style = document.createElement('style');
+    style.id = 'sokkerpp-skill-colors';
+    style.dataset.sokkerppOwned = 'skill-colors';
+    style.textContent = '[data-sokkerpp-skill-change="up"]{color:#28a745!important;font-weight:bold!important}'
+        + '[data-sokkerpp-skill-change="down"]{color:#dc3545!important;font-weight:bold!important}';
+    document.head.append(style);
+}
 function legacyPlayerLink(link: HTMLAnchorElement): number | null {
     let context: PageContext | null;
     try { context = resolvePageContext(new URL(link.getAttribute('href') ?? '', 'https://sokker.org')); }
@@ -55,19 +69,26 @@ function markLegacy(players: PlayerAnchors[]): void {
     }
 }
 
-function showChange(anchor: HTMLElement, skill: PlayerSkill, current?: Skills, previous?: Skills | null): void {
+function showChange(target: PlayerAnchors['skills'][number], playerId: number, change: SkillChange | undefined, showArrow: boolean): void {
+    const { anchor, key: skill } = target;
     let arrow = anchor.querySelector<HTMLElement>('[data-sokkerpp-owned="change"]');
-    const curr = current?.[skill];
-    const prev = previous?.[skill];
+    const curr = change?.current;
+    const prev = change?.previous;
     const changed = typeof curr === 'number' && typeof prev === 'number' && curr !== prev;
-    const value = anchor.dataset.sokkerppValue === 'true' ? anchor : anchor.querySelector<HTMLElement>('.skillNameNumber');
-    if (value && changed) {
-        highlighted.set(value, { color: value.style.color, weight: value.style.fontWeight, title: value.title });
-        value.style.color = curr > prev ? '#28a745' : '#dc3545';
-        value.style.fontWeight = 'bold';
-        value.title = `Previous: ${prev}`;
+    const values = highlightTargets(target);
+    if (changed && values.length) ensureHighlightStyles();
+    for (const value of values) {
+        if (changed) {
+            if (!highlighted.has(value)) {
+                highlighted.set(value, { playerId, skill, color: value.style.color, weight: value.style.fontWeight, title: value.title });
+            }
+            value.dataset.sokkerppSkillChange = curr > prev ? 'up' : 'down';
+            value.style.color = curr > prev ? '#28a745' : '#dc3545';
+            value.style.fontWeight = 'bold';
+            value.title = `Previous: ${prev}`;
+        } else restoreHighlight(value);
     }
-    if (anchor.dataset.sokkerppValue === 'true') { arrow?.remove(); return; }
+    if (!showArrow || anchor.dataset.sokkerppValue === 'true') { arrow?.remove(); return; }
     if (typeof curr !== 'number' || typeof prev !== 'number' || curr === prev) { arrow?.remove(); return; }
     if (!arrow) {
         arrow = document.createElement('span');
@@ -85,28 +106,38 @@ function showChange(anchor: HTMLElement, skill: PlayerSkill, current?: Skills, p
 
 async function renderPlayers(players: PlayerAnchors[], pathname: string): Promise<void> {
     const generation = ++renderGeneration;
-    clearHighlights();
     bindPlayerAnchors(players);
+    // Keep valid colors while reads are pending, restoring reused or removed values immediately.
+    const retained = new Map<HTMLElement, HighlightIdentity>();
+    for (const player of players) {
+        for (const target of player.skills) {
+            if (!isPlayerAnchorActive(target.anchor, player.playerId)) continue;
+            for (const value of highlightTargets(target)) {
+                retained.set(value, { playerId: player.playerId, skill: target.key });
+            }
+        }
+    }
+    clearHighlights(retained);
     if (!players.length) return;
-    let today;
+    const showArrows = contextFromPath(pathname)?.kind !== 'player';
+    let today: TodayInfo | undefined;
     try { today = await fetchTodayInfo(); }
     catch (error) { console.warn('Could not read current comparison week:', error); }
     if (generation !== renderGeneration || location.pathname !== pathname) return;
-    const usePreviousWeek = !!today && today.day < 5;
     // Share each read across every table/card anchor for this player in the scan.
     const reads = new Map<number, ReturnType<typeof getPlayerHistory>>();
     for (const player of players) if (!reads.has(player.playerId)) reads.set(player.playerId, getPlayerHistory(player.playerId));
     await Promise.all(players.map(async player => {
         const saved = await reads.get(player.playerId)!;
         if (generation !== renderGeneration || location.pathname !== pathname) return;
-        const { targetCurrent, targetPrevious } = selectComparisonEntries(saved?.history ?? [], usePreviousWeek);
-        for (const { key, anchor } of player.skills) {
-            if (isPlayerAnchorActive(anchor, player.playerId)) showChange(anchor, key, targetCurrent?.skills, targetPrevious?.skills);
+        const changes = computeSkillChanges(saved?.history ?? [], today);
+        for (const target of player.skills) {
+            if (isPlayerAnchorActive(target.anchor, player.playerId)) showChange(target, player.playerId, changes[target.key], showArrows);
         }
     }));
 }
 
-/** Legacy cards continue to use their semantic labels and existing weekly comparison. */
+/** Legacy cards use semantic labels and the shared observed-week comparison. */
 export async function processSquadTable(container: HTMLElement): Promise<void> {
     const players: PlayerAnchors[] = [];
     for (const box of container.querySelectorAll<HTMLElement>('.player-box, .player-box--sm')) {
@@ -170,9 +201,10 @@ export async function processBetaPlayers(context: PageContext, root: Document = 
 }
 
 
-/** Invalidate pending saved-history reads after a shared storage change. */
-export function invalidatePlayerCache(): void {
+/** Cancel pending reads; ordinary revisions can retain indicators until fresh data arrives. */
+export function invalidatePlayerCache(options: { preserveIndicators?: boolean } = {}): void {
     ++renderGeneration;
+    if (options.preserveIndicators) return;
     clearHighlights();
     document.querySelectorAll('[data-sokkerpp-owned="change"]').forEach(node => node.remove());
 }

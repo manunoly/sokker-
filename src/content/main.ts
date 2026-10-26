@@ -64,7 +64,7 @@ function main(): void {
             void invalidateJuniorSync().then(() => refreshObserver()).catch(report);
         }
         else if (previous.revision !== state.revision) {
-            hideTooltip(); hideJuniorCard(); invalidatePlayerCache(); refreshObserver();
+            hideTooltip(); hideJuniorCard(); invalidatePlayerCache({ preserveIndicators: true }); refreshObserver();
         }
     });
     initObserver(

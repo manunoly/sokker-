@@ -12,6 +12,7 @@ import type { JuniorRecord } from '../../src/core/juniorTypes';
 import squad from '../../src/content/fixtures/betaSquad.html?raw';
 import profile from '../../src/content/fixtures/betaPlayer.html?raw';
 import colors from '../../src/content/fixtures/betaPlayerColors.html?raw';
+import skillValues from '../../src/content/fixtures/betaSkillValues.html?raw';
 import academy from '../../src/content/fixtures/betaAcademy.html?raw';
 import setup from '../../src/content/fixtures/betaTrainingSetup.html?raw';
 import report from '../../src/content/fixtures/betaTrainingReport.html?raw';
@@ -29,6 +30,14 @@ const recordedDownloads: Array<{ filename: string; type: string; bytes: number; 
 const currentWeek = 1007;
 const baseSkills: Skills = { stamina: 8, pace: 10, technique: 9, passing: 8, keeper: 1, defending: 7, playmaking: 9, striker: 6, tacticalDiscipline: 9, form: 10, teamwork: 8, experience: 5 };
 function player(id: number): PlayerData {
+    if (scenario.value.startsWith('comparison')) {
+        const history: PlayerHistoryEntry[] = [
+            { week: 1000, date: '2030-01-03', skills: { ...baseSkills, passing: 8, defending: 6 }, value: 100, source: 'training' },
+            { week: 1001, date: '2030-01-10', skills: { ...baseSkills, passing: 8, defending: 7 }, value: 100, source: 'training' },
+            { week: 1002, date: '2030-01-17', skills: { ...baseSkills, passing: 9, defending: 7 }, value: 100, source: 'training' },
+        ];
+        return { id, name: 'Synthetic Player', history, latest: history.at(-1)! };
+    }
     const history: PlayerHistoryEntry[] = Array.from({ length: 8 }, (_, index) => ({
         week: 1000 + index, date: new Date(Date.UTC(2026, 7, 7 + index * 7)).toISOString().slice(0, 10),
         skills: { ...baseSkills, pace: 9 + Math.floor(index / 3), passing: 8 + Math.floor(index / 4) },
@@ -44,7 +53,9 @@ function reply(message: any): unknown {
     operations.push(message.operation);
     const input = message.input ?? {};
     switch (message.operation) {
-        case 'api.today': return { season: 80, week: currentWeek, seasonWeek: 7, day: 6, date: { value: '2026-09-25', timestamp: Date.UTC(2026, 8, 25) }, teamId: 42 };
+        case 'api.today': return scenario.value.startsWith('comparison')
+            ? { season: 80, week: 1003, seasonWeek: 3, day: 2, date: { value: '2030-01-22', timestamp: Date.UTC(2030, 0, 22) }, teamId: 42 }
+            : { season: 80, week: currentWeek, seasonWeek: 7, day: 6, date: { value: '2026-09-25', timestamp: Date.UTC(2026, 8, 25) }, teamId: 42 };
         case 'getPlayerHistory': return [12345, 12346].includes(input.id) ? player(input.id) : null;
         case 'getJuniorRecord': return junior(input.id);
         case 'getJuniorRecords': return input.ids.map((id: number) => [id, junior(id)]);
@@ -109,6 +120,11 @@ fixture.addEventListener('click', event => {
     if ((event.target as Element).closest('a[href]')) event.preventDefault();
 });
 const scenarios: Record<string, { path: string; html: string }> = {
+    comparison: { path: '/squad', html: '<table><thead><tr><th>Player</th><th>Pace</th><th>Passing</th><th>Defending</th></tr></thead><tbody><tr class="table-row" data-row-id="12345">'
+        + '<td class="table__cell--name"><a href="https://sokker.org/player/12345">Synthetic Player</a></td>'
+        + '<td class="table__cell--pace">10</td><td class="table__cell--passing">9</td>'
+        + '<td class="table__cell--defending">7</td></tr></tbody></table>' },
+    'comparison-profile': { path: '/player/12345', html: skillValues },
     squad: { path: '/squad', html: squad }, 'other-squad': { path: '/squad/99', html: squad },
     profile: { path: '/player/12345', html: profile }, colors: { path: '/player/12345', html: colors },
     academy: { path: '/juniors/42', html: academy }, setup: { path: '/training/training-setup', html: setup },
@@ -133,10 +149,29 @@ async function load(): Promise<void> {
     document.querySelector('#source-url')!.textContent = `Validated source: ${source.href}`;
     fixture.innerHTML = selected.html;
     if (current.kind === 'squad' || current.kind === 'player') await processBetaPlayers(current);
+    if (scenario.value === 'comparison-profile') await verifyProfileColors();
     const juniors = scanJuniorPage(current, document); if (juniors) await handleJuniorPage(juniors);
     const training = scanTrainingPlayerPage(current, document); if (training) handleTrainingPlayerPage(training);
     status.textContent = 'Synthetic view ready. Hover or focus skills for charts; + beside a name pins its summary.';
 }
+async function verifyProfileColors(): Promise<void> {
+    const value = fixture.querySelector<HTMLElement>('#passing-value')!;
+    const label = fixture.querySelector<HTMLElement>('#passing span span')!;
+    const green = 'rgb(40, 167, 69)';
+    const bars = [...fixture.querySelectorAll('.native-bar')].map(bar => bar.outerHTML);
+    check(getComputedStyle(value).color === green, 'profile: visible numeric level is green');
+    value.style.color = 'var(--c-fg)';
+    await new Promise(requestAnimationFrame);
+    check(getComputedStyle(value).color === green, 'profile: green survives a native inline color update');
+    check(getComputedStyle(label).color === green, 'profile: skill name is green too');
+    check(!fixture.querySelector('.skill-arrow'), 'profile: no change arrows are shown');
+    check([...fixture.querySelectorAll('.native-bar')].every((bar, index) => bar.outerHTML === bars[index]), 'profile: native bars are unchanged');
+    invalidatePlayerCache();
+    check(getComputedStyle(value).color !== green && getComputedStyle(label).color !== green, 'profile: invalidation restores native colors');
+    await processBetaPlayers(current);
+    check(getComputedStyle(value).color === green && getComputedStyle(label).color === green, 'profile: fresh render restores both highlights');
+}
+
 async function verifyCurrent(): Promise<void> {
     const apiBefore = operations.filter(operation => operation.startsWith('api.')).length;
     check(['sokker.org', 'app.sokker.org', 'future.sokker.org'].every(host => resolvePageContext(new URL(`https://${host}${current.pathname}`))?.layout === 'beta'), `${scenario.value}: same route layout on root and subdomains`);
@@ -148,6 +183,11 @@ async function verifyCurrent(): Promise<void> {
     // The following focus/Canvas checks run while the + controls are hidden.
     if (current.kind === 'squad' || current.kind === 'player') {
         const players = scanBetaPlayers(current, document);
+        if (scenario.value === 'comparison') {
+            const passing = players[0].skills.find(item => item.key === 'passing')!.anchor;
+            const defending = players[0].skills.find(item => item.key === 'defending')!.anchor;
+            check(passing.querySelector('.skill-arrow')?.textContent === '▲' && !defending.querySelector('.skill-arrow'), 'comparison: last completed passing rise is shown, old defending rise is not');
+        }
         const skill = players[0].skills.find(item => item.key === 'pace')!.anchor;
         let nativeClicks = 0;
         const onClick = () => { nativeClicks++; }; skill.addEventListener('click', onClick);
@@ -174,7 +214,7 @@ async function verifyCurrent(): Promise<void> {
         const csv = await until(() => document.querySelector<HTMLButtonElement>('#sokkerpp-history-tooltip [data-export-csv]'));
         check(!!document.querySelector('#sokkerpp-history-tooltip table'), `${scenario.value}: name focus opens saved weekly summary`);
         const csvBefore = recordedDownloads.length; csv.click(); await until(() => recordedDownloads.length > csvBefore);
-        check(recordedDownloads.at(-1)!.type.includes('text/csv') && recordedDownloads.at(-1)!.text!.includes('1007'), `${scenario.value}: CSV export contains synthetic saved history`);
+        check(recordedDownloads.at(-1)!.type.includes('text/csv') && recordedDownloads.at(-1)!.text!.includes(String(player(players[0].playerId).latest.week)), `${scenario.value}: CSV export contains synthetic saved history`);
     } else {
         const training = scanTrainingPlayerPage(current, document);
         if (training?.names.size) {

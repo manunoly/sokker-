@@ -16,6 +16,23 @@ function playerLink(link: HTMLAnchorElement): number | null {
     return context?.kind === 'player' && context.layout === 'beta' ? context.playerId : null;
 }
 
+/** The visible level is beside the label button; the invisible copy only measures width. */
+function cardSkillValue(button: HTMLElement): HTMLElement | null {
+    const row = button.closest('[class~="grid-cols-[minmax(0,max-content)_minmax(0,1fr)_auto]"]');
+    const values = [...(row?.querySelectorAll<HTMLElement>(':scope > div:last-child span') ?? [])].filter(span => {
+        const text = span.textContent?.trim() ?? '';
+        return span.children.length === 0 && visible(span) && !span.closest('.invisible')
+            && /^\d+$/.test(text) && Number(text) <= 18;
+    });
+    return values.length === 1 ? values[0] : null;
+}
+
+function cardSkillLabel(button: HTMLElement, skill: PlayerSkill): HTMLElement | null {
+    const labels = [...button.querySelectorAll<HTMLElement>('span')].filter(span =>
+        visible(span) && span.children.length === 0 && mapSkillLabelToKey(span.textContent?.trim() ?? '') === skill);
+    return labels.length === 1 ? labels[0] : null;
+}
+
 function cardSkills(card: HTMLElement): PlayerAnchors['skills'] {
     const found: PlayerAnchors['skills'] = [];
     card.querySelectorAll<HTMLElement>('[class~="@container/skills"] button').forEach(button => {
@@ -24,7 +41,13 @@ function cardSkills(card: HTMLElement): PlayerAnchors['skills'] {
             visible(span) && span.children.length === 0);
         const keys = new Set(labels.map(label => mapSkillLabelToKey(label.textContent?.trim() ?? '')).filter(key => key && skills.has(key)));
         // A native skill button has exactly one semantic skill label.
-        if (keys.size === 1) found.push({ key: [...keys][0] as PlayerSkill, anchor: button });
+        if (keys.size === 1) {
+            const key = [...keys][0] as PlayerSkill;
+            found.push({ key, anchor: button,
+                getValue: () => cardSkillValue(button),
+                getLabel: () => cardSkillLabel(button, key),
+            });
+        }
     });
     return found;
 }

@@ -9,7 +9,7 @@ import { processBetaPlayers, processPlayerPage, processSquadTable, invalidatePla
 import { resolvePageContext } from './pageContext';
 import squad from './fixtures/betaSquad.html?raw';
 
-vi.mock('../core/apiClient', () => ({ fetchTodayInfo: vi.fn().mockResolvedValue({ day: 6 }) }));
+vi.mock('../core/apiClient', () => ({ fetchTodayInfo: vi.fn().mockResolvedValue({ day: 6, week: 1001 }) }));
 vi.mock('../core/storageClient', () => ({ getPlayerHistory: vi.fn().mockResolvedValue(null) }));
 vi.mock('./tooltip', () => ({
     openZoomChart: vi.fn().mockResolvedValue(undefined), showTooltip: vi.fn().mockResolvedValue(undefined),
