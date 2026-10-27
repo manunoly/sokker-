@@ -131,3 +131,13 @@ extract_skills.js
 extract_skills.cjs
 requerimientos.text
 estructura-directorio
+
+# Local account captures and research; never package or publish these.
+/documentation/**/*.html
+/documentation/**/*.mhtml
+/documentation/**/*.json
+/documentation/**/*_files/
+/documentation/bugs-improvements/
+/documentation/new-page-sokker/
+/documentation/geston-juniors/
+/documentation/entreno-*.md
