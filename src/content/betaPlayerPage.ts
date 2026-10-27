@@ -16,15 +16,25 @@ function playerLink(link: HTMLAnchorElement): number | null {
     return context?.kind === 'player' && context.layout === 'beta' ? context.playerId : null;
 }
 
+/** Bars and text-only cards use different native grids for each skill row. */
+function cardSkillRow(button: HTMLElement): HTMLElement | null {
+    return button.closest('[class~="grid-cols-[minmax(0,max-content)_minmax(0,1fr)_auto]"], .grid-cols-subgrid');
+}
+
 /** The visible level is beside the label button; the invisible copy only measures width. */
 function cardSkillValue(button: HTMLElement): HTMLElement | null {
-    const row = button.closest('[class~="grid-cols-[minmax(0,max-content)_minmax(0,1fr)_auto]"]');
-    const values = [...(row?.querySelectorAll<HTMLElement>(':scope > div:last-child span') ?? [])].filter(span => {
+    const values = [...(cardSkillRow(button)?.querySelectorAll<HTMLElement>('span') ?? [])].filter(span => {
         const text = span.textContent?.trim() ?? '';
-        return span.children.length === 0 && visible(span) && !span.closest('.invisible')
+        return !button.contains(span) && span.children.length === 0 && visible(span) && !span.closest('.invisible')
             && /^\d+$/.test(text) && Number(text) <= 18;
     });
     return values.length === 1 ? values[0] : null;
+}
+
+function cardSkillLevelText(button: HTMLElement): HTMLElement | null {
+    const texts = [...(cardSkillRow(button)?.querySelectorAll<HTMLElement>('p') ?? [])]
+        .filter(text => visible(text) && !text.closest('.invisible') && !!text.textContent?.trim());
+    return texts.length === 1 ? texts[0] : null;
 }
 
 function cardSkillLabel(button: HTMLElement, skill: PlayerSkill): HTMLElement | null {
@@ -46,6 +56,7 @@ function cardSkills(card: HTMLElement): PlayerAnchors['skills'] {
             found.push({ key, anchor: button,
                 getValue: () => cardSkillValue(button),
                 getLabel: () => cardSkillLabel(button, key),
+                getLevelText: () => cardSkillLevelText(button),
             });
         }
     });

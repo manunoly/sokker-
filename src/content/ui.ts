@@ -31,7 +31,7 @@ function highlightTargets(target: PlayerAnchors['skills'][number]): HTMLElement[
     const { anchor } = target;
     const value = target.getValue ? target.getValue()
         : anchor.dataset.sokkerppValue === 'true' ? anchor : anchor.querySelector<HTMLElement>('.skillNameNumber');
-    return [target.getLabel?.(), value].filter((node): node is HTMLElement => !!node);
+    return [target.getLabel?.(), value, target.getLevelText?.()].filter((node): node is HTMLElement => !!node);
 }
 function ensureHighlightStyles(): void {
     if (document.getElementById('sokkerpp-skill-colors')) return;
@@ -180,7 +180,7 @@ export async function processPlayerPage(container: HTMLElement): Promise<void> {
         const key = legacyLabel(clone);
         if (!key) continue;
         cell.dataset.clickable = 'true';
-        player.skills.push({ key, anchor: cell });
+        player.skills.push({ key, anchor: cell, getLevelText: () => cell.querySelector<HTMLElement>('strong, .strong') });
     }
     markLegacy([player]);
     await renderPlayers([player], context.pathname);

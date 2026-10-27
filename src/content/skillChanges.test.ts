@@ -337,3 +337,37 @@ it('highlights both the beta skill name and its visible numeric level', async ()
     expect(document.querySelector<HTMLElement>('#passing span span')!.style.color).toBe('rgb(40, 167, 69)');
     expect(document.querySelector<HTMLElement>('#passing-value')!.style.color).toBe('rgb(40, 167, 69)');
 });
+
+it.each(['classic-profile', 'beta-bars', 'beta-text'] as const)(
+    'colors the level text as well as the number, including when numbers are omitted: %s', async layout => {
+        const render = mount(layout === 'classic-profile' ? layout : 'beta-profile');
+        if (layout === 'beta-text') {
+            document.querySelector('[class~="@container/skills"]')!.innerHTML = `
+                <div class="col-span-3 grid grid-cols-subgrid items-center">
+                  <div><button id="passing"><span><span>passing</span></span></button></div>
+                  <div><span id="passing-value" style="color:var(--c-fg)">9</span></div>
+                  <div><p style="color:var(--c-fg-muted)">very good</p></div>
+                </div>`;
+        }
+        const levelText = layout === 'classic-profile'
+            ? document.querySelector<HTMLElement>('#passing strong')!
+            : document.querySelector<HTMLElement>('#passing')!.closest('.grid')!.querySelector<HTMLElement>('p')!;
+        const number = document.querySelector<HTMLElement>(layout === 'classic-profile' ? '#passing .skillNameNumber' : '#passing-value')!;
+        const nativeStyle = levelText.style.cssText;
+        const nativeText = levelText.textContent;
+        await render();
+        expect(getComputedStyle(levelText).color).toBe('rgb(40, 167, 69)');
+        expect(getComputedStyle(number).color).toBe('rgb(40, 167, 69)');
+        number.remove();
+        await render();
+        expect(getComputedStyle(levelText).color).toBe('rgb(40, 167, 69)');
+        expect(levelText.textContent).toBe(nativeText!.replace(number.textContent!, ''));
+        saved.history[2] = entry(1002, '2030-01-17', { defending: 7, passing: 7 });
+        await render();
+        expect(getComputedStyle(levelText).color).toBe('rgb(220, 53, 69)');
+        saved.history[2] = entry(1002, '2030-01-17', { defending: 7, passing: 8 });
+        await render();
+        expect(levelText.style.cssText).toBe(nativeStyle);
+        expect(levelText.hasAttribute('data-sokkerpp-skill-change')).toBe(false);
+    },
+);
