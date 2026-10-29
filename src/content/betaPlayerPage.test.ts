@@ -4,12 +4,58 @@ import squad from './fixtures/betaSquad.html?raw';
 import player from './fixtures/betaPlayer.html?raw';
 import colors from './fixtures/betaPlayerColors.html?raw';
 import values from './fixtures/betaSkillValues.html?raw';
+import progress from './fixtures/betaTrainingProgress.html?raw';
 import { resolvePageContext } from './pageContext';
 import { scanBetaPlayers } from './betaPlayerPage';
 
 beforeEach(() => { document.body.innerHTML = ''; });
 const context = (path: string, host = 'sokker.org') => resolvePageContext(new URL(`https://${host}${path}`))!;
 describe('observed beta player structures', () => {
+    it('supports the localized progress route and classic player links without widening other routes', () => {
+        document.body.innerHTML = progress;
+        const name = document.querySelector<HTMLAnchorElement>('td.table__cell--name a')!;
+        name.setAttribute('href', '/en/app/player/PID/12345/');
+        const players = scanBetaPlayers(context('/en/app/training/main-team-progress/'), document);
+        expect(players).toHaveLength(1); expect(players[0].skills).toHaveLength(8);
+        expect(players[0].names).toEqual([name]);
+        expect(scanBetaPlayers(context('/en/app/squad'), document)).toEqual([]);
+        name.setAttribute('href', 'https://example.test/en/app/player/PID/12345/');
+        expect(scanBetaPlayers(context('/en/app/training/main-team-progress/'), document)).toEqual([]);
+    });
+
+    it('binds classic text-only names by row identity and rejects hidden rows or foreign links', () => {
+        document.body.innerHTML = progress;
+        const cell = document.querySelector('td.table__cell--name')!;
+        cell.className = 'table__cell--player';
+        cell.innerHTML = '<span class="text c-text-link">Player One</span>';
+        const route = context('/en/app/training/main-team-progress/');
+        const players = scanBetaPlayers(route, document);
+        expect(players).toHaveLength(1); expect(players[0].playerId).toBe(12345);
+        expect(players[0].skills).toHaveLength(8);
+        expect(scanBetaPlayers(context('/training/main-team-progress'), document)).toEqual([]);
+        cell.insertAdjacentHTML('beforeend', '<a href="https://example.test/player/12345">Foreign</a>');
+        expect(scanBetaPlayers(route, document)).toEqual([]);
+        cell.querySelector('a')!.remove();
+        cell.closest('tr')!.setAttribute('aria-hidden', 'true');
+        expect(scanBetaPlayers(route, document)).toEqual([]);
+    });
+    it('reads progress names and all eight visible skill values through development links', () => {
+        document.body.innerHTML = progress;
+        const players = scanBetaPlayers(context('/training/main-team-progress'), document);
+        expect(players).toHaveLength(1);
+        expect(players[0].playerId).toBe(12345);
+        expect(players[0].names[0].textContent).toBe('Player One');
+        expect(players[0].skills).toHaveLength(8);
+        expect(players[0].skills.map(skill => skill.getValue?.()?.textContent)).toEqual(['8','10','9','10','4','10','10','10']);
+        const name = players[0].names[0];
+        name.setAttribute('href', 'https://example.test/player/12345/development');
+        expect(scanBetaPlayers(context('/training/main-team-progress'), document)).toEqual([]);
+        name.setAttribute('href', '/player/12346/development');
+        expect(scanBetaPlayers(context('/training/main-team-progress'), document)).toEqual([]);
+        name.setAttribute('href', '/player/12345/development');
+        name.closest('tr')!.setAttribute('aria-hidden', 'true');
+        expect(scanBetaPlayers(context('/training/main-team-progress'), document)).toEqual([]);
+    });
     it('merges table and card anchors and ignores flag links and measurement copies', () => {
         document.body.innerHTML = squad;
         const players = scanBetaPlayers(context('/squad'), document);

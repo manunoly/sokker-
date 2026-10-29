@@ -186,7 +186,7 @@ async function verifyCurrent(): Promise<void> {
         if (scenario.value === 'comparison') {
             const passing = players[0].skills.find(item => item.key === 'passing')!.anchor;
             const defending = players[0].skills.find(item => item.key === 'defending')!.anchor;
-            check(passing.querySelector('.skill-arrow')?.textContent === '▲' && !defending.querySelector('.skill-arrow'), 'comparison: last completed passing rise is shown, old defending rise is not');
+            check(!!(passing.closest('.skill-list__item') ?? passing).querySelector('[data-sokkerpp-skill-change="up"]') && !defending.querySelector('[data-sokkerpp-skill-change]') && !fixture.querySelector('.skill-arrow'), 'comparison: last completed passing rise is colored without arrows, old defending rise is not');
         }
         const skill = players[0].skills.find(item => item.key === 'pace')!.anchor;
         let nativeClicks = 0;

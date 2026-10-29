@@ -1,7 +1,9 @@
+import { HOVER_DELAY_MS } from './hoverIntent';
 import betaSetup from './fixtures/betaTrainingSetup.html?raw';
+import currentSetup from './fixtures/betaTrainingSetupCurrent.html?raw';
 import betaReport from './fixtures/betaTrainingReport.html?raw';
 import { resolvePageContext } from './pageContext';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hideTooltip, scheduleHide, showHistoryTooltip } from './tooltip';
 import { handleTrainingPlayerPage, leaveTrainingPlayerPage, scanTrainingPlayerPage } from './trainingPlayerPage';
 
@@ -24,12 +26,30 @@ function setPage(path: string, html: string): void {
 }
 
 beforeEach(() => {
+    vi.useFakeTimers();
     leaveTrainingPlayerPage();
     vi.clearAllMocks();
     setPage('/en/app/overview/', '');
 });
 
 describe('training first-team names', () => {
+    it('waits on training-name hover, cancels on exit and opens explicit pins immediately', () => {
+        setPage('/en/app/training/training-setup/', '<a href="/en/app/player/PID/7/">Player Seven</a>');
+        handleTrainingPlayerPage(scanTrainingPlayerPage(location.pathname, document)!);
+        const name = document.querySelector<HTMLAnchorElement>('a')!;
+        name.dispatchEvent(new MouseEvent('mouseenter'));
+        vi.advanceTimersByTime(HOVER_DELAY_MS - 1);
+        expect(showHistoryTooltip).not.toHaveBeenCalled();
+        name.dispatchEvent(new MouseEvent('mouseleave'));
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showHistoryTooltip).not.toHaveBeenCalled();
+        name.dispatchEvent(new MouseEvent('mouseenter'));
+        const pin = name.nextElementSibling as HTMLButtonElement;
+        pin.click();
+        expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 7, pin, { pinned: true });
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showHistoryTooltip).toHaveBeenCalledOnce();
+    });
     it('selects main-team report rows without taking over junior rows', () => {
         setPage('/es/app/training/reports/details/1213/',
             `<table>${reportRow('12')}${reportRow('55', true)}${reportRow('bad')}${reportRow('17')}
@@ -60,20 +80,20 @@ describe('training first-team names', () => {
         handleTrainingPlayerPage(scanTrainingPlayerPage(location.pathname, document)!);
         const name = view.names.get(7)!;
         expect(name.tabIndex).toBe(0);
-        name.dispatchEvent(new MouseEvent('mouseenter'));
+        name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenCalledOnce();
         expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 7, name);
         name.focus();
         expect(showHistoryTooltip).toHaveBeenCalledTimes(2);
         name.dispatchEvent(new MouseEvent('mouseleave'));
         expect(scheduleHide).toHaveBeenCalled();
-        view.names.get(8)?.dispatchEvent(new MouseEvent('mouseenter'));
+        view.names.get(8)?.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenCalledTimes(2);
 
         setPage('/en/app/training/reports/details/1213/', `<table>${reportRow('7')}</table>`);
         handleTrainingPlayerPage(scanTrainingPlayerPage(location.pathname, document)!);
         const replacement = document.querySelector<HTMLElement>('.text.c-text-link')!;
-        replacement.dispatchEvent(new MouseEvent('mouseenter'));
+        replacement.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenCalledTimes(3);
         expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, 7, replacement);
     });
@@ -85,23 +105,24 @@ describe('training first-team names', () => {
         setPage('/en/app/overview/', '');
         leaveTrainingPlayerPage();
         expect(hideTooltip).toHaveBeenCalled();
-        name.dispatchEvent(new MouseEvent('mouseenter'));
+        name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).not.toHaveBeenCalled();
     });
 });
 
 describe('observed beta training structures', () => {
     const context = () => resolvePageContext(new URL(location.pathname, 'https://sokker.org'))!;
-    it('selects setup links only when structural identity matches, preserving their native action', () => {
-        setPage('/training/training-setup/', betaSetup);
+    it.each([betaSetup, currentSetup])('selects setup links only when structural identity matches, preserving their native action', html => {
+        setPage('/training/training-setup/', html);
         const view = scanTrainingPlayerPage(context(), document)!;
         expect([...view.names.keys()]).toEqual([12345, 12346]);
+        const nativeHref = view.names.get(12345)!.getAttribute('href');
         handleTrainingPlayerPage(view);
         const link = view.names.get(12345)!;
         const native = vi.fn(); link.addEventListener('click', event => { native(); event.preventDefault(); });
         link.focus(); expect(showHistoryTooltip).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 12345, link);
         link.click(); expect(native).toHaveBeenCalledOnce();
-        expect(link.getAttribute('href')).toBe('/player/12345/development?from=training');
+        expect(link.getAttribute('href')).toBe(nativeHref);
         document.querySelectorAll('tr')[1].dataset.rowId = '12345';
         expect([...scanTrainingPlayerPage(context(), document)!.names.keys()]).toEqual([12345]);
         link.setAttribute('href', 'https://example.test/player/12345/development?from=training');
@@ -112,7 +133,7 @@ describe('observed beta training structures', () => {
         const view = scanTrainingPlayerPage(context(), document)!;
         expect([...view.names.keys()]).toEqual([12345]);
         handleTrainingPlayerPage(view);
-        view.names.get(12345)!.dispatchEvent(new MouseEvent('mouseenter'));
+        view.names.get(12345)!.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 12345, view.names.get(12345));
         expect(resolvePageContext(new URL('https://sokker.org/player/12345/development?from=training'))).toBeNull();
     });
@@ -140,7 +161,7 @@ it.each([
     control.click(); expect(native).toHaveBeenCalledOnce();
     expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, id, control, { pinned: true });
     control.hidden = true;
-    name.dispatchEvent(new MouseEvent('mouseenter'));
+    name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
     name.focus();
     expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, id, name);
     leaveTrainingPlayerPage();
@@ -190,3 +211,5 @@ it('discards a pending training pin when its row changes, without closing a newe
     finishOlder(); await Promise.resolve();
     expect(hideTooltip).not.toHaveBeenCalled();
 });
+
+afterEach(() => { leaveTrainingPlayerPage(); vi.useRealTimers(); });

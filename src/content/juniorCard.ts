@@ -1,4 +1,5 @@
 import { getPlayerStrings } from './playerLocale';
+import { cancelHover } from './hoverIntent';
 import { getJuniorRecord } from '../core/storageClient';
 import { getJuniorSyncState, subscribeJuniorUpdates } from '../core/juniorSync';
 import type { JuniorPoint, JuniorRecord } from '../core/juniorTypes';
@@ -312,6 +313,7 @@ function onKeydown(event: KeyboardEvent): void {
 
 /** Reads only the local junior store. Page entry handles all synchronization. */
 export async function showJuniorCard(anchor: HTMLElement, teamId: number, juniorId: number, name: string, side: CardSide = 'right', options: CardOptions = {}): Promise<void> {
+    cancelHover();
     if (restoringFocus || (selected?.pinned && !options.pinned)) return;
     cancelScheduledHide();
     if (selected?.anchor === anchor && selected.teamId === teamId && selected.juniorId === juniorId &&

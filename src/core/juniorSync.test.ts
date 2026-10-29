@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchJuniorGraph, fetchJuniorRoster } from './apiClient';
 import {
-    getJuniorRecords, getJuniorRosterSnapshot, getWriteContext, saveJuniorGraph, saveJuniorResolution,
+    getJuniorRosterSnapshot, getWriteContext, saveJuniorGraph, saveJuniorResolution,
     saveJuniorRosterSnapshot
 } from './storageClient';
 import type { JuniorPoint, JuniorRecord, JuniorRosterEntry, JuniorRosterSnapshot } from './juniorTypes';
+import { mergeJuniorGraphRecord } from './juniorRepository';
 import {
     cancelQueuedJuniorSync, getJuniorSyncState, invalidateJuniorSync,
-    subscribeJuniorUpdates, syncVisibleJuniors
+    subscribeJuniorUpdates, syncVisibleJuniors, syncCurrentJuniors
 } from './juniorSync';
 
 vi.mock('./apiClient', () => ({ fetchJuniorRoster: vi.fn(), fetchJuniorGraph: vi.fn() }));
 vi.mock('./storageClient', () => ({
-    getJuniorRecords: vi.fn(), getJuniorRosterSnapshot: vi.fn(), getWriteContext: vi.fn(),
+    getJuniorRosterSnapshot: vi.fn(), getWriteContext: vi.fn(),
     saveJuniorRosterSnapshot: vi.fn(), saveJuniorGraph: vi.fn(), saveJuniorResolution: vi.fn()
 }));
 
@@ -44,11 +45,6 @@ beforeEach(async () => {
     snapshot = null;
     persistedGeneration = 'generation-1';
     vi.mocked(getWriteContext).mockImplementation(async () => ({teamId,epoch:persistedGeneration}));
-    vi.mocked(getJuniorRecords).mockImplementation(async (_team, ids) =>
-        new Map(ids.flatMap((id) => {
-            const value = records.get(key(id));
-            return value ? [[id, { ...value }] as [number, JuniorRecord]] : [];
-        })));
     vi.mocked(getJuniorRosterSnapshot).mockImplementation(async () => snapshot);
     vi.mocked(saveJuniorRosterSnapshot).mockImplementation(async (ctx, value, entries) => {
         if (ctx.epoch !== persistedGeneration) throw new Error('Junior storage generation changed');
@@ -62,10 +58,7 @@ beforeEach(async () => {
     });
     vi.mocked(saveJuniorGraph).mockImplementation(async (ctx, id, week, points) => {
         if (ctx.epoch !== persistedGeneration) throw new Error('Junior storage generation changed');
-        records.set(key(id), {
-            ...(records.get(key(id)) ?? record(id)), points: [...points],
-            resolvedWeek: week, resolution: 'graph'
-        });
+        records.set(key(id), mergeJuniorGraphRecord(records.get(key(id)), teamId, id, week, points));
     });
     vi.mocked(saveJuniorResolution).mockImplementation(async (ctx, id, week, resolution) => {
         if (ctx.epoch !== persistedGeneration) throw new Error('Junior storage generation changed');
@@ -78,25 +71,32 @@ beforeEach(async () => {
 });
 
 describe('weekly junior synchronization', () => {
-    it('backfills missing weeksLeft once without refetching a current-week graph', async () => {
+    it('refreshes a pre-training capture on entry in the same week and deduplicates renders', async () => {
         records.set(key(101), {
-            ...record(101), points: [point(10, 5)], nativeTalentWeek: 1213,
+            ...record(101), points: [point(10, 13)], nativeTalentWeek: 1213, weeksLeft: 4,
             resolvedWeek: 1213, resolution: 'graph'
         });
-        snapshot = { teamId, week: 1213, ids: [101], complete: true };
+        snapshot = { teamId, week: 1213, ids: [101], complete: true, weeksLeftCaptured: true };
+        vi.mocked(fetchJuniorRoster).mockResolvedValue([{ id: 101, teamId, talent: 4, weeksLeft: 3 }]);
+        vi.mocked(fetchJuniorGraph).mockResolvedValue([point(10, 14)]);
         const input = { teamId, week: 1213, kind: 'academy' as const, ids: [101] };
 
         await syncVisibleJuniors(input);
         expect(fetchJuniorRoster).toHaveBeenCalledTimes(1);
-        expect(fetchJuniorGraph).not.toHaveBeenCalled();
-        expect(records.get(key(101))?.weeksLeft).toBe(12);
-        expect(snapshot?.weeksLeftCaptured).toBe(true);
+        expect(records.get(key(101))).toMatchObject({ points: [point(10, 14)], weeksLeft: 3, resolvedWeek: 1213 });
 
         await syncVisibleJuniors(input);
         expect(fetchJuniorRoster).toHaveBeenCalledTimes(1);
+        expect(fetchJuniorGraph).toHaveBeenCalledTimes(1);
+
+        cancelQueuedJuniorSync();
+        vi.mocked(fetchJuniorGraph).mockResolvedValue([point(10, 15)]);
+        await syncVisibleJuniors(input);
+        expect(fetchJuniorRoster).toHaveBeenCalledTimes(2);
+        expect(records.get(key(101))?.points).toEqual([point(10, 15)]);
     });
 
-    it('does not repeatedly backfill a departed junior absent from a valid roster response', async () => {
+    it('rechecks membership on reentry without requesting a departed report junior graph', async () => {
         records.set(key(101), {
             ...record(101), points: [point(10, 5)], nativeTalentWeek: 1213,
             resolvedWeek: 1213, resolution: 'graph'
@@ -109,7 +109,7 @@ describe('weekly junior synchronization', () => {
         cancelQueuedJuniorSync();
         await syncVisibleJuniors(input);
 
-        expect(fetchJuniorRoster).toHaveBeenCalledTimes(1);
+        expect(fetchJuniorRoster).toHaveBeenCalledTimes(2);
         expect(fetchJuniorGraph).not.toHaveBeenCalled();
         expect(snapshot?.weeksLeftCaptured).toBe(true);
     });
@@ -124,7 +124,7 @@ describe('weekly junior synchronization', () => {
         expect(saveJuniorGraph).toHaveBeenCalledWith({teamId,epoch:'generation-1'}, 101, 1213, [point(10, 5)]);
     });
 
-    it('persists an empty graph as a valid weekly check and makes no juvenile request on revisit', async () => {
+    it('persists an empty graph and makes no duplicate request during the same visit', async () => {
         vi.mocked(fetchJuniorGraph).mockResolvedValue([]);
         const input = { teamId, week: 1213, kind: 'academy' as const, ids: [101] };
         await syncVisibleJuniors(input);
@@ -341,5 +341,75 @@ describe('weekly junior synchronization', () => {
         await oldRun;
         expect(saveJuniorGraph).toHaveBeenCalledTimes(1);
         expect(records.get(key(1))?.resolvedWeek).toBeNull();
+    });
+});
+
+describe('manual current-roster synchronization', () => {
+    it('preserves earlier history when a same-week refresh adds a new training point', async () => {
+        records.set(key(101), { ...record(101), points: [point(9, 12), point(10, 13)], resolvedWeek: 1213, resolution: 'graph' });
+        vi.mocked(fetchJuniorGraph).mockResolvedValue([point(10, 14), point(11, 14)]);
+        await syncCurrentJuniors({ teamId, week: 1213 });
+        expect(records.get(key(101))?.points).toEqual([point(9, 12), point(10, 14), point(11, 14)]);
+    });
+
+    it('keeps successful saves after a partial failure and limits manual concurrency to three', async () => {
+        const graphs = Array.from({ length: 4 }, () => deferred<JuniorPoint[]>());
+        vi.mocked(fetchJuniorRoster).mockResolvedValue(roster(101, 102, 103, 104));
+        vi.mocked(fetchJuniorGraph).mockImplementation(id => graphs[id - 101].promise);
+        const running = syncCurrentJuniors({ teamId, week: 1213 });
+        const rejected = expect(running).rejects.toThrow('1 graph');
+        await vi.waitFor(() => expect(fetchJuniorGraph).toHaveBeenCalledTimes(3));
+        expect(getJuniorSyncState(teamId, 104)).toBe('queued');
+        graphs[0].reject(new Error('network'));
+        await vi.waitFor(() => expect(fetchJuniorGraph).toHaveBeenCalledTimes(4));
+        for (const graph of graphs.slice(1)) graph.resolve([point(10, 14)]);
+        await rejected;
+        expect(getJuniorSyncState(teamId, 101)).toBe('error');
+        expect(getJuniorSyncState(teamId, 102)).toBe('idle');
+        expect(records.get(key(102))?.points).toEqual([point(10, 14)]);
+    });
+
+    it('rejects manual completion after route exit instead of reporting a partial run as success', async () => {
+        const graph = deferred<JuniorPoint[]>();
+        vi.mocked(fetchJuniorGraph).mockReturnValueOnce(graph.promise);
+        const running = syncCurrentJuniors({ teamId, week: 1213 });
+        const rejected = expect(running).rejects.toThrow('changed');
+        await vi.waitFor(() => expect(fetchJuniorGraph).toHaveBeenCalledOnce());
+        cancelQueuedJuniorSync();
+        graph.resolve([point(10, 14)]);
+        await rejected;
+    });
+
+    it('refreshes all roster graphs in the same week, including IDs absent from the page', async () => {
+        await syncVisibleJuniors({ teamId, week: 1213, kind: 'academy', ids: [101] });
+        vi.mocked(fetchJuniorRoster).mockResolvedValue(roster(101, 102));
+        vi.mocked(fetchJuniorGraph).mockResolvedValue([point(10, 14)]);
+        await syncCurrentJuniors({ teamId, week: 1213 });
+        expect(fetchJuniorRoster).toHaveBeenCalledTimes(2);
+        expect(fetchJuniorGraph).toHaveBeenCalledTimes(3);
+        expect(records.get(key(101))?.points).toEqual([point(10, 14)]);
+        expect(records.get(key(102))?.points).toEqual([point(10, 14)]);
+        await syncVisibleJuniors({ teamId, week: 1213, kind: 'academy', ids: [101, 102] });
+        expect(fetchJuniorGraph).toHaveBeenCalledTimes(3);
+    });
+
+    it('reports roster and graph failures and allows an explicit retry', async () => {
+        vi.mocked(fetchJuniorRoster).mockRejectedValueOnce(new Error('roster unavailable'));
+        await expect(syncCurrentJuniors({ teamId, week: 1213 })).rejects.toThrow('roster unavailable');
+        vi.mocked(fetchJuniorGraph).mockRejectedValueOnce(new Error('graph unavailable'));
+        await expect(syncCurrentJuniors({ teamId, week: 1213 })).rejects.toThrow();
+        expect(getJuniorSyncState(teamId, 101)).toBe('error');
+        await syncCurrentJuniors({ teamId, week: 1213 });
+        expect(getJuniorSyncState(teamId, 101)).toBe('idle');
+    });
+
+    it('accepts an empty roster and rejects a different team before graph requests', async () => {
+        vi.mocked(fetchJuniorRoster).mockResolvedValueOnce([]);
+        await syncCurrentJuniors({ teamId, week: 1213 });
+        expect(fetchJuniorGraph).not.toHaveBeenCalled();
+        expect(snapshot).toMatchObject({ ids: [], complete: true });
+        vi.mocked(fetchJuniorRoster).mockResolvedValueOnce([{ id: 101, teamId: 9999, talent: 4, weeksLeft: 12 }]);
+        await expect(syncCurrentJuniors({ teamId, week: 1213 })).rejects.toThrow('another team');
+        expect(fetchJuniorGraph).not.toHaveBeenCalled();
     });
 });

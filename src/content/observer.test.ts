@@ -7,6 +7,18 @@ afterEach(() => { stopObserver(); vi.useRealTimers(); document.body.innerHTML = 
 const advance = async (ms: number) => { await Promise.resolve(); await vi.advanceTimersByTimeAsync(ms); };
 
 describe('SPA discovery lifecycle', () => {
+    it.each(['/training/main-team-progress', '/en/app/training/main-team-progress/'])('dispatches progress tables after SPA navigation to %s and stops after leaving the route', async path => {
+        const beta = vi.fn(); const contexts = vi.fn();
+        initObserver(vi.fn(), undefined, undefined, undefined, beta, contexts);
+        history.pushState({}, '', path);
+        await advance(100);
+        expect(beta).toHaveBeenCalledOnce();
+        expect(beta).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'training-progress', pathname: path }));
+        history.pushState({}, '', '/training/main-team-progress/unknown');
+        await advance(100);
+        expect(contexts).toHaveBeenLastCalledWith(null);
+        expect(beta).toHaveBeenCalledOnce();
+    });
     it('runs the final deferred pass when native DOM arrives inside the cooldown', async () => {
         const squad = vi.fn();
         initObserver(squad);

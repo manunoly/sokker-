@@ -3,6 +3,7 @@ export type PageContext = (
     | { kind: 'player'; playerId: number }
     | { kind: 'academy'; teamId: number }
     | { kind: 'training-setup' }
+    | { kind: 'training-progress' }
     | { kind: 'training-report'; reportId: number }
 ) & { pathname: string; layout: 'legacy' | 'beta' };
 
@@ -34,6 +35,9 @@ export function resolvePageContext(url: URL): PageContext | null {
     if (new RegExp(`^/${legacyPrefix}app/training/training-setup/?$`, 'i').test(pathname)) {
         return { kind: 'training-setup', pathname, layout: 'legacy' };
     }
+    if (new RegExp(`^/${legacyPrefix}app/training/main-team-progress/?$`, 'i').test(pathname)) {
+        return { kind: 'training-progress', pathname, layout: 'legacy' };
+    }
     const report = new RegExp(`^/${legacyPrefix}app/training/reports/details/([1-9]\\d*)/?$`, 'i').exec(pathname);
     if (report) {
         const reportId = positiveId(report[1]);
@@ -41,6 +45,9 @@ export function resolvePageContext(url: URL): PageContext | null {
     }
     if (/^\/training\/training-setup\/?$/.test(pathname)) {
         return { kind: 'training-setup', pathname, layout: 'beta' };
+    }
+    if (/^\/training\/main-team-progress\/?$/.test(pathname)) {
+        return { kind: 'training-progress', pathname, layout: 'beta' };
     }
     const betaReport = /^\/training\/reports\/details\/([1-9]\d*)\/?$/.exec(pathname);
     if (betaReport) {
@@ -60,6 +67,13 @@ export function resolvePageContext(url: URL): PageContext | null {
     return beta[1] === 'player'
         ? { kind: 'player', playerId: id, pathname, layout: 'beta' }
         : { kind: 'academy', teamId: id, pathname, layout: 'beta' };
+}
+
+/** Development links identify players on observed training tables, not standalone profile routes. */
+export function playerIdFromUrl(url: URL, allowDevelopment = false): number | null {
+    const development = allowDevelopment && /^\/player\/([1-9]\d*)\/development\/?$/.exec(url.pathname);
+    const context = resolvePageContext(development ? new URL(`/player/${development[1]}`, url) : url);
+    return context?.kind === 'player' ? context.playerId : null;
 }
 
 /** Path-only compatibility for existing scanners; entry points validate the actual URL. */

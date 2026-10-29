@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPlayerHistory } from '../core/storageClient';
 import type { PlayerData, PlayerHistoryEntry } from '../types/index';
 import { hideTooltip, openZoomChart, scheduleHide, showHistoryTooltip, showTooltip } from './tooltip';
+import { bindPlayerAnchors, leavePlayerBindings } from './playerBindings';
+import { HOVER_DELAY_MS } from './hoverIntent';
 
 vi.mock('../core/storageClient', () => ({ getPlayerHistory: vi.fn() }));
 vi.mock('../ui-components/playerSkillCanvas', () => ({ drawPlayerSkillChart: vi.fn(), PLAYER_SKILL_CHART_WIDTH: 680, PLAYER_SKILL_CHART_HEIGHT: 400 }));
@@ -29,6 +31,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    leavePlayerBindings();
     hideTooltip();
     document.body.replaceChildren();
     vi.restoreAllMocks();
@@ -38,6 +41,26 @@ afterEach(() => {
 });
 
 describe('first-team hover integration', () => {
+    it('does not create a card or read history for a passing hover, while a pin opens immediately', async () => {
+        vi.useFakeTimers();
+        const trigger = anchor();
+        bindPlayerAnchors([{ playerId: 7, names: [trigger], skills: [] }]);
+        trigger.dispatchEvent(new MouseEvent('mouseenter'));
+        await vi.advanceTimersByTimeAsync(HOVER_DELAY_MS - 1);
+        expect(getPlayerHistory).not.toHaveBeenCalled();
+        expect(document.getElementById('sokkerpp-history-tooltip')?.style.display).not.toBe('block');
+        trigger.dispatchEvent(new MouseEvent('mouseleave'));
+        await vi.advanceTimersByTimeAsync(HOVER_DELAY_MS);
+        expect(getPlayerHistory).not.toHaveBeenCalled();
+        trigger.dispatchEvent(new MouseEvent('mouseenter'));
+        const pin = trigger.nextElementSibling as HTMLButtonElement;
+        pin.click();
+        await Promise.resolve();
+        expect(getPlayerHistory).toHaveBeenCalledWith(7);
+        expect(document.getElementById('sokkerpp-history-tooltip')?.style.display).toBe('block');
+        await vi.advanceTimersByTimeAsync(HOVER_DELAY_MS);
+        expect(getPlayerHistory).toHaveBeenCalledOnce();
+    });
     it('reads local history once, shows the two-column summary and no network request', async () => {
         const trigger = anchor();
         const network = vi.fn();

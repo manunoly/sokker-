@@ -6,6 +6,10 @@ describe('host-independent page identity', () => {
     it.each(hosts)('classifies complete new and legacy routes on %s', host => {
         const routes = [
             ['/training/training-setup/', 'training-setup', 'beta'], ['/training/reports/details/1000/', 'training-report', 'beta'],
+            ['/training/main-team-progress/', 'training-progress', 'beta'],
+            ['/en/app/training/main-team-progress/', 'training-progress', 'legacy'],
+            ['/es/app/training/main-team-progress', 'training-progress', 'legacy'],
+            ['/app/training/main-team-progress', 'training-progress', 'legacy'],
             ['/squad', 'squad', 'beta'], ['/squad/42/', 'squad', 'beta'],
             ['/player/12345/?tab=x#name', 'player', 'beta'], ['/juniors/42/', 'academy', 'beta'],
             ['/app/squad/', 'squad', 'legacy'], ['/es/app/squad/', 'squad', 'legacy'],

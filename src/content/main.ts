@@ -4,7 +4,7 @@ import { reconcileGaps } from '../core/gapDetector';
 import { syncData } from '../core/sync';
 import { fetchTodayInfo } from '../core/apiClient';
 import { ensureStorageReady, getLastSyncWeek, migrateCurrentOrigin, subscribeStorageChanges } from '../core/storageClient';
-import { cancelQueuedJuniorSync, invalidateJuniorSync } from '../core/juniorSync';
+import { cancelQueuedJuniorSync, invalidateJuniorSync, syncCurrentJuniors } from '../core/juniorSync';
 import { handleJuniorPage, leaveJuniorPage, scanJuniorPage } from './juniorPage';
 import { handleTrainingPlayerPage, leaveTrainingPlayerPage, scanTrainingPlayerPage } from './trainingPlayerPage';
 import { hideJuniorCard } from './juniorCard';
@@ -98,7 +98,15 @@ function main(): void {
         // Backups and clearing go directly from popup to the shared storage service.
         let operation: (() => Promise<unknown>) | undefined;
         if (request.action === 'REPAIR_HISTORY') operation = () => reconcileGaps();
-        if (request.action === 'FORCE_SYNC') operation = () => syncData();
+        if (request.action === 'FORCE_SYNC') operation = async () => {
+            const page = `${location.origin}${location.pathname}`;
+            const result = await syncData();
+            const today = await fetchTodayInfo();
+            if (page !== `${location.origin}${location.pathname}`) throw new Error('The Sokker page changed; retry synchronization.');
+            await syncCurrentJuniors(today);
+            refreshObserver();
+            return result;
+        };
         if (request.action === 'CHECK_STATUS') operation = async () => {
             const today = await fetchTodayInfo();
             return { lastWeek: await getLastSyncWeek(today.teamId) };
