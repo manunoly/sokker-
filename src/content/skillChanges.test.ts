@@ -9,6 +9,7 @@ import { leavePlayerBindings } from './playerBindings';
 import type { PlayerData, PlayerHistoryEntry, Skills } from '../types';
 import betaSkillValues from './fixtures/betaSkillValues.html?raw';
 import betaProgress from './fixtures/betaTrainingProgress.html?raw';
+import legacyProgress from './fixtures/legacyTrainingProgress.html?raw';
 import { showHistoryTooltip, showTooltip } from './tooltip';
 
 vi.mock('../core/apiClient', () => ({ fetchTodayInfo: vi.fn() }));
@@ -71,13 +72,13 @@ function mount(layout: Layout): () => Promise<void> {
         document.querySelector('#defending-value')!.textContent = String(defending);
     } else if (layout === 'beta-progress' || layout === 'legacy-progress') {
         window.history.replaceState({}, '', layout === 'beta-progress' ? '/training/main-team-progress' : '/en/app/training/main-team-progress/');
-        document.body.innerHTML = betaProgress;
+        document.body.innerHTML = layout === 'beta-progress' ? betaProgress : legacyProgress;
         document.querySelector<HTMLElement>('tr')!.dataset.rowId = '7';
-        document.querySelector('td.table__cell--name a')!.setAttribute('href', layout === 'beta-progress' ? '/player/7/development?from=training' : '/en/app/player/PID/7/');
+        document.querySelector('td.table__cell--name a')!.setAttribute('href', layout === 'beta-progress' ? '/player/7/development?from=training' : '/en//app/training/player-info/7');
         for (const [key, value] of [['passing', passing], ['defending', defending]] as const) {
             const cell = document.querySelector(`td.table__cell--${key}`)!;
             cell.id = key;
-            cell.querySelector('span span span')!.textContent = String(value);
+            cell.querySelector('.growth-bg, span span span')!.textContent = String(value);
         }
     } else {
         window.history.replaceState({}, '', '/squad');
@@ -96,7 +97,7 @@ function expectChanges(passing: string | null, defending: string | null): void {
         const value = anchor.querySelector<HTMLElement>('.skillNameNumber')
             ?? document.querySelector<HTMLElement>(`#${key}-value`)
             ?? (anchor.matches('.skillLabel') ? anchor.parentElement!.querySelector<HTMLElement>('.skill-list__value') : null)
-            ?? anchor.querySelector<HTMLElement>('span span span') ?? anchor;
+            ?? anchor.querySelector<HTMLElement>('.growth-bg, span span span') ?? anchor;
         if (direction) {
             expect(value.dataset.sokkerppSkillChange).toBe(direction);
             expect(value.style.color).toBe(direction === 'up' ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)');
@@ -107,12 +108,12 @@ function expectChanges(passing: string | null, defending: string | null): void {
     }
 }
 
-it('opens progress history and skill cards, preserves native clicks and rejects reused identities', async () => {
-    const render = mount('beta-progress');
+it.each(['beta-progress', 'legacy-progress'] as const)('opens progress history and skill cards, preserves native clicks and rejects reused identities: %s', async layout => {
+    const render = mount(layout);
     await render(); await render();
     const name = document.querySelector<HTMLAnchorElement>('td.table__cell--name a')!;
     const cell = document.querySelector<HTMLElement>('#passing')!;
-    const value = cell.querySelector<HTMLElement>('span span span')!;
+    const value = cell.querySelector<HTMLElement>('.growth-bg, span span span')!;
     expect(value.dataset.sokkerppSkillChange).toBe('up');
     expect(cell.querySelectorAll('.skill-arrow')).toHaveLength(0);
     expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);

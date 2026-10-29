@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePageContext } from './pageContext';
+import { playerIdFromUrl, resolvePageContext } from './pageContext';
 
 const hosts = ['sokker.org', 'app.sokker.org', 'future.sokker.org'];
 describe('host-independent page identity', () => {
@@ -37,5 +37,24 @@ describe('host-independent page identity', () => {
     it('excludes query and fragment from the player identity', () => {
         expect(resolvePageContext(new URL('https://sokker.org/player/12345/?id=12346#12346')))
             .toEqual({ kind: 'player', playerId: 12345, pathname: '/player/12345/', layout: 'beta' });
+    });
+});
+
+describe('player identity on training tables', () => {
+    it.each(['/en//app/training/player-info/12345', '/en/app/training/player-info/12345/',
+        '/es/app/training/player-info/12345?from=training#history', '/app/training/player-info/12345'])('accepts the observed training link %s only when explicitly enabled', path => {
+        const url = new URL(path, 'https://sokker.org');
+        expect(playerIdFromUrl(url, true)).toBe(12345);
+        expect(playerIdFromUrl(url)).toBeNull();
+        expect(resolvePageContext(url)).toBeNull();
+        expect(url.pathname).toBe(new URL(path, 'https://sokker.org').pathname);
+    });
+    it.each(['https://example.test/en//app/training/player-info/12345',
+        'http://sokker.org/en//app/training/player-info/12345',
+        'https://sokker.org/en//app/training/player-info/0',
+        'https://sokker.org/en//app/training/player-info/012345',
+        'https://sokker.org/en//app/training/player-info/9007199254740992',
+        'https://sokker.org/en//app/training/player-info/12345/unknown'])('rejects unsafe or unrelated training link %s', url => {
+        expect(playerIdFromUrl(new URL(url), true)).toBeNull();
     });
 });

@@ -52,3 +52,14 @@ The owner requested removal of triangular change indicators, support for `/en/ap
 - Source package, lockfile root/package entry, source manifest, dist manifest and ZIP manifest all agree on 0.2.7. ZIP validation confirms 15 files, manifest at root, every required script/catalog/icon present, and byte-for-byte equality with dist. Neither triangular change glyph is in content.js. No private capture, test or source file is packaged.
 - `git diff --check` clean. Self-review covered timing/cancellation, native clicks, per-player/per-skill selection, colors without arrows, row identity validation, version consistency and package contents. No blocker remains in the implemented changes; authenticated legacy-page inspection remained unavailable as noted above.
 - The owner will create the PR. Only this task's implementation, tests, feature guides, plan/spec, version files and release ZIP are selected for a local commit on the existing branch; unrelated working changes and private captures remain outside the commit. No push or store submission.
+
+
+## Confirmed legacy capture follow-up (same 0.2.7 release)
+
+The owner provided a separate legacy failure capture after testing the beta view successfully. Its name links use `/{locale}//app/training/player-info/{id}`, which the existing player-link validator rejected. The progress route itself was already recognized; the rejected name links caused the adapter to discard every row.
+
+- Extended only the opt-in training-link identity helper to accept classic player-info links, including the observed duplicate slash. Host/protocol validation and positive, safe player IDs still use the existing canonical route validator. The native URL is never rewritten, and player-info is not enabled as a standalone extension page.
+- Added a synthetic legacy fixture derived from the supplied structure and switched legacy progress color/interaction regressions to that fixture. The regression first failed with zero players, then passed after the parser fix.
+- Focused verification: 199 tests passed across page context, beta/legacy adapters, bindings, skill changes, training names, observer and tooltip. Type checking passed. Local inspection of the complete owner-provided legacy and beta HTML finds 25 players, 200 skill anchors and 200 visible levels in each.
+- The owner explicitly asked to retain version 0.2.7 because it has not been uploaded yet. A temporary local metadata bump was reverted before building or committing. No push, PR or store upload.
+- Rebuild dist and the release ZIP with 0.2.7 and this fix; keep private captures and unrelated working changes out of the local follow-up commit.

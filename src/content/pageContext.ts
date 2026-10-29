@@ -69,10 +69,13 @@ export function resolvePageContext(url: URL): PageContext | null {
         : { kind: 'academy', teamId: id, pathname, layout: 'beta' };
 }
 
-/** Development links identify players on observed training tables, not standalone profile routes. */
-export function playerIdFromUrl(url: URL, allowDevelopment = false): number | null {
-    const development = allowDevelopment && /^\/player\/([1-9]\d*)\/development\/?$/.exec(url.pathname);
-    const context = resolvePageContext(development ? new URL(`/player/${development[1]}`, url) : url);
+/** Training links identify table rows; their destinations remain native Sokker pages. */
+export function playerIdFromUrl(url: URL, allowTrainingLinks = false): number | null {
+    const development = allowTrainingLinks && /^\/player\/([1-9]\d*)\/development\/?$/.exec(url.pathname);
+    // The classic progress table emits /en//app/... as well as the single-slash form.
+    const playerInfo = allowTrainingLinks && /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?\/?app\/training\/player-info\/([1-9]\d*)\/?$/i.exec(url.pathname);
+    const match = development || playerInfo;
+    const context = resolvePageContext(match ? new URL(`/player/${match[1]}`, url) : url);
     return context?.kind === 'player' ? context.playerId : null;
 }
 

@@ -12,6 +12,8 @@ The **Main team progress** page, at both `/training/main-team-progress` and `/{l
 
 The `+` controls appear beside player names in classic and beta views: they pin the summary and keep a subtle border. Skills have no `+` buttons; hovering or focusing a skill with the keyboard still opens its chart. Native Sokker actions remain available.
 
+The legacy progress table links names through `/{locale}/app/training/player-info/{id}` and also emits a double slash after the locale. Both forms identify the player without rewriting the native link. The actual legacy table structure, observed in a capture on October 29, 2026, is covered by summary, skill-chart and color regression tests.
+
 The popup includes **Show + history buttons**, enabled by default. This preference is saved per extension installation and browser profile and applies across supported hosts, including open tabs. Hiding the controls preserves existing name and skill hover/focus interactions. The preference is stored separately from history and does not change data or JSON backups.
 
 See the [General Skills ++ screenshot](SCREENSHOTS.md#general-skills-summary) for an example of the summary and weekly table.

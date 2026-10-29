@@ -12,6 +12,8 @@ La página **Main team progress**, tanto `/training/main-team-progress` como `/{
 
 Los controles `+` se ofrecen junto al nombre del jugador tanto en las vistas clásicas como en las beta: fijan el resumen y conservan un borde discreto. Las habilidades no muestran botones `+`; pasar el cursor o enfocarlas con el teclado sigue abriendo su gráfica. Se mantienen las acciones nativas de Sokker.
 
+La tabla legacy de progreso enlaza los nombres mediante `/{idioma}/app/training/player-info/{id}` y también emite una doble barra tras el idioma. Ambas variantes identifican al jugador sin modificar el enlace nativo. La estructura de esa tabla, observada en una captura legacy del 29 de octubre de 2026, está cubierta por las pruebas del resumen, las gráficas y los colores.
+
 El popup incluye **Mostrar botones + de historial**, activado por defecto. La preferencia se guarda por instalación y perfil de la extensión y se aplica entre los hosts admitidos, también en pestañas abiertas. Ocultar los controles conserva el hover y el foco de los nombres y habilidades. Esta opción se almacena separada del histórico y no modifica los datos ni las copias JSON.
 
 La [galería de capturas](SCREENSHOTS.md#general-skills-summary) muestra un ejemplo del resumen y la tabla semanal.

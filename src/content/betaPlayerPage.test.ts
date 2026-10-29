@@ -5,12 +5,27 @@ import player from './fixtures/betaPlayer.html?raw';
 import colors from './fixtures/betaPlayerColors.html?raw';
 import values from './fixtures/betaSkillValues.html?raw';
 import progress from './fixtures/betaTrainingProgress.html?raw';
+import legacyProgress from './fixtures/legacyTrainingProgress.html?raw';
 import { resolvePageContext } from './pageContext';
 import { scanBetaPlayers } from './betaPlayerPage';
 
 beforeEach(() => { document.body.innerHTML = ''; });
 const context = (path: string, host = 'sokker.org') => resolvePageContext(new URL(`https://${host}${path}`))!;
 describe('observed beta player structures', () => {
+    it('recognizes native legacy training player-info links, including the observed double slash', () => {
+        document.body.innerHTML = legacyProgress;
+        const route = context('/en/app/training/main-team-progress/');
+        const players = scanBetaPlayers(route, document);
+        expect(players).toHaveLength(1);
+        expect(players[0].playerId).toBe(12345);
+        expect(players[0].skills.map(skill => skill.getValue?.()?.textContent)).toEqual(['8','10','9','10','4','10','10','10']);
+        const name = players[0].names[0];
+        expect(name.getAttribute('href')).toBe('https://sokker.org/en//app/training/player-info/12345');
+        name.setAttribute('href', '/en//app/training/player-info/12346');
+        expect(scanBetaPlayers(route, document)).toEqual([]);
+        name.setAttribute('href', 'https://example.test/en//app/training/player-info/12345');
+        expect(scanBetaPlayers(route, document)).toEqual([]);
+    });
     it('supports the localized progress route and classic player links without widening other routes', () => {
         document.body.innerHTML = progress;
         const name = document.querySelector<HTMLAnchorElement>('td.table__cell--name a')!;
