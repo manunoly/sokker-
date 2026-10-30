@@ -6,7 +6,7 @@ The junior card appears when you hover or focus a junior's name in a training re
 
 Hover waits 400 ms before opening the card and cancels when the pointer leaves, the page changes or a row is reused. Keyboard focus and the `+` control open immediately. The delay adds no network requests.
 
-Beta academy pages at `/juniors/{teamId}` and beta report details at `/training/reports/details/{id}` use the same synchronization coordinator and chart. The academy still requires your own team. Routes are recognized independently of the subdomain. Beta native name actions remain available. See the [verification record](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) for the earlier tested scope.
+Beta academy pages at `/juniors` and `/juniors/{teamId}` and beta report details at `/training/reports/details/{id}` use the same synchronization coordinator and chart. The academy still requires your own team: `/juniors` uses the current team from `/api/current`, while a URL with a team ID must match it. Both academy routes accept a trailing slash. Routes are recognized independently of the subdomain. Beta native name actions remain available. See the [verification record](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) for the earlier tested scope.
 
 A subtly bordered `+` beside a junior's name opens and pins the card on supported classic and beta pages. A pinned card stays open when the pointer leaves; its visible close button or Escape dismisses it. Controls retain the same own-team eligibility check and native name actions.
 

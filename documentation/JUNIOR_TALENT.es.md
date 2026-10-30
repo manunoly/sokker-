@@ -6,7 +6,7 @@ La tarjeta aparece al pasar el cursor o enfocar el nombre de un juvenil en el de
 
 El hover espera 400 ms antes de abrir la tarjeta y se cancela al retirar el puntero, cambiar de página o reutilizar una fila. El foco de teclado y el control `+` abren la tarjeta al instante. Esta espera no añade consultas de red.
 
-La cantera beta `/juniors/{teamId}` y el informe beta `/training/reports/details/{id}` usan el mismo coordinador de sincronización y la misma gráfica. La cantera sigue exigiendo que sea tu equipo. Las rutas se reconocen con independencia del subdominio. Se conservan las acciones nativas de los nombres beta. El [registro de verificación](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) detalla el alcance probado anteriormente.
+La cantera beta `/juniors` y `/juniors/{teamId}` y el informe beta `/training/reports/details/{id}` usan el mismo coordinador de sincronización y la misma gráfica. La cantera sigue exigiendo que sea tu equipo: `/juniors` utiliza el equipo actual de `/api/current`, mientras que una URL con ID de equipo debe coincidir con él. Ambas rutas de cantera admiten una barra final. Las rutas se reconocen con independencia del subdominio. Se conservan las acciones nativas de los nombres beta. El [registro de verificación](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) detalla el alcance probado anteriormente.
 
 Un control `+` con borde discreto junto al nombre abre y fija la tarjeta juvenil en las páginas clásicas y beta admitidas. La tarjeta fijada permanece abierta al retirar el cursor; se cierra con su botón visible o Escape. Los controles respetan la misma comprobación de equipo propio y las acciones nativas de los nombres.
 

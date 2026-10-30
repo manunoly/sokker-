@@ -8,7 +8,7 @@ import { cancelHover, scheduleHover } from './hoverIntent';
 
 export type JuniorPageView =
     | { kind: 'report'; pathname: string; names: Map<number, HTMLElement> }
-    | { kind: 'academy'; pathname: string; routeTeamId: number; layout?: 'legacy' | 'beta'; names: Map<number, HTMLElement> };
+    | { kind: 'academy'; pathname: string; routeTeamId: number | null; layout?: 'legacy' | 'beta'; names: Map<number, HTMLElement> };
 
 interface ActiveEntry {
     pathname: string;
@@ -128,7 +128,8 @@ export function scanJuniorPage(page: PageContext | string | null, root: Document
 function eligible(entry: ActiveEntry): boolean {
     const today = entry.today;
     if (!today || !validCurrent(today)) return false;
-    return entry.view.kind === 'report' || entry.view.routeTeamId === today.teamId;
+    return entry.view.kind === 'report' || entry.view.routeTeamId === today.teamId ||
+        (entry.view.layout === 'beta' && entry.view.routeTeamId === null);
 }
 
 function onNameEnter(event: Event): void {

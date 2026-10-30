@@ -7,6 +7,19 @@ afterEach(() => { stopObserver(); vi.useRealTimers(); document.body.innerHTML = 
 const advance = async (ms: number) => { await Promise.resolve(); await vi.advanceTimersByTimeAsync(ms); };
 
 describe('SPA discovery lifecycle', () => {
+    it('recognizes the implicit own academy on initial load and SPA navigation between academy routes', async () => {
+        history.replaceState({}, '', '/juniors');
+        const contexts = vi.fn(); const juniors = vi.fn();
+        initObserver(vi.fn(), undefined, undefined, juniors, undefined, contexts);
+        expect(contexts).toHaveBeenLastCalledWith({ kind: 'academy', teamId: null, pathname: '/juniors', layout: 'beta' });
+        expect(juniors).toHaveBeenCalledOnce();
+        for (const [pathname, teamId] of [['/juniors/42', 42], ['/juniors/', null]] as const) {
+            history.pushState({}, '', pathname);
+            await advance(100);
+            expect(contexts).toHaveBeenLastCalledWith({ kind: 'academy', teamId, pathname, layout: 'beta' });
+        }
+        expect(juniors).toHaveBeenCalledTimes(3);
+    });
     it.each(['/training/main-team-progress', '/en/app/training/main-team-progress/'])('dispatches progress tables after SPA navigation to %s and stops after leaving the route', async path => {
         const beta = vi.fn(); const contexts = vi.fn();
         initObserver(vi.fn(), undefined, undefined, undefined, beta, contexts);

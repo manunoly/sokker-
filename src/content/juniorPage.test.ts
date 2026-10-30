@@ -166,6 +166,50 @@ describe('handleJuniorPage', () => {
 
 describe('observed beta academy and report', () => {
     const context = () => resolvePageContext(new URL(window.location.pathname, 'https://sokker.org'))!;
+    it.each(['/juniors', '/juniors/'])('syncs the implicit own academy at %s and opens hover, focus and pinned cards', async path => {
+        setPage(path, academy);
+        const view = scanJuniorPage(context(), document);
+        expect(view).not.toBeNull();
+        expect([...view!.names.keys()]).toEqual([12345, 12346]);
+        await handleJuniorPage(view!);
+        expect(sync).toHaveBeenCalledWith({ teamId: 42, week: 1213, kind: 'academy', ids: [12345, 12346] });
+        const name = view!.names.get(12345)!;
+        name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showJuniorCard).toHaveBeenLastCalledWith(name, 42, 12345, 'Junior One', 'right', { isCurrent: expect.any(Function) });
+        name.focus();
+        expect(showJuniorCard).toHaveBeenCalledTimes(2);
+        const pin = name.nextElementSibling as HTMLButtonElement;
+        pin.click();
+        expect(showJuniorCard).toHaveBeenLastCalledWith(name, 42, 12345, 'Junior One', 'right', {
+            pinned: true, returnFocus: pin, isCurrent: expect.any(Function)
+        });
+        await handleJuniorPage(scanJuniorPage(context(), document)!);
+        expect(current).toHaveBeenCalledOnce();
+        expect(sync).toHaveBeenCalledOnce();
+        expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(2);
+
+        setPage('/juniors/99', academy);
+        await handleJuniorPage(scanJuniorPage(context(), document)!);
+        expect(sync).toHaveBeenCalledOnce();
+        expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
+        vi.mocked(showJuniorCard).mockClear();
+        document.querySelector('button')!.focus();
+        expect(showJuniorCard).not.toHaveBeenCalled();
+    });
+    it.each([today(0, 42), today(1213, 0), today('1213', 42), today(1213, 1.5)])(
+        'requires valid current team and week for the implicit own academy', async badToday => {
+            current.mockResolvedValue(badToday);
+            setPage('/juniors', academy);
+            const view = scanJuniorPage(context(), document);
+            expect(view).not.toBeNull();
+            await handleJuniorPage(view!);
+            expect(sync).not.toHaveBeenCalled();
+            expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
+            document.querySelector('button')!.focus();
+            expect(showJuniorCard).not.toHaveBeenCalled();
+        }
+    );
     it('validates both academy identities and syncs only an own team, preserving native clicks', async () => {
         setPage('/juniors/42/', academy);
         const view = scanJuniorPage(context(), document)!;

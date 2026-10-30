@@ -1,7 +1,7 @@
 export type PageContext = (
     | { kind: 'squad'; teamId: number | null }
     | { kind: 'player'; playerId: number }
-    | { kind: 'academy'; teamId: number }
+    | { kind: 'academy'; teamId: number | null }
     | { kind: 'training-setup' }
     | { kind: 'training-progress' }
     | { kind: 'training-report'; reportId: number }
@@ -59,6 +59,9 @@ export function resolvePageContext(url: URL): PageContext | null {
         const teamId = squad[1] ? positiveId(squad[1]) : null;
         if (squad[1] && teamId === null) return null;
         return { kind: 'squad', teamId, pathname, layout: 'beta' };
+    }
+    if (/^\/juniors\/?$/.test(pathname)) {
+        return { kind: 'academy', teamId: null, pathname, layout: 'beta' };
     }
     const beta = /^\/(player|juniors)\/([1-9]\d*)\/?$/.exec(pathname);
     if (!beta) return null;
