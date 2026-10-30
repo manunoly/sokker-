@@ -4,7 +4,9 @@
 
 The junior card appears when you hover or focus a junior's name in a training report details page (`/{locale}/app/training/reports/details/{week}/`) or on **your own** `/juniors/teamID/{teamId}/` page. It opens left of the name in a report and right of the name in the academy. The extension checks the current team ID before enabling the academy card. The hover reads IndexedDB; it does not fetch the graph on hover.
 
-Beta academy pages at `/juniors/{teamId}` and beta report details at `/training/reports/details/{id}` use the same weekly coordinator and chart. The academy still requires your own team. Routes are recognized independently of the subdomain. Beta native name actions remain available. See the [verification record](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) for the tested scope.
+Hover waits 400 ms before opening the card and cancels when the pointer leaves, the page changes or a row is reused. Keyboard focus and the `+` control open immediately. The delay adds no network requests.
+
+Beta academy pages at `/juniors` and `/juniors/{teamId}` and beta report details at `/training/reports/details/{id}` use the same synchronization coordinator and chart. The academy still requires your own team: `/juniors` uses the current team from `/api/current`, while a URL with a team ID must match it. Both academy routes accept a trailing slash. Routes are recognized independently of the subdomain. Beta native name actions remain available. See the [verification record](../docs/research/2026-10-23-new-sokker-beta-verification.es.md) for the earlier tested scope.
 
 A subtly bordered `+` beside a junior's name opens and pins the card on supported classic and beta pages. A pinned card stays open when the pointer leaves; its visible close button or Escape dismisses it. Controls retain the same own-team eligibility check and native name actions.
 
@@ -12,11 +14,13 @@ The popup's **Show + history buttons** option, enabled by default, also controls
 
 See [screenshots of the card and its PNG export](SCREENSHOTS.md#junior-talent-card).
 
-## Data and weekly synchronization
+## Data and synchronization
 
 On an eligible page, the extension obtains the current game week and team from `/api/current`. It reads visible junior IDs, uses `/api/junior?filter[limit]=100` for the current roster, Sokker's own `talent`, and `weeksLeft`, and requests `/api/junior/{id}/graph` for observed level points when needed. Up to three graph requests run at once. Results are saved in the junior store of the extension-local `SokkerPlusPlusDB`, shared with first-team history across supported Sokker hosts in the same browser profile.
 
-For a junior already resolved in the current game week, the saved graph is reused. A newly visible ID or a new game week may require another roster or graph request. An absent junior is recorded for the week when the roster is complete; the card can still show previously saved history. If the 100-entry roster limit is reached, absence is treated as unknown. Leaving the page cancels queued work. Imported JSON backups can include junior history; a restore does not treat an old roster snapshot as current.
+Each eligible page visit refreshes the roster and visible junior graphs, even when they were previously saved in the same game week: training can change levels before the week changes. Repeated renders during that visit reuse attempted IDs, while newly visible IDs can add work. Reloading or reentering the page starts another check. Hovering still reads local history only. An absent junior is recorded for the week when the roster is complete; the card can still show previously saved history. If the 100-entry roster limit is reached, absence is treated as unknown. Leaving the page cancels queued work. Imported JSON backups can include junior history; a restore does not treat an old roster snapshot as current.
+
+The popup's **Sync** button refreshes first-team reports and then the current own junior roster and its graphs, including when invoked on a supported first-team page. It waits for both pipelines and reports junior failures. A retry can refresh the same week again. New API points replace saved points with the same coordinate while preserving earlier history; no levels are inferred from screenshots. A page kept open across training can be refreshed with this button or by reloading.
 
 ## Chart and estimate
 
@@ -29,7 +33,7 @@ The card can export a PNG using the shared Canvas export compositor. Its footer 
 ## Implementation
 
 - Route detection and hover: `src/content/juniorPage.ts`, `src/content/juniorCard.ts`.
-- Fetch and weekly cache: `src/core/api.ts`, `src/core/juniorSync.ts`, `src/core/juniorRepository.ts`.
+- Fetch and per-visit refresh: `src/core/api.ts`, `src/core/juniorSync.ts`, `src/core/juniorRepository.ts`.
 - Estimate and chart: `src/core/levelTrend.ts`, `src/core/juniorTalent.ts`, `src/ui-components/juniorCanvas.ts`, `src/ui-components/juniorExport.ts`.
 
 Observed API response examples, if needed, are kept locally in the Git-ignored `docs/documentacion-talent/API-SOKKER.md`. The dated [design spec](../docs/superpowers/specs/2026-10-16-junior-talent-hover-design.md) explains earlier decisions.

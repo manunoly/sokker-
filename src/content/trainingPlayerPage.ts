@@ -1,7 +1,8 @@
 import { createHistoryButton, updateHistoryButton } from './historyButton';
 import { getPlayerStrings } from './playerLocale';
-import { contextFromPath, resolvePageContext, type PageContext } from './pageContext';
+import { contextFromPath, playerIdFromUrl, type PageContext } from './pageContext';
 import { hideTooltip, scheduleHide, showHistoryTooltip } from './tooltip';
+import { cancelHover, scheduleHover } from './hoverIntent';
 
 export interface TrainingPlayerView {
     pathname: string;
@@ -21,15 +22,11 @@ function positiveId(value: string): number | null {
 }
 
 function playerIdFromLink(link: HTMLAnchorElement): number | null {
-    let context: PageContext | null;
     try {
         const url = new URL(link.getAttribute('href') ?? '', 'https://sokker.org');
-        const development = /^\/player\/([1-9]\d*)\/development\/?$/.exec(url.pathname);
-        if (development) url.pathname = `/player/${development[1]}`;
-        context = resolvePageContext(url);
+        return playerIdFromUrl(url, true);
     }
     catch { return null; }
-    return context?.kind === 'player' ? context.playerId : null;
 }
 
 /** Find first-team names only on training routes whose actual DOM has been observed. */
@@ -40,7 +37,7 @@ export function scanTrainingPlayerPage(page: PageContext | string | null, root: 
     const names = new Map<number, HTMLElement>();
     if (context.layout === 'beta') {
         const report = context.kind === 'training-report';
-        const selector = report ? '.boxes-training__main-team tr.table-row[data-row-id]' : '.players-table tr.table-row[data-row-id]';
+        const selector = report ? '.boxes-training__main-team tr.table-row[data-row-id]' : 'tr.table-row[data-row-id]';
         root.querySelectorAll<HTMLElement>(selector).forEach(row => {
             if (row.closest('[aria-hidden="true"]') || row.querySelector('td.table__cell--exp, td.table__cell--weeks')) return;
             const id = positiveId(row.dataset.rowId ?? '');
@@ -49,14 +46,13 @@ export function scanTrainingPlayerPage(page: PageContext | string | null, root: 
                 const name = row.querySelector<HTMLElement>('td.table__cell--player .rich-text');
                 if (name && !name.closest('[aria-hidden="true"]')) names.set(id, name);
             } else {
-                const name = row.querySelector<HTMLAnchorElement>('td.table__cell--player a.players-table__cell.players-table__player[aria-label="player"][href]');
+                const name = row.querySelector<HTMLAnchorElement>('td.table__cell--player a[href]');
                 if (!name || name.closest('[aria-hidden="true"]')) return;
                 let url: URL;
                 try { url = new URL(name.getAttribute('href')!, 'https://sokker.org'); }
                 catch { return; }
                 const match = /^\/player\/([1-9]\d*)\/development\/?$/.exec(url.pathname);
-                const identity = match ? resolvePageContext(new URL(`/player/${match[1]}`, url.origin)) : null;
-                if (identity?.kind === 'player' && identity.playerId === id) names.set(id, name);
+                if (match && playerIdFromUrl(url, true) === id) names.set(id, name);
             }
         });
         return { pathname, names };
@@ -87,6 +83,7 @@ function selectedId(name: HTMLElement): number | null {
 }
 
 function presentName(name: HTMLElement, trigger: HTMLElement, pinned = false, event?: MouseEvent): void {
+    cancelHover();
     const id = selectedId(name);
     if (id === null) return;
     const token = ++presentation;
@@ -103,10 +100,14 @@ function bindName(name: HTMLElement): void {
     if (boundNames.has(name)) return;
     boundNames.add(name);
     if (name.tabIndex < 0) name.tabIndex = 0;
-    name.addEventListener('mouseenter', event => presentName(name, name, false, event));
+    name.addEventListener('mouseenter', event => {
+        const id = selectedId(name);
+        if (id !== null) scheduleHover(name, () => { if (selectedId(name) === id) presentName(name, name, false, event); });
+    });
     name.addEventListener('focus', () => presentName(name, name));
-    name.addEventListener('mouseleave', () => { if (selectedId(name) !== null) scheduleHide(); });
-    name.addEventListener('blur', () => { if (selectedId(name) !== null) scheduleHide(); });
+    name.addEventListener('click', () => cancelHover(name));
+    name.addEventListener('mouseleave', () => { cancelHover(name); if (selectedId(name) !== null) scheduleHide(); });
+    name.addEventListener('blur', () => { cancelHover(name); if (selectedId(name) !== null) scheduleHide(); });
 }
 
 /** Called on SPA renders; replaced names receive listeners without duplicate bindings. */
@@ -115,6 +116,7 @@ export function handleTrainingPlayerPage(view: TrainingPlayerView): void {
     if (active?.pathname !== view.pathname) leaveTrainingPlayerPage();
     for (const [name, control] of controls) {
         if (!name.isConnected || view.names.get(control.id) !== name) {
+            cancelHover(name);
             control.button.remove();
             controls.delete(name);
             ++presentation;
@@ -138,6 +140,7 @@ export function handleTrainingPlayerPage(view: TrainingPlayerView): void {
 }
 
 export function leaveTrainingPlayerPage(): void {
+    for (const name of active?.names.values() ?? []) cancelHover(name);
     ++presentation;
     for (const { button } of controls.values()) button.remove();
     controls.clear();

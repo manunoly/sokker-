@@ -69,9 +69,9 @@ function markLegacy(players: PlayerAnchors[]): void {
     }
 }
 
-function showChange(target: PlayerAnchors['skills'][number], playerId: number, change: SkillChange | undefined, showArrow: boolean): void {
+function showChange(target: PlayerAnchors['skills'][number], playerId: number, change: SkillChange | undefined): void {
     const { anchor, key: skill } = target;
-    let arrow = anchor.querySelector<HTMLElement>('[data-sokkerpp-owned="change"]');
+    anchor.querySelectorAll('[data-sokkerpp-owned="change"], .skill-arrow').forEach(node => node.remove());
     const curr = change?.current;
     const prev = change?.previous;
     const changed = typeof curr === 'number' && typeof prev === 'number' && curr !== prev;
@@ -88,20 +88,6 @@ function showChange(target: PlayerAnchors['skills'][number], playerId: number, c
             value.title = `Previous: ${prev}`;
         } else restoreHighlight(value);
     }
-    if (!showArrow || anchor.dataset.sokkerppValue === 'true') { arrow?.remove(); return; }
-    if (typeof curr !== 'number' || typeof prev !== 'number' || curr === prev) { arrow?.remove(); return; }
-    if (!arrow) {
-        arrow = document.createElement('span');
-        arrow.dataset.sokkerppOwned = 'change';
-        arrow.className = 'skill-arrow';
-        arrow.style.cssText = 'display:inline-block;margin-inline-start:4px;font-size:10px;font-weight:bold;vertical-align:middle';
-        // The indicator has its own slot, outside the native bar's children.
-        anchor.appendChild(arrow);
-    }
-    const glyph = curr > prev ? '▲' : '▼';
-    if (arrow.textContent !== glyph) arrow.textContent = glyph;
-    arrow.style.color = curr > prev ? '#28a745' : '#dc3545';
-    arrow.title = `Previous: ${prev}`;
 }
 
 async function renderPlayers(players: PlayerAnchors[], pathname: string): Promise<void> {
@@ -119,7 +105,6 @@ async function renderPlayers(players: PlayerAnchors[], pathname: string): Promis
     }
     clearHighlights(retained);
     if (!players.length) return;
-    const showArrows = contextFromPath(pathname)?.kind !== 'player';
     let today: TodayInfo | undefined;
     try { today = await fetchTodayInfo(); }
     catch (error) { console.warn('Could not read current comparison week:', error); }
@@ -132,7 +117,7 @@ async function renderPlayers(players: PlayerAnchors[], pathname: string): Promis
         if (generation !== renderGeneration || location.pathname !== pathname) return;
         const changes = computeSkillChanges(saved?.history ?? [], today);
         for (const target of player.skills) {
-            if (isPlayerAnchorActive(target.anchor, player.playerId)) showChange(target, player.playerId, changes[target.key], showArrows);
+            if (isPlayerAnchorActive(target.anchor, player.playerId)) showChange(target, player.playerId, changes[target.key]);
         }
     }));
 }

@@ -1,5 +1,6 @@
 // @vitest-environment-options {"url":"https://sokker.org/"}
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { HOVER_DELAY_MS } from './hoverIntent';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchTodayInfo } from '../core/apiClient';
 import { getPlayerHistory } from '../core/storageClient';
 import type { PlayerData } from '../types/index';
@@ -16,25 +17,56 @@ vi.mock('./tooltip', () => ({
     showHistoryTooltip: vi.fn().mockResolvedValue(undefined), scheduleHide: vi.fn(), hideTooltip: vi.fn(),
 }));
 
-beforeEach(() => { leavePlayerBindings(); vi.clearAllMocks(); history.replaceState({}, '', '/squad'); document.body.innerHTML = ''; });
+beforeEach(() => {
+    vi.useFakeTimers(); leavePlayerBindings(); vi.clearAllMocks(); history.replaceState({}, '', '/squad'); document.body.innerHTML = ''; });
 function anchors(id = 12345): PlayerAnchors[] {
     return [{ playerId: id, names: [document.querySelector<HTMLElement>('#name')!], skills: [{ key: 'pace', anchor: document.querySelector<HTMLElement>('#skill')! }] }];
 }
 describe('player identity and native interactions', () => {
+    it('delays hover, cancels on leave and rechecks a reused player before opening', () => {
+        document.body.innerHTML = '<a id="name" href="/player/12345">Player One</a><button id="skill">Pace</button>';
+        bindPlayerAnchors(anchors());
+        const name = document.querySelector<HTMLElement>('#name')!;
+        name.dispatchEvent(new MouseEvent('mouseenter'));
+        vi.advanceTimersByTime(HOVER_DELAY_MS - 1);
+        expect(showHistoryTooltip).not.toHaveBeenCalled();
+        name.dispatchEvent(new MouseEvent('mouseleave'));
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showHistoryTooltip).not.toHaveBeenCalled();
+        name.dispatchEvent(new MouseEvent('mouseenter'));
+        name.setAttribute('href', '/player/12346');
+        bindPlayerAnchors(anchors(12346));
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showHistoryTooltip).not.toHaveBeenCalled();
+        name.dispatchEvent(new MouseEvent('mouseenter'));
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 12346, name);
+    });
+
+    it('native clicks cancel a pending skill hover without intercepting the action', () => {
+        document.body.innerHTML = '<span id="name">Player</span><button id="skill">Pace</button>';
+        bindPlayerAnchors(anchors());
+        const skill = document.querySelector<HTMLElement>('#skill')!;
+        skill.dispatchEvent(new MouseEvent('mouseenter'));
+        const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+        skill.dispatchEvent(click);
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showTooltip).not.toHaveBeenCalled(); expect(click.defaultPrevented).toBe(false);
+    });
     it('binds once per event and follows reused nodes to their new player identity', () => {
         document.body.innerHTML = '<a id="name" href="/player/12345">Player One</a><button id="skill">Pace</button>';
         bindPlayerAnchors(anchors()); bindPlayerAnchors(anchors());
         const name = document.querySelector<HTMLElement>('#name')!;
-        name.dispatchEvent(new MouseEvent('mouseenter'));
+        name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenCalledOnce();
         expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, 12345, name);
         name.setAttribute('href', '/player/12346');
         bindPlayerAnchors(anchors(12346));
-        document.querySelector<HTMLElement>('#skill')!.dispatchEvent(new MouseEvent('mouseenter'));
+        document.querySelector<HTMLElement>('#skill')!.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showTooltip).toHaveBeenLastCalledWith(0, 0, 12346, 'pace', document.querySelector('#skill'));
-        name.dispatchEvent(new MouseEvent('mouseenter'));
+        name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, 12346, name);
-        leavePlayerBindings(); name.dispatchEvent(new MouseEvent('mouseenter'));
+        leavePlayerBindings(); name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenCalledTimes(2);
         expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
     });
@@ -53,7 +85,7 @@ describe('player identity and native interactions', () => {
         expect(control.getAttribute('aria-label')).toBeTruthy();
         control.focus(); control.click();
         expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 12345, control, { pinned: true });
-        native.dispatchEvent(new MouseEvent('mouseenter'));
+        native.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         native.focus();
         expect(showTooltip).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 12345, 'pace', native);
         expect(showTooltip).toHaveBeenCalledTimes(2);
@@ -66,14 +98,16 @@ describe('player identity and native interactions', () => {
         const context = resolvePageContext(new URL(location.href))!;
         await processBetaPlayers(context);
         expect(getPlayerHistory).toHaveBeenCalledTimes(2);
-        expect(document.querySelectorAll('[data-sokkerpp-owned="change"]')).toHaveLength(2);
+        expect(document.querySelectorAll('[data-sokkerpp-owned="change"]')).toHaveLength(0);
+        expect(document.querySelectorAll('[data-sokkerpp-skill-change="up"]')).toHaveLength(2);
         const controls = document.querySelectorAll('[data-sokkerpp-owned="pin"]').length;
         await processBetaPlayers(context);
-        expect(document.querySelectorAll('[data-sokkerpp-owned="change"]')).toHaveLength(2);
+        expect(document.querySelectorAll('[data-sokkerpp-owned="change"]')).toHaveLength(0);
+        expect(document.querySelectorAll('[data-sokkerpp-skill-change="up"]')).toHaveLength(2);
         expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(controls);
         expect([...document.querySelectorAll('.native-bar')].every(bar => bar.textContent === '10')).toBe(true);
         const requests = vi.mocked(fetchTodayInfo).mock.calls.length;
-        document.querySelector<HTMLElement>('td.table__cell--name a[href*="/player/"]')!.dispatchEvent(new MouseEvent('mouseenter'));
+        document.querySelector<HTMLElement>('td.table__cell--name a[href*="/player/"]')!.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(fetchTodayInfo).toHaveBeenCalledTimes(requests);
     });
     it('does not duplicate legacy profile handlers and updates reused skill/name IDs', async () => {
@@ -81,15 +115,15 @@ describe('player identity and native interactions', () => {
         document.body.innerHTML = '<div class="h5 title-block-1"><a href="/player/PID/12345">Player One</a></div><table class="table-skills"><tbody><tr><td><strong>Good <span class="skillNameNumber">10</span></strong> Pace</td></tr></tbody></table>';
         await processPlayerPage(document.body); await processPlayerPage(document.body);
         const cell = document.querySelector<HTMLElement>('td')!;
-        cell.dispatchEvent(new MouseEvent('mouseenter'));
+        cell.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showTooltip).toHaveBeenCalledOnce();
         history.replaceState({}, '', '/es/app/player/ID_player/12346/');
-        await processPlayerPage(document.body); cell.dispatchEvent(new MouseEvent('mouseenter'));
+        await processPlayerPage(document.body); cell.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showTooltip).toHaveBeenLastCalledWith(0, 0, 12346, 'pace', cell);
     });
 });
 
-it('preserves legacy numeric highlighting with one label arrow and clears it after storage invalidation', async () => {
+it('preserves legacy numeric highlighting without arrows and clears it after storage invalidation', async () => {
     history.replaceState({}, '', '/app/squad/');
     document.body.innerHTML = '<div class="player-box"><a href="/player/PID/12345">Player One</a><div class="skill-list__item"><span class="skillLabel">Pace</span><span class="skill-list__value" style="color:blue">10</span></div></div>';
     const skills = { stamina: 10, pace: 10, technique: 10, passing: 10, keeper: 10, defending: 10, playmaking: 10, striker: 10 };
@@ -97,7 +131,7 @@ it('preserves legacy numeric highlighting with one label arrow and clears it aft
     await processSquadTable(document.body); await processSquadTable(document.body);
     const value = document.querySelector<HTMLElement>('.skill-list__value')!;
     expect(value.style.color).toBe('rgb(40, 167, 69)');
-    expect(document.querySelectorAll('.skill-arrow')).toHaveLength(1);
+    expect(document.querySelectorAll('.skill-arrow')).toHaveLength(0);
     invalidatePlayerCache();
     expect(value.style.color).toBe('blue');
     expect(document.querySelectorAll('.skill-arrow')).toHaveLength(0);
@@ -158,9 +192,9 @@ it.each(['beta', 'legacy'])('ignores stale %s card identities for hover, focus a
         : document.querySelector<HTMLElement>('.skill-list__value')!;
     name.setAttribute('href', layout === 'beta' ? '/player/12346' : '/player/PID/12346');
     name.textContent = 'Player Two';
-    name.dispatchEvent(new MouseEvent('mouseenter'));
+    name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
     name.focus();
-    skill.dispatchEvent(new MouseEvent('mouseenter'));
+    skill.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
     skill.focus();
     if (layout === 'beta') {
         const pin = document.querySelector<HTMLButtonElement>('[data-history-variant="name"]')!;
@@ -197,8 +231,8 @@ it.each(['name', 'skill', 'pin'])('hides an obsolete pending %s card after a car
     const skill = [...document.querySelectorAll<HTMLButtonElement>('[class~="@container/skills"] button')].find(button => !button.closest('[aria-hidden="true"]') && button.textContent?.toLowerCase().includes('pace'))!;
     let finish!: () => void;
     const pending = new Promise<void>(resolve => { finish = resolve; });
-    if (interaction === 'name') { vi.mocked(showHistoryTooltip).mockReturnValueOnce(pending); name.dispatchEvent(new MouseEvent('mouseenter')); }
-    if (interaction === 'skill') { vi.mocked(showTooltip).mockReturnValueOnce(pending); skill.dispatchEvent(new MouseEvent('mouseenter')); }
+    if (interaction === 'name') { vi.mocked(showHistoryTooltip).mockReturnValueOnce(pending); name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS); }
+    if (interaction === 'skill') { vi.mocked(showTooltip).mockReturnValueOnce(pending); skill.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS); }
     if (interaction === 'pin') { vi.mocked(showHistoryTooltip).mockReturnValueOnce(pending); document.querySelector<HTMLButtonElement>('[data-history-variant="name"]')!.click(); }
     name.setAttribute('href', '/player/12346');
     finish();
@@ -217,11 +251,11 @@ it('does not close a newer valid card when an older obsolete presentation finish
     let finish!: () => void;
     const pending = new Promise<void>(resolve => { finish = resolve; });
     vi.mocked(showHistoryTooltip).mockReturnValueOnce(pending);
-    name.dispatchEvent(new MouseEvent('mouseenter'));
+    name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
     name.setAttribute('href', '/player/12346');
     await processBetaPlayers(context);
     vi.mocked(hideTooltip).mockClear();
-    name.dispatchEvent(new MouseEvent('mouseenter'));
+    name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
     expect(showHistoryTooltip).toHaveBeenLastCalledWith(0, 0, 12346, name);
     finish();
     await pending;
@@ -243,7 +277,7 @@ it('keeps classic name controls and removes them when a node is reused as a skil
     name.setAttribute('href', '/player/PID/12346');
     bindPlayerAnchors([{ playerId: 12346, names: [], skills: [{ key: 'passing', anchor: name }] }]);
     expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
-    name.dispatchEvent(new MouseEvent('mouseenter'));
+    name.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
     name.focus();
     expect(showTooltip).toHaveBeenLastCalledWith(0, 0, 12346, 'passing', name);
     expect(openZoomChart).not.toHaveBeenCalled();
@@ -258,8 +292,10 @@ it('leaves hover and focus available when the + controls are hidden', () => {
     document.body.innerHTML = '<a id="name" href="/player/12345">Player</a><button id="skill">Pace</button>';
     bindPlayerAnchors(anchors());
     document.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]').forEach(button => { button.hidden = true; });
-    document.querySelector<HTMLElement>('#name')!.dispatchEvent(new MouseEvent('mouseenter'));
+    document.querySelector<HTMLElement>('#name')!.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
     document.querySelector<HTMLElement>('#skill')!.focus();
     expect(showHistoryTooltip).toHaveBeenCalledOnce();
     expect(showTooltip).toHaveBeenCalledOnce();
 });
+
+afterEach(() => { leavePlayerBindings(); invalidatePlayerCache(); vi.useRealTimers(); });

@@ -1,8 +1,9 @@
 import { createHistoryButton, updateHistoryButton } from './historyButton';
-import { contextFromPath, positiveId, resolvePageContext } from './pageContext';
+import { contextFromPath, positiveId, playerIdFromUrl } from './pageContext';
 import type { PlayerSkill } from '../core/playerTimeline';
 import { getPlayerStrings } from './playerLocale';
 import { hideTooltip, openZoomChart, scheduleHide, showHistoryTooltip, showTooltip } from './tooltip';
+import { cancelHover, scheduleHover } from './hoverIntent';
 
 export type PlayerSkillKey = PlayerSkill;
 export interface PlayerAnchors {
@@ -24,8 +25,8 @@ let presentation = 0;
 
 function linkedPlayerId(link: Element): number | null {
     try {
-        const context = resolvePageContext(new URL(link.getAttribute('href') ?? '', 'https://sokker.org'));
-        return context?.kind === 'player' ? context.playerId : null;
+        const url = new URL(link.getAttribute('href') ?? '', 'https://sokker.org');
+        return playerIdFromUrl(url, contextFromPath(location.pathname)?.kind === 'training-progress');
     } catch { return null; }
 }
 
@@ -42,8 +43,8 @@ function selected(anchor: HTMLElement): Binding | null {
     if (anchor.matches('a[href]') && linkedPlayerId(anchor) !== binding.playerId) return null;
     const row = anchor.closest<HTMLElement>('tr[data-row-id]');
     if (row && positiveId(row.dataset.rowId ?? '') !== binding.playerId) return null;
-    const tableName = row?.querySelector('td.table__cell--name');
-    if (tableName && !linksMatch(tableName, 'a[href]', binding.playerId)) return null;
+    const tableName = row?.querySelector('td.table__cell--name, td.table__cell--player');
+    if (tableName?.querySelector('a[href]') && !linksMatch(tableName, 'a[href]', binding.playerId)) return null;
     const card = anchor.closest('[class~="@container/player"], .player-box, .player-box--sm');
     // A profile has a route ID and may render only a name span. Squad cards
     // must still agree with their current semantic link before the next scan.
@@ -67,6 +68,7 @@ function present(anchor: HTMLElement, binding: Binding, open: () => Promise<void
 }
 
 function show(anchor: HTMLElement, event?: MouseEvent): void {
+    cancelHover();
     const binding = selected(anchor);
     if (!binding) return;
     const rect = anchor.getBoundingClientRect();
@@ -86,17 +88,26 @@ function bind(anchor: HTMLElement): void {
     if (bound.has(anchor)) return;
     bound.add(anchor);
     if (anchor.tabIndex < 0 && !anchor.hasAttribute('tabindex')) anchor.tabIndex = 0;
-    anchor.addEventListener('mouseenter', event => show(anchor, event));
+    anchor.addEventListener('mouseenter', event => {
+        const intended = selected(anchor);
+        if (!intended) return;
+        scheduleHover(anchor, () => {
+            const current = selected(anchor);
+            if (current?.playerId === intended.playerId && current.skill === intended.skill) show(anchor, event);
+        });
+    });
     anchor.addEventListener('focus', () => show(anchor));
-    anchor.addEventListener('mouseleave', () => { if (selected(anchor)) scheduleHide(); });
-    anchor.addEventListener('blur', () => { if (selected(anchor)) scheduleHide(); });
+    anchor.addEventListener('mouseleave', () => { cancelHover(anchor); if (selected(anchor)) scheduleHide(); });
+    anchor.addEventListener('blur', () => { cancelHover(anchor); if (selected(anchor)) scheduleHide(); });
     const pinLegacy = () => {
+        cancelHover();
         const binding = selected(anchor);
         if (binding?.skill && anchor.dataset.clickable === 'true') {
             present(anchor, binding, () => openZoomChart(binding.playerId, binding.skill!, anchor));
         }
     };
     anchor.addEventListener('click', event => {
+        cancelHover(anchor);
         if (anchor.dataset.clickable !== 'true' || !selected(anchor) || nativeDescendant(event.target, anchor)) return;
         event.stopPropagation();
         event.preventDefault();
@@ -112,6 +123,7 @@ function bind(anchor: HTMLElement): void {
 function pinNameControl(anchor: HTMLElement): void {
     if (controls.get(anchor)?.isConnected) return;
     const button = createHistoryButton(anchor, control => {
+        cancelHover();
         const binding = selected(anchor);
         if (!binding || binding.skill) return;
         const rect = control.getBoundingClientRect();
@@ -130,6 +142,7 @@ export function bindPlayerAnchors(players: readonly PlayerAnchors[]): void {
     for (const [anchor, previous] of active) {
         const replacement = next.get(anchor);
         if (!replacement || replacement.playerId !== previous.playerId || replacement.skill !== previous.skill) {
+            cancelHover(anchor);
             hideTooltip();
             anchor.querySelectorAll('[data-sokkerpp-owned="change"]').forEach(node => node.remove());
         }
@@ -149,6 +162,7 @@ export function bindPlayerAnchors(players: readonly PlayerAnchors[]): void {
 }
 
 export function leavePlayerBindings(): void {
+    cancelHover();
     ++presentation;
     active.clear();
     for (const control of controls.values()) control.remove();

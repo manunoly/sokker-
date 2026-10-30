@@ -4,10 +4,11 @@ import { fetchTodayInfo, type TodayInfo } from '../core/apiClient';
 import { cancelQueuedJuniorSync, syncVisibleJuniors } from '../core/juniorSync';
 import { contextFromPath, type PageContext } from './pageContext';
 import { hideJuniorCard, scheduleJuniorCardHide, showJuniorCard } from './juniorCard';
+import { cancelHover, scheduleHover } from './hoverIntent';
 
 export type JuniorPageView =
     | { kind: 'report'; pathname: string; names: Map<number, HTMLElement> }
-    | { kind: 'academy'; pathname: string; routeTeamId: number; layout?: 'legacy' | 'beta'; names: Map<number, HTMLElement> };
+    | { kind: 'academy'; pathname: string; routeTeamId: number | null; layout?: 'legacy' | 'beta'; names: Map<number, HTMLElement> };
 
 interface ActiveEntry {
     pathname: string;
@@ -36,6 +37,7 @@ function refreshControls(entry: ActiveEntry): void {
         let control = controls.get(anchor);
         if (!control?.button.isConnected) {
             const button = createHistoryButton(anchor, returnFocus => {
+                cancelHover();
                 const current = active;
                 const match = current && juniorNameFromTarget(anchor, current.view);
                 if (!current || !currentEntry(current) || !eligible(current) || !match) return;
@@ -126,7 +128,8 @@ export function scanJuniorPage(page: PageContext | string | null, root: Document
 function eligible(entry: ActiveEntry): boolean {
     const today = entry.today;
     if (!today || !validCurrent(today)) return false;
-    return entry.view.kind === 'report' || entry.view.routeTeamId === today.teamId;
+    return entry.view.kind === 'report' || entry.view.routeTeamId === today.teamId ||
+        (entry.view.layout === 'beta' && entry.view.routeTeamId === null);
 }
 
 function onNameEnter(event: Event): void {
@@ -136,10 +139,17 @@ function onNameEnter(event: Event): void {
     if (!match) return;
     if (event instanceof MouseEvent && event.relatedTarget instanceof Node &&
         match.name.contains(event.relatedTarget)) return;
-    void showJuniorCard(match.name, entry.today!.teamId, match.id,
-        match.name.textContent?.trim() ?? '', entry.view.kind === 'report' ? 'left' : 'right').catch((error) => {
-        console.warn('Could not show junior card:', error);
-    });
+    const valid = () => currentEntry(entry) && eligible(entry) &&
+        juniorNameFromTarget(match.name, entry.view)?.id === match.id;
+    const open = () => {
+        cancelHover();
+        if (!valid()) return;
+        void showJuniorCard(match.name, entry.today!.teamId, match.id,
+            match.name.textContent?.trim() ?? '', entry.view.kind === 'report' ? 'left' : 'right',
+            { isCurrent: valid }).catch(error => console.warn('Could not show junior card:', error));
+    };
+    if (event instanceof MouseEvent) scheduleHover(match.name, open);
+    else open();
 }
 
 function onNameLeave(event: Event): void {
@@ -149,6 +159,7 @@ function onNameLeave(event: Event): void {
     if (!match) return;
     if (event instanceof MouseEvent && event.relatedTarget instanceof Node &&
         match.name.contains(event.relatedTarget)) return;
+    cancelHover(match.name);
     scheduleJuniorCardHide();
 }
 
@@ -206,6 +217,7 @@ export async function handleJuniorPage(view: JuniorPageView): Promise<void> {
 /** Leave an eligible route before any late /current or graph response can update its UI. */
 export function leaveJuniorPage(): void {
     if (!active) return;
+    for (const name of active.view.names.values()) cancelHover(name);
     ++generation;
     if (active.listenersAttached) {
         document.removeEventListener('mouseover', onNameEnter);

@@ -1,6 +1,6 @@
 import { PLAYER_SKILL_COLUMNS, type PlayerSkill } from '../core/playerTimeline';
 import { mapSkillLabelToKey } from './i18n';
-import { positiveId, resolvePageContext, type PageContext } from './pageContext';
+import { positiveId, playerIdFromUrl, type PageContext } from './pageContext';
 import type { PlayerAnchors } from './playerBindings';
 
 const skills = new Set<string>(PLAYER_SKILL_COLUMNS.flat());
@@ -10,10 +10,21 @@ const columns: Record<string, PlayerSkill> = {
 };
 const visible = (element: Element) => !element.closest('[aria-hidden="true"]');
 
-function playerLink(link: HTMLAnchorElement): number | null {
-    let context: PageContext | null;
-    try { context = resolvePageContext(new URL(link.href)); } catch { return null; }
-    return context?.kind === 'player' && context.layout === 'beta' ? context.playerId : null;
+function playerLink(link: HTMLAnchorElement, development = false): number | null {
+    try {
+        const url = new URL(link.href);
+        if (development) return playerIdFromUrl(url, true);
+        if (!/^\/player\/[1-9]\d*(?:\/development)?\/?$/.test(url.pathname)) return null;
+        return playerIdFromUrl(url, development);
+    } catch { return null; }
+}
+
+function tableSkillValue(cell: HTMLElement): HTMLElement | null {
+    if (cell.children.length === 0 && /^\d+$/.test(cell.textContent?.trim() ?? '')) return cell;
+    const values = [...cell.querySelectorAll<HTMLElement>('span')].filter(span =>
+        span.children.length === 0 && visible(span) && !span.closest('.invisible, [data-sokkerpp-owned]') &&
+        /^\d+$/.test(span.textContent?.trim() ?? '') && Number(span.textContent) <= 18);
+    return values.length === 1 ? values[0] : null;
 }
 
 /** Bars and text-only cards use different native grids for each skill row. */
@@ -65,7 +76,8 @@ function cardSkills(card: HTMLElement): PlayerAnchors['skills'] {
 
 /** Discover only observed beta structures; table and cards may coexist. */
 export function scanBetaPlayers(context: PageContext, root: Document): PlayerAnchors[] {
-    if (context.layout !== 'beta' || (context.kind !== 'squad' && context.kind !== 'player')) return [];
+    const progress = context.kind === 'training-progress';
+    if ((!progress && context.layout !== 'beta') || !['squad', 'player', 'training-progress'].includes(context.kind)) return [];
     const found = new Map<number, PlayerAnchors>();
     const add = (playerId: number, names: HTMLElement[], anchors: PlayerAnchors['skills']) => {
         const player = found.get(playerId) ?? { playerId, names: [], skills: [] };
@@ -73,23 +85,29 @@ export function scanBetaPlayers(context: PageContext, root: Document): PlayerAnc
         for (const skill of anchors) if (!player.skills.some(item => item.anchor === skill.anchor)) player.skills.push(skill);
         found.set(playerId, player);
     };
-    if (context.kind === 'squad') {
+    if (context.kind === 'squad' || progress) {
         root.querySelectorAll<HTMLElement>('tr.table-row[data-row-id]').forEach(row => {
-            if (!visible(row)) return;
+            if (!visible(row) || row.querySelector('td.table__cell--weeks, td.table__cell--weeksLeft')) return;
             const id = positiveId(row.getAttribute('data-row-id') ?? '');
             if (id === null) return;
-            const names = [...row.querySelectorAll<HTMLAnchorElement>('td.table__cell--name a[href]')]
-                .filter(link => visible(link) && playerLink(link) === id);
+            const names: HTMLElement[] = [...row.querySelectorAll<HTMLAnchorElement>(progress
+                ? 'td.table__cell--name a[href], td.table__cell--player a[href]' : 'td.table__cell--name a[href]')]
+                .filter(link => visible(link) && playerLink(link, progress) === id);
+            if (progress && context.layout === 'legacy' && !row.querySelector('td.table__cell--name a[href], td.table__cell--player a[href]')) {
+                names.push(...[...row.querySelectorAll<HTMLElement>('td.table__cell--name .text.c-text-link, td.table__cell--player .text.c-text-link')].filter(visible));
+            }
             if (!names.length) return;
             const anchors: PlayerAnchors['skills'] = [];
             for (const [column, key] of Object.entries(columns)) {
                 row.querySelectorAll<HTMLElement>(`td.table__cell--${column}`).forEach(cell => {
-                    if (visible(cell)) anchors.push({ key, anchor: cell.querySelector<HTMLElement>('button:not([data-sokkerpp-owned])') ?? cell });
+                    if (visible(cell)) anchors.push({ key, anchor: cell.querySelector<HTMLElement>('button:not([data-sokkerpp-owned])') ?? cell,
+                        getValue: () => tableSkillValue(cell) });
                 });
             }
             add(id, names, anchors);
         });
     }
+    if (progress) return [...found.values()];
     root.querySelectorAll<HTMLElement>('[class~="@container/player"]').forEach(card => {
         if (!visible(card)) return;
         const area = card.querySelector<HTMLElement>('[class~="[grid-area:name]"]');
@@ -100,7 +118,7 @@ export function scanBetaPlayers(context: PageContext, root: Document): PlayerAnc
             const name = area.querySelector<HTMLElement>(':scope > div > span');
             if (name && visible(name)) add(context.playerId, [name], cardSkills(card));
         } else {
-            const ids = new Set(links.map(playerLink));
+            const ids = new Set(links.map(link => playerLink(link)));
             if (ids.size !== 1) return;
             const id = playerLink(links[0]);
             if (id !== null) add(id, links, cardSkills(card));

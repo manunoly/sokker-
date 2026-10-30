@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     initObserver: vi.fn(), refreshObserver: vi.fn(), processSquadTable: vi.fn(), processPlayerPage: vi.fn(), processBetaPlayers: vi.fn(), invalidatePlayerCache: vi.fn(),
     syncData: vi.fn(), reconcileGaps: vi.fn(), migrateCurrentOrigin: vi.fn(), ensureStorageReady: vi.fn(), getLastSyncWeek: vi.fn(), subscribeStorageChanges: vi.fn(),
-    fetchTodayInfo: vi.fn(), invalidateJuniorSync: vi.fn(), cancelQueuedJuniorSync: vi.fn(), hideJuniorCard: vi.fn(), hideTooltip: vi.fn(), leavePlayerBindings: vi.fn(),
+    fetchTodayInfo: vi.fn(), invalidateJuniorSync: vi.fn(), cancelQueuedJuniorSync: vi.fn(), syncCurrentJuniors: vi.fn(), hideJuniorCard: vi.fn(), hideTooltip: vi.fn(), leavePlayerBindings: vi.fn(),
     scanJuniorPage: vi.fn(), handleJuniorPage: vi.fn(), leaveJuniorPage: vi.fn(), scanTrainingPlayerPage: vi.fn(), handleTrainingPlayerPage: vi.fn(), leaveTrainingPlayerPage: vi.fn(),
     initHistoryButtonPreferences: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock('../core/sync', () => ({ syncData: mocks.syncData }));
 vi.mock('../core/apiClient', () => ({ fetchTodayInfo: mocks.fetchTodayInfo }));
 vi.mock('../core/storageClient', () => ({ migrateCurrentOrigin: mocks.migrateCurrentOrigin, ensureStorageReady: mocks.ensureStorageReady,
     getLastSyncWeek: mocks.getLastSyncWeek, subscribeStorageChanges: mocks.subscribeStorageChanges }));
-vi.mock('../core/juniorSync', () => ({ invalidateJuniorSync: mocks.invalidateJuniorSync, cancelQueuedJuniorSync: mocks.cancelQueuedJuniorSync }));
+vi.mock('../core/juniorSync', () => ({ invalidateJuniorSync: mocks.invalidateJuniorSync, cancelQueuedJuniorSync: mocks.cancelQueuedJuniorSync, syncCurrentJuniors: mocks.syncCurrentJuniors }));
 vi.mock('./juniorCard', () => ({ hideJuniorCard: mocks.hideJuniorCard }));
 vi.mock('./tooltip', () => ({ hideTooltip: mocks.hideTooltip }));
 vi.mock('./playerBindings', () => ({ leavePlayerBindings: mocks.leavePlayerBindings }));
@@ -30,6 +30,8 @@ beforeEach(() => {
     mocks.ensureStorageReady.mockResolvedValue(state);
     mocks.invalidateJuniorSync.mockResolvedValue(undefined);
     mocks.syncData.mockResolvedValue({ status: 'synced' });
+    mocks.fetchTodayInfo.mockResolvedValue({ teamId: 9001, week: 1213 });
+    mocks.syncCurrentJuniors.mockResolvedValue(undefined);
     mocks.reconcileGaps.mockResolvedValue({ gapsFilled: 0 });
     mocks.initHistoryButtonPreferences.mockResolvedValue(undefined);
 });
@@ -38,6 +40,40 @@ afterEach(() => vi.unstubAllGlobals());
 async function load(): Promise<any[]> { await import('./main'); return mocks.initObserver.mock.calls[0]; }
 
 describe('shared history bootstrap', () => {
+    it('manual sync from progress waits for first-team and same-week junior refresh before success', async () => {
+        vi.stubGlobal('location', new URL('https://app.sokker.org/training/main-team-progress'));
+        let finish!: () => void;
+        mocks.syncCurrentJuniors.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve; }));
+        await load();
+        const reply = vi.fn();
+        expect(listener({ action: 'FORCE_SYNC' }, null, reply)).toBe(true);
+        await vi.waitFor(() => expect(mocks.syncCurrentJuniors).toHaveBeenCalledWith(expect.objectContaining({ teamId: 9001, week: 1213 })));
+        expect(mocks.syncData).toHaveBeenCalledOnce();
+        expect(reply).not.toHaveBeenCalled();
+        finish();
+        await vi.waitFor(() => expect(reply).toHaveBeenCalledWith({ status: 'success', result: { status: 'synced' } }));
+        expect(mocks.refreshObserver).toHaveBeenCalled();
+    });
+
+    it('reports a junior failure instead of claiming that manual sync completed', async () => {
+        mocks.syncCurrentJuniors.mockRejectedValueOnce(new Error('Junior graph unavailable'));
+        await load();
+        const reply = vi.fn(); listener({ action: 'FORCE_SYNC' }, null, reply);
+        await vi.waitFor(() => expect(reply).toHaveBeenCalledWith({ status: 'error', message: 'Junior graph unavailable' }));
+        expect(reply).toHaveBeenCalledOnce();
+    });
+
+    it('does not start junior requests on a different page after the current-context request completes', async () => {
+        let finish!: (today: { teamId: number; week: number }) => void;
+        mocks.fetchTodayInfo.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+        await load();
+        const reply = vi.fn(); listener({ action: 'FORCE_SYNC' }, null, reply);
+        await vi.waitFor(() => expect(mocks.fetchTodayInfo).toHaveBeenCalled());
+        vi.stubGlobal('location', new URL('https://app.sokker.org/unknown'));
+        finish({ teamId: 9001, week: 1213 });
+        await vi.waitFor(() => expect(reply).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' })));
+        expect(mocks.syncCurrentJuniors).not.toHaveBeenCalled();
+    });
     it('initializes preferences independently and still synchronizes when preferences fail', async () => {
         mocks.initHistoryButtonPreferences.mockRejectedValue(new Error('Preference read failed'));
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
