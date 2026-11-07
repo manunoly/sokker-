@@ -13,6 +13,8 @@ The English [feature update](FEATURE_UPDATE.md) summarizes the latest first-team
 
 [LOGIC_EXPLANATION.md](LOGIC_EXPLANATION.md) describes the current synchronization and display pipeline. [WORKFLOW.md](../docs/WORKFLOW.md) covers project changes; [store/SUBMISSION_CHECKLIST.md](../store/SUBMISSION_CHECKLIST.md) covers store preparation.
 
+The [0.2.10 reconciliation record](../docs/research/2026-11-07-published-0.2.10-reconciliation.md) documents recovery from the public store package and the checks for the prepared 0.2.11.
+
 The dated files under `docs/superpowers/specs/` and `docs/superpowers/plans/` record design decisions and implementation work at the time they were written. They are not the current UI or API contract. The [Chrome Web Store research](../docs/chrome-web-store-requirements.md) is likewise a dated research snapshot.
 
 Apart from the three explicitly approved screenshots in `images/`, real account data and raw API captures belong only in Git-ignored local documentation (`docs/documentacion-talent/`, optionally `docs/juniors/`). Keep cookies and credentials out of the repository. Check live code and `package.json` for implementation details and commands before publishing instructions.

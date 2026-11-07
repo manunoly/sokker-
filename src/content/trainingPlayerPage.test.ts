@@ -128,14 +128,16 @@ describe('observed beta training structures', () => {
         link.setAttribute('href', 'https://example.test/player/12345/development?from=training');
         expect(scanTrainingPlayerPage(context(), document)!.names.size).toBe(0);
     });
-    it('separates report first-team names from juniors and rejects development as a profile', () => {
+    it('separates report first-team names from juniors and keeps development in the player adapter', () => {
         setPage('/training/reports/details/1000/', betaReport);
         const view = scanTrainingPlayerPage(context(), document)!;
         expect([...view.names.keys()]).toEqual([12345]);
         handleTrainingPlayerPage(view);
         view.names.get(12345)!.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showHistoryTooltip).toHaveBeenCalledWith(0, 0, 12345, view.names.get(12345));
-        expect(resolvePageContext(new URL('https://sokker.org/player/12345/development?from=training'))).toBeNull();
+        const development = resolvePageContext(new URL('https://sokker.org/player/12345/development?from=training'));
+        expect(development).toMatchObject({ kind: 'player', playerId: 12345, layout: 'beta' });
+        expect(scanTrainingPlayerPage(development, document)).toBeNull();
     });
 });
 

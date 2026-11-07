@@ -117,3 +117,13 @@ it('resolves the visible sibling value and rejects ambiguous level copies', () =
     value.parentElement!.append(value.cloneNode(true));
     expect(passing.getValue?.()).toBeNull();
 });
+
+it.each(['/player/PID/12345', '/en/app/player/PID/12345', '/player/12345/transfers', '/player/12345/development'])(
+    'reads published card markup independently of route layout: %s', path => {
+        document.body.innerHTML = player;
+        const players = scanBetaPlayers(context(path), document);
+        expect(players).toHaveLength(1);
+        expect(players[0].playerId).toBe(12345);
+        expect(players[0].skills).toHaveLength(8);
+    },
+);

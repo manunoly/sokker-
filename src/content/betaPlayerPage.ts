@@ -77,7 +77,7 @@ function cardSkills(card: HTMLElement): PlayerAnchors['skills'] {
 /** Discover only observed beta structures; table and cards may coexist. */
 export function scanBetaPlayers(context: PageContext, root: Document): PlayerAnchors[] {
     const progress = context.kind === 'training-progress';
-    if ((!progress && context.layout !== 'beta') || !['squad', 'player', 'training-progress'].includes(context.kind)) return [];
+    if ((!progress && context.kind !== 'player' && context.layout !== 'beta') || !['squad', 'player', 'training-progress'].includes(context.kind)) return [];
     const found = new Map<number, PlayerAnchors>();
     const add = (playerId: number, names: HTMLElement[], anchors: PlayerAnchors['skills']) => {
         const player = found.get(playerId) ?? { playerId, names: [], skills: [] };

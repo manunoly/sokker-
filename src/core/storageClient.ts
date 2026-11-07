@@ -62,12 +62,14 @@ function connection(): chrome.runtime.Port {
         request?.resolve(message);
     });
     opened.onDisconnect.addListener(() => {
+        const message = chrome.runtime.lastError?.message;
         if (port === opened) port = null;
         const request = pending;
         pending = null;
         request?.reject(
             new Error(
-                'Storage worker disconnected; the result may be uncertain',
+                message ? `Storage worker disconnected: ${message}`
+                    : 'Storage worker disconnected; the result may be uncertain',
             ),
         );
     });

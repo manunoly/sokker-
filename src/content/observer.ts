@@ -54,8 +54,14 @@ export function initObserver(
             onBetaPlayersFound?.(context);
             return;
         }
+        if (context.kind === 'player') {
+            if (document.querySelector('.table-skills')) {
+                onPlayerPageFound?.(document.querySelector<HTMLElement>('.l-main__inner') ?? document.body);
+            } else onBetaPlayersFound?.(context);
+            return;
+        }
         if (context.layout === 'beta') {
-            if (context.kind === 'squad' || context.kind === 'player') onBetaPlayersFound?.(context);
+            if (context.kind === 'squad') onBetaPlayersFound?.(context);
             if (context.kind === 'squad' && document.querySelector('td.table__cell--name, [class~="@container/player"]')) {
                 scheduleIdle(() => { if (!stopped && key === currentKey()) onSquadReady?.(); });
             }
@@ -68,8 +74,6 @@ export function initObserver(
                 onTableFound(container);
                 scheduleIdle(() => { if (!stopped && key === currentKey()) onSquadReady?.(); });
             }
-        } else if (context.kind === 'player' && document.querySelector('.table-skills')) {
-            onPlayerPageFound?.(document.querySelector<HTMLElement>('.l-main__inner') ?? document.body);
         }
     };
     const schedule = () => {

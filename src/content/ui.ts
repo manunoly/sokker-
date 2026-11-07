@@ -93,6 +93,11 @@ function showChange(target: PlayerAnchors['skills'][number], playerId: number, c
 async function renderPlayers(players: PlayerAnchors[], pathname: string): Promise<void> {
     const generation = ++renderGeneration;
     bindPlayerAnchors(players);
+    // Published 0.2.10 keeps progress history controls without automatic coloring.
+    if (contextFromPath(pathname)?.kind === 'training-progress') {
+        clearHighlights();
+        return;
+    }
     // Keep valid colors while reads are pending, restoring reused or removed values immediately.
     const retained = new Map<HTMLElement, HighlightIdentity>();
     for (const player of players) {
@@ -150,10 +155,10 @@ export async function processSquadTable(container: HTMLElement): Promise<void> {
     await renderPlayers(players, location.pathname);
 }
 
-/** Legacy profile identity comes from its full route, including localized /app variants. */
+/** Classic profile markup can appear on either classic or beta player routes. */
 export async function processPlayerPage(container: HTMLElement): Promise<void> {
     const context = contextFromPath(location.pathname);
-    if (context?.kind !== 'player' || context.layout !== 'legacy') return;
+    if (context?.kind !== 'player') return;
     const player: PlayerAnchors = { playerId: context.playerId, names: [], skills: [] };
     const header = container.querySelector<HTMLElement>('.h5.title-block-1 a[href*="/player/"]');
     if (header) player.names.push(header);

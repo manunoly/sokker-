@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { it, expect, vi } from 'vitest';
+import { afterEach, it, expect, vi } from 'vitest';
+afterEach(() => vi.unstubAllGlobals());
 it('serializes concurrent client requests and reconstructs juvenile Maps from JSON pairs', async () => {
     vi.resetModules();
     let active = 0,
@@ -72,3 +73,32 @@ it('surfaces explicit worker errors instead of empty/successful data', async () 
         code: 'STALE_EPOCH',
     });
 });
+
+it.each([undefined, 'Synthetic extension context invalidated'])(
+    'reports a storage disconnect with runtime diagnostic %s and reconnects on the next read', async diagnostic => {
+        vi.resetModules();
+        let receive: (message: unknown) => void = () => {};
+        let disconnect = () => {};
+        let failed = false;
+        const lastError = vi.fn(() => diagnostic ? { message: diagnostic } : undefined);
+        const runtime = {
+            get lastError() { return lastError(); },
+            connect: vi.fn(() => ({
+                onMessage: { addListener: (fn: typeof receive) => { receive = fn; } },
+                onDisconnect: { addListener: (fn: () => void) => { disconnect = fn; } },
+                postMessage: () => queueMicrotask(() => {
+                    if (!failed) { failed = true; disconnect(); }
+                    else receive({ ok: true, value: [] });
+                }),
+            })),
+        };
+        vi.stubGlobal('chrome', { runtime });
+        const client = await import('./storageClient');
+        await expect(client.getAllPlayers()).rejects.toThrow(diagnostic
+            ? `Storage worker disconnected: ${diagnostic}`
+            : 'Storage worker disconnected; the result may be uncertain');
+        expect(lastError).toHaveBeenCalledOnce();
+        await expect(client.getAllPlayers()).resolves.toEqual([]);
+        expect(runtime.connect).toHaveBeenCalledTimes(2);
+    },
+);

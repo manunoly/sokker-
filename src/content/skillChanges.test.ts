@@ -27,8 +27,8 @@ const BASE: Skills = {
 const entry = (week: number, date: string, skills: Partial<Pick<Skills, 'passing' | 'defending'>>): PlayerHistoryEntry => ({
     week, date, skills: { ...BASE, ...skills }, value: 0, source: 'training',
 });
-const layouts = ['classic-profile', 'classic-squad', 'beta-profile', 'beta-squad', 'beta-progress', 'legacy-progress'] as const;
-type Layout = typeof layouts[number];
+const layouts = ['classic-profile', 'classic-squad', 'beta-profile', 'beta-squad'] as const;
+type Layout = typeof layouts[number] | 'beta-progress' | 'legacy-progress';
 let saved: PlayerData;
 
 beforeEach(() => {
@@ -114,7 +114,7 @@ it.each(['beta-progress', 'legacy-progress'] as const)('opens progress history a
     const name = document.querySelector<HTMLAnchorElement>('td.table__cell--name a')!;
     const cell = document.querySelector<HTMLElement>('#passing')!;
     const value = cell.querySelector<HTMLElement>('.growth-bg, span span span')!;
-    expect(value.dataset.sokkerppSkillChange).toBe('up');
+    expect(value.dataset.sokkerppSkillChange).toBeUndefined();
     expect(cell.querySelectorAll('.skill-arrow')).toHaveLength(0);
     expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);
     vi.mocked(showHistoryTooltip).mockClear(); vi.mocked(showTooltip).mockClear();
@@ -421,3 +421,39 @@ it.each(['classic-profile', 'beta-bars', 'beta-text'] as const)(
         expect(levelText.hasAttribute('data-sokkerpp-skill-change')).toBe(false);
     },
 );
+
+it.each(['beta-progress', 'legacy-progress'] as const)(
+    'preserves published progress with no automatic change reads or colors: %s', async layout => {
+        const render = mount(layout);
+        const native = document.querySelector('#passing')!.outerHTML;
+        vi.mocked(fetchTodayInfo).mockClear(); vi.mocked(getPlayerHistory).mockClear();
+        await render();
+        expect(fetchTodayInfo).not.toHaveBeenCalled();
+        expect(getPlayerHistory).not.toHaveBeenCalled();
+        const rendered = document.querySelector('#passing')!.cloneNode(true) as HTMLElement;
+        rendered.removeAttribute('tabindex');
+        expect(rendered.outerHTML).toBe(native);
+        expectChanges(null, null);
+    },
+);
+it.each(['/player/7', '/player/7/transfers', '/player/7/development'])(
+    'renders classic skill markup on a beta player route: %s', async path => {
+        mount('classic-profile');
+        window.history.replaceState({}, '', path);
+        await processPlayerPage(document.body);
+        expectChanges('up', null);
+    },
+);
+it('clears earlier highlights and cancels a pending squad read when progress is rendered', async () => {
+    const squad = mount('beta-squad'); await squad();
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    expect(value.dataset.sokkerppSkillChange).toBe('up');
+    const today = await fetchTodayInfo();
+    const pending = deferred<Awaited<ReturnType<typeof fetchTodayInfo>>>();
+    vi.mocked(fetchTodayInfo).mockReturnValueOnce(pending.promise);
+    const stale = squad();
+    const progress = mount('beta-progress'); await progress();
+    expect(value.hasAttribute('data-sokkerpp-skill-change')).toBe(false);
+    pending.resolve(today); await stale;
+    expectChanges(null, null);
+});

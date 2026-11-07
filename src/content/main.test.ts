@@ -161,3 +161,24 @@ it('starts exactly one sync on the new route when navigation happens during migr
     expect(mocks.processSquadTable).not.toHaveBeenCalled();
     expect(mocks.processPlayerPage).not.toHaveBeenCalled();
 });
+
+it.each(['migration', 'storage'] as const)(
+    'allows an explicit popup action to retry a failed %s initialization', async stage => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const failing = stage === 'migration' ? mocks.migrateCurrentOrigin : mocks.ensureStorageReady;
+        failing.mockRejectedValueOnce(new Error('Synthetic initialization unavailable'));
+        try {
+            const callbacks = await load(); callbacks[4]({ kind: 'squad', layout: 'beta', pathname: '/squad' });
+            await vi.waitFor(() => expect(document.getElementById('sokkerpp-storage-status')).not.toBeNull());
+            callbacks[4]({ kind: 'squad', layout: 'beta', pathname: '/squad' });
+            await Promise.resolve();
+            expect(mocks.migrateCurrentOrigin).toHaveBeenCalledOnce();
+            expect(mocks.processBetaPlayers).not.toHaveBeenCalled();
+            const reply = vi.fn(); listener({ action: 'FORCE_SYNC' }, null, reply);
+            await vi.waitFor(() => expect(reply).toHaveBeenCalledWith({ status: 'success', result: { status: 'synced' } }));
+            expect(mocks.migrateCurrentOrigin).toHaveBeenCalledTimes(2);
+            expect(mocks.syncCurrentJuniors).toHaveBeenCalledOnce();
+            expect(document.getElementById('sokkerpp-storage-status')).toBeNull();
+        } finally { warn.mockRestore(); }
+    },
+);

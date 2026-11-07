@@ -26,7 +26,7 @@ describe('host-independent page identity', () => {
         }
     });
     it.each(['/player/0', '/player/-1', '/player/1.5', '/player/01', '/player/9007199254740992',
-        '/player/12345/transfers', '/player/PID/12345/transfers', '/squad-extra', '/squad/0',
+        '/player/12345/transfers/extra', '/player/12345/development/extra', '/player/PID/12345/transfers', '/squad-extra', '/squad/0',
         '/juniors/42/history', '/juniors-extra', '/juniors/0', '/juniors/01',
         '/juniors/9007199254740992', '/app/training/reports/details/9007199254740992',
         '/training/training-setup/unknown', '/training/reports/details/0'])('rejects invalid or unverified route %s', path => {
@@ -64,3 +64,19 @@ describe('player identity on training tables', () => {
         expect(playerIdFromUrl(new URL(url), true)).toBeNull();
     });
 });
+
+// These exact tab routes are shipped by the public 0.2.10 extension.
+it.each(hosts.flatMap(host => ['transfers', 'development'].map(tab => ({ host, tab }))))(
+    'keeps player identity on $tab under $host', ({ host, tab }) => {
+        const url = new URL(`https://${host}/player/12345/${tab}/?id=99#99`);
+        expect(resolvePageContext(url)).toEqual({ kind: 'player', playerId: 12345,
+            pathname: `/player/12345/${tab}/`, layout: 'beta' });
+        expect(playerIdFromUrl(url)).toBe(12345);
+    },
+);
+it.each(['/player/0/transfers', '/player/01/development', '/player/9007199254740992/transfers',
+    '/player/12345/transfer', '/juniors/42/development', '/player/12345/transfers/development'])(
+    'rejects malformed or unrelated player tab %s', path => {
+        expect(resolvePageContext(new URL(path, 'https://sokker.org'))).toBeNull();
+    },
+);

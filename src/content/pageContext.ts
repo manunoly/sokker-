@@ -63,13 +63,15 @@ export function resolvePageContext(url: URL): PageContext | null {
     if (/^\/juniors\/?$/.test(pathname)) {
         return { kind: 'academy', teamId: null, pathname, layout: 'beta' };
     }
-    const beta = /^\/(player|juniors)\/([1-9]\d*)\/?$/.exec(pathname);
-    if (!beta) return null;
-    const id = positiveId(beta[2]);
-    if (id === null) return null;
-    return beta[1] === 'player'
-        ? { kind: 'player', playerId: id, pathname, layout: 'beta' }
-        : { kind: 'academy', teamId: id, pathname, layout: 'beta' };
+    const betaPlayer = /^\/player\/([1-9]\d*)(?:\/(?:transfers|development))?\/?$/.exec(pathname);
+    if (betaPlayer) {
+        const playerId = positiveId(betaPlayer[1]);
+        return playerId === null ? null : { kind: 'player', playerId, pathname, layout: 'beta' };
+    }
+    const betaAcademy = /^\/juniors\/([1-9]\d*)\/?$/.exec(pathname);
+    if (!betaAcademy) return null;
+    const teamId = positiveId(betaAcademy[1]);
+    return teamId === null ? null : { kind: 'academy', teamId, pathname, layout: 'beta' };
 }
 
 /** Training links identify table rows; their destinations remain native Sokker pages. */

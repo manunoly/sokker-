@@ -15,6 +15,7 @@ import type { StorageState } from '../core/storageTypes';
 import { initHistoryButtonPreferences } from '../core/historyButtonPreferences';
 
 let ready: Promise<void> | null = null;
+let readyFailed = false;
 let storageState: StorageState | null = null;
 let initialSyncStarted = false;
 
@@ -40,7 +41,7 @@ async function withReady(action: () => void | Promise<unknown>): Promise<void> {
     })();
     try {
         await ready;
-    } catch (error) { initializationError(error); throw error; }
+    } catch (error) { readyFailed = true; initializationError(error); throw error; }
     if (page !== `${location.origin}${location.pathname}`) return;
     await action();
 }
@@ -115,6 +116,7 @@ function main(): void {
         if (!resolvePageContext(new URL(location.href))) {
             sendResponse({ status: 'error', message: 'Open a supported Sokker page to synchronize history.' }); return;
         }
+        if (readyFailed) { ready = null; readyFailed = false; }
         let responded = false;
         void withReady(async () => {
             const result = await operation!();
