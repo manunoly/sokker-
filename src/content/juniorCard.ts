@@ -1,4 +1,5 @@
 import { getPlayerStrings } from './playerLocale';
+import { cancelHover } from './hoverIntent';
 import { getJuniorRecord } from '../core/storageClient';
 import { getJuniorSyncState, subscribeJuniorUpdates } from '../core/juniorSync';
 import type { JuniorPoint, JuniorRecord } from '../core/juniorTypes';
@@ -273,7 +274,8 @@ function render(record: JuniorRecord | null, syncState: ReturnType<typeof getJun
     positionCard(anchor);
 }
 
-async function refresh(): Promise<void> {
+/** Reread shared history while keeping the current junior card open. */
+export async function refreshJuniorCard(): Promise<void> {
     if (!selected || !card) return;
     const token = ++renderToken;
     const { teamId, juniorId } = selected;
@@ -312,6 +314,7 @@ function onKeydown(event: KeyboardEvent): void {
 
 /** Reads only the local junior store. Page entry handles all synchronization. */
 export async function showJuniorCard(anchor: HTMLElement, teamId: number, juniorId: number, name: string, side: CardSide = 'right', options: CardOptions = {}): Promise<void> {
+    cancelHover();
     if (restoringFocus || (selected?.pinned && !options.pinned)) return;
     cancelScheduledHide();
     if (selected?.anchor === anchor && selected.teamId === teamId && selected.juniorId === juniorId &&
@@ -321,7 +324,7 @@ export async function showJuniorCard(anchor: HTMLElement, teamId: number, junior
             Object.assign(selected, options);
             setSelectionReferences(selected, true);
             render(null, getJuniorSyncState(teamId, juniorId));
-            await refresh();
+            await refreshJuniorCard();
         }
         return;
     }
@@ -334,12 +337,12 @@ export async function showJuniorCard(anchor: HTMLElement, teamId: number, junior
     pointerInCard = false;
     unsubscribe?.();
     unsubscribe = subscribeJuniorUpdates((updatedTeam, updatedJunior) => {
-        if (selected?.teamId === updatedTeam && selected.juniorId === updatedJunior) void refresh();
+        if (selected?.teamId === updatedTeam && selected.juniorId === updatedJunior) void refreshJuniorCard();
     });
     document.removeEventListener('keydown', onKeydown);
     document.addEventListener('keydown', onKeydown);
     render(null, getJuniorSyncState(teamId, juniorId));
-    await refresh();
+    await refreshJuniorCard();
 }
 
 /** Use on name mouseout/focusout; entering the card or keeping name focus cancels closure. */

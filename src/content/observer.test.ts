@@ -7,6 +7,31 @@ afterEach(() => { stopObserver(); vi.useRealTimers(); document.body.innerHTML = 
 const advance = async (ms: number) => { await Promise.resolve(); await vi.advanceTimersByTimeAsync(ms); };
 
 describe('SPA discovery lifecycle', () => {
+    it('recognizes the implicit own academy on initial load and SPA navigation between academy routes', async () => {
+        history.replaceState({}, '', '/juniors');
+        const contexts = vi.fn(); const juniors = vi.fn();
+        initObserver(vi.fn(), undefined, undefined, juniors, undefined, contexts);
+        expect(contexts).toHaveBeenLastCalledWith({ kind: 'academy', teamId: null, pathname: '/juniors', layout: 'beta' });
+        expect(juniors).toHaveBeenCalledOnce();
+        for (const [pathname, teamId] of [['/juniors/42', 42], ['/juniors/', null]] as const) {
+            history.pushState({}, '', pathname);
+            await advance(100);
+            expect(contexts).toHaveBeenLastCalledWith({ kind: 'academy', teamId, pathname, layout: 'beta' });
+        }
+        expect(juniors).toHaveBeenCalledTimes(3);
+    });
+    it.each(['/training/main-team-progress', '/en/app/training/main-team-progress/'])('dispatches progress tables after SPA navigation to %s and stops after leaving the route', async path => {
+        const beta = vi.fn(); const contexts = vi.fn();
+        initObserver(vi.fn(), undefined, undefined, undefined, beta, contexts);
+        history.pushState({}, '', path);
+        await advance(100);
+        expect(beta).toHaveBeenCalledOnce();
+        expect(beta).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'training-progress', pathname: path }));
+        history.pushState({}, '', '/training/main-team-progress/unknown');
+        await advance(100);
+        expect(contexts).toHaveBeenLastCalledWith(null);
+        expect(beta).toHaveBeenCalledOnce();
+    });
     it('runs the final deferred pass when native DOM arrives inside the cooldown', async () => {
         const squad = vi.fn();
         initObserver(squad);
@@ -31,7 +56,7 @@ describe('SPA discovery lifecycle', () => {
         window.dispatchEvent(new PopStateEvent('popstate'));
         await advance(2000);
         expect(beta).toHaveBeenCalledTimes(3);
-        history.pushState({}, '', '/player/12346/transfers');
+        history.pushState({}, '', '/player/12346/transfers/unknown');
         await advance(100);
         expect(contexts).toHaveBeenLastCalledWith(null);
     });
@@ -60,3 +85,18 @@ describe('SPA discovery lifecycle', () => {
         expect(squad).toHaveBeenCalledTimes(3);
     });
 });
+
+it.each(['/player/12345', '/player/12345/transfers', '/player/12345/development', '/en/app/player/PID/12345/'])(
+    'dispatches actual player markup across layouts on %s', async path => {
+        history.replaceState({}, '', path);
+        document.body.innerHTML = '<div class="l-main__inner"><table class="table-skills"></table></div>';
+        const classic = vi.fn(); const cards = vi.fn();
+        initObserver(vi.fn(), classic, undefined, undefined, cards);
+        expect(classic).toHaveBeenCalledWith(document.querySelector('.l-main__inner'));
+        expect(cards).not.toHaveBeenCalled();
+        document.body.innerHTML = '<div class="@container/player"></div>';
+        await advance(2000);
+        expect(cards).toHaveBeenCalledWith(expect.objectContaining({ kind: 'player', playerId: 12345 }));
+        expect(classic).toHaveBeenCalledOnce();
+    },
+);

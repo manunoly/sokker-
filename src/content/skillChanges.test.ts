@@ -1,4 +1,5 @@
 // @vitest-environment-options {"url":"https://sokker.org/"}
+import { HOVER_DELAY_MS } from './hoverIntent';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { fetchTodayInfo } from '../core/apiClient';
 import { getPlayerHistory } from '../core/storageClient';
@@ -7,6 +8,9 @@ import { resolvePageContext } from './pageContext';
 import { leavePlayerBindings } from './playerBindings';
 import type { PlayerData, PlayerHistoryEntry, Skills } from '../types';
 import betaSkillValues from './fixtures/betaSkillValues.html?raw';
+import betaProgress from './fixtures/betaTrainingProgress.html?raw';
+import legacyProgress from './fixtures/legacyTrainingProgress.html?raw';
+import { showHistoryTooltip, showTooltip } from './tooltip';
 
 vi.mock('../core/apiClient', () => ({ fetchTodayInfo: vi.fn() }));
 vi.mock('../core/storageClient', () => ({ getPlayerHistory: vi.fn() }));
@@ -24,10 +28,11 @@ const entry = (week: number, date: string, skills: Partial<Pick<Skills, 'passing
     week, date, skills: { ...BASE, ...skills }, value: 0, source: 'training',
 });
 const layouts = ['classic-profile', 'classic-squad', 'beta-profile', 'beta-squad'] as const;
-type Layout = typeof layouts[number];
+type Layout = typeof layouts[number] | 'beta-progress' | 'legacy-progress';
 let saved: PlayerData;
 
 beforeEach(() => {
+    vi.useFakeTimers();
     const history = [
         entry(1000, '2030-01-03', {}),
         entry(1001, '2030-01-10', { defending: 7 }),
@@ -41,7 +46,7 @@ beforeEach(() => {
     });
 });
 afterEach(() => {
-    invalidatePlayerCache(); leavePlayerBindings(); document.body.replaceChildren(); vi.restoreAllMocks();
+    invalidatePlayerCache(); leavePlayerBindings(); document.body.replaceChildren(); vi.restoreAllMocks(); vi.useRealTimers();
 });
 
 function mount(layout: Layout): () => Promise<void> {
@@ -65,6 +70,16 @@ function mount(layout: Layout): () => Promise<void> {
         document.body.innerHTML = betaSkillValues;
         document.querySelector('#passing-value')!.textContent = String(passing);
         document.querySelector('#defending-value')!.textContent = String(defending);
+    } else if (layout === 'beta-progress' || layout === 'legacy-progress') {
+        window.history.replaceState({}, '', layout === 'beta-progress' ? '/training/main-team-progress' : '/en/app/training/main-team-progress/');
+        document.body.innerHTML = layout === 'beta-progress' ? betaProgress : legacyProgress;
+        document.querySelector<HTMLElement>('tr')!.dataset.rowId = '7';
+        document.querySelector('td.table__cell--name a')!.setAttribute('href', layout === 'beta-progress' ? '/player/7/development?from=training' : '/en//app/training/player-info/7');
+        for (const [key, value] of [['passing', passing], ['defending', defending]] as const) {
+            const cell = document.querySelector(`td.table__cell--${key}`)!;
+            cell.id = key;
+            cell.querySelector('.growth-bg, span span span')!.textContent = String(value);
+        }
     } else {
         window.history.replaceState({}, '', '/squad');
         document.body.innerHTML = '<table><tbody><tr class="table-row" data-row-id="7">'
@@ -76,22 +91,174 @@ function mount(layout: Layout): () => Promise<void> {
 }
 
 function expectChanges(passing: string | null, defending: string | null): void {
-    const profile = location.pathname.includes('/player/');
     for (const [key, direction] of [['passing', passing], ['defending', defending]] as const) {
-        expect(document.querySelector(`#${key} .skill-arrow`)?.textContent ?? null).toBe(profile ? null : direction);
-        if (!profile) continue;
-        const value = document.querySelector<HTMLElement>(`#${key} .skillNameNumber, #${key}-value`)!;
-        if (direction) expect(value.style.color).toBe(direction === '▲' ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)');
-        else expect(['rgb(40, 167, 69)', 'rgb(220, 53, 69)']).not.toContain(value.style.color);
+        const anchor = document.querySelector<HTMLElement>(`#${key}`)!;
+        expect(anchor.querySelectorAll('.skill-arrow')).toHaveLength(0);
+        const value = anchor.querySelector<HTMLElement>('.skillNameNumber')
+            ?? document.querySelector<HTMLElement>(`#${key}-value`)
+            ?? (anchor.matches('.skillLabel') ? anchor.parentElement!.querySelector<HTMLElement>('.skill-list__value') : null)
+            ?? anchor.querySelector<HTMLElement>('.growth-bg, span span span') ?? anchor;
+        if (direction) {
+            expect(value.dataset.sokkerppSkillChange).toBe(direction);
+            expect(value.style.color).toBe(direction === 'up' ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)');
+        } else {
+            expect(value.dataset.sokkerppSkillChange).toBeUndefined();
+            expect(['rgb(40, 167, 69)', 'rgb(220, 53, 69)']).not.toContain(value.style.color);
+        }
     }
 }
+
+it.each(['beta-progress', 'legacy-progress'] as const)('opens progress history and skill cards, preserves native clicks and rejects reused identities: %s', async layout => {
+    const render = mount(layout);
+    await render(); await render();
+    const name = document.querySelector<HTMLAnchorElement>('td.table__cell--name a')!;
+    const cell = document.querySelector<HTMLElement>('#passing')!;
+    const value = cell.querySelector<HTMLElement>('.growth-bg, span span span')!;
+    expect(value.dataset.sokkerppSkillChange).toBeUndefined();
+    expect(cell.querySelectorAll('.skill-arrow')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);
+    vi.mocked(showHistoryTooltip).mockClear(); vi.mocked(showTooltip).mockClear();
+    name.focus();
+    expect(showHistoryTooltip).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 7, name);
+    const pin = name.nextElementSibling as HTMLButtonElement;
+    pin.click();
+    expect(showHistoryTooltip).toHaveBeenLastCalledWith(expect.any(Number), expect.any(Number), 7, pin, { pinned: true });
+    cell.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS);
+    expect(showTooltip).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 7, 'passing', cell);
+    const native = vi.fn(); name.addEventListener('click', event => { native(); event.preventDefault(); });
+    name.click(); expect(native).toHaveBeenCalledOnce();
+    name.setAttribute('href', '/player/8/development?from=training');
+    vi.mocked(showTooltip).mockClear(); vi.mocked(showHistoryTooltip).mockClear();
+    cell.dispatchEvent(new MouseEvent('mouseenter')); vi.advanceTimersByTime(HOVER_DELAY_MS); pin.click();
+    expect(showTooltip).not.toHaveBeenCalled(); expect(showHistoryTooltip).not.toHaveBeenCalled();
+    await render();
+    expect(value.dataset.sokkerppSkillChange).toBeUndefined();
+    expect(document.querySelectorAll('[data-sokkerpp-owned="pin"], .skill-arrow')).toHaveLength(0);
+});
+
+const progressRoutes = [
+    { pathname: '/training/main-team-progress', href: '/player/7/development' },
+    { pathname: '/en/app/training/main-team-progress/', href: '/en//app/training/player-info/7' },
+];
+
+it.each(progressRoutes)('removes cloned extension colors and arrows on $pathname', async ({ pathname, href }) => {
+    await mount('beta-squad')();
+    const original = document.querySelector<HTMLElement>('tr')!;
+    const row = original.cloneNode(true) as HTMLElement;
+    original.replaceWith(row);
+    const value = row.querySelector<HTMLElement>('#passing')!;
+    row.style.color = 'white';
+    value.style.backgroundColor = '#28a745';
+    value.style.borderRadius = '3px';
+    value.classList.add('native-rise');
+    const arrow = document.createElement('span');
+    arrow.className = 'skill-arrow';
+    value.appendChild(arrow);
+    row.querySelector('a')!.setAttribute('href', href);
+    window.history.replaceState({}, '', pathname);
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+
+    expect(document.querySelectorAll('[data-sokkerpp-skill-change], .skill-arrow')).toHaveLength(0);
+    expect(document.getElementById('sokkerpp-skill-colors')).toBeNull();
+    expect(value.style.color).toBe('');
+    expect(getComputedStyle(value).color).toBe('rgb(255, 255, 255)');
+    expect(value.style.fontWeight).toBe('');
+    expect(value.hasAttribute('title')).toBe(false);
+    expect(value.style.backgroundColor).toBe('rgb(40, 167, 69)');
+    expect(value.style.borderRadius).toBe('3px');
+    expect(value.classList.contains('native-rise')).toBe(true);
+
+    window.history.replaceState({}, '', '/squad');
+    row.querySelector('a')!.setAttribute('href', '/player/7');
+    value.style.backgroundColor = '';
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(value.dataset.sokkerppSkillChange).toBe('up');
+    expect(document.getElementById('sokkerpp-skill-colors')).not.toBeNull();
+});
+
+it.each(progressRoutes)('preserves new native styles while removing our highlights on $pathname', async ({ pathname, href }) => {
+    const render = mount('beta-squad');
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    value.style.color = 'gray';
+    value.style.fontWeight = '400';
+    value.title = 'Original native value';
+    await render();
+    value.style.color = 'white';
+    value.style.fontWeight = '600';
+    value.style.backgroundColor = 'green';
+    value.title = 'New native rise';
+    const nativeStyle = value.style.cssText;
+    document.querySelector('a')!.setAttribute('href', href);
+    window.history.replaceState({}, '', pathname);
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+
+    expect(value.style.cssText).toBe(nativeStyle);
+    expect(value.title).toBe('New native rise');
+    expect(value.dataset.sokkerppSkillChange).toBeUndefined();
+    expect(document.getElementById('sokkerpp-skill-colors')).toBeNull();
+});
+
+it('cleans inherited highlights in progress even when rows cannot be bound', async () => {
+    window.history.replaceState({}, '', '/training/main-team-progress');
+    document.body.innerHTML = '<table><tbody><tr aria-hidden="true"><td class="table__cell--passing">'
+        + '<span id="orphan" data-sokkerpp-skill-change="up" style="color: #28a745; font-weight: bold; background-color: green; border-radius: 3px;" title="Previous: 8">9</span>'
+        + '<span id="native" data-sokkerpp-skill-change="down" style="color: white; font-weight: 600;" title="Native decline">7</span>'
+        + '<span class="skill-arrow">▲</span><span data-sokkerpp-owned="change">▲</span>'
+        + '</td></tr></tbody></table>';
+    const orphan = document.querySelector<HTMLElement>('#orphan')!;
+    const native = document.querySelector<HTMLElement>('#native')!;
+    expect(orphan.style.color).toBe('rgb(40, 167, 69)');
+    expect(orphan.style.backgroundColor).toBe('green');
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(document.querySelectorAll('[data-sokkerpp-skill-change], .skill-arrow, [data-sokkerpp-owned="change"]')).toHaveLength(0);
+    expect(orphan.style.color).toBe('');
+    expect(orphan.style.fontWeight).toBe('');
+    expect(orphan.style.backgroundColor).toBe('green');
+    expect(orphan.style.borderRadius).toBe('3px');
+    expect(orphan.hasAttribute('title')).toBe(false);
+    expect(native.style.color).toBe('white');
+    expect(native.style.fontWeight).toBe('600');
+    expect(native.title).toBe('Native decline');
+});
+
+it('preserves new native important declarations even when their values match our highlight', async () => {
+    await mount('beta-squad')();
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    value.style.setProperty('color', value.style.color, 'important');
+    value.style.setProperty('font-weight', 'bold', 'important');
+    const nativeStyle = value.style.cssText;
+    window.history.replaceState({}, '', '/training/main-team-progress');
+    document.querySelector('a')!.setAttribute('href', '/player/7/development');
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(value.style.cssText).toBe(nativeStyle);
+    expect(value.dataset.sokkerppSkillChange).toBeUndefined();
+});
+
+it('restores the latest native style after a squad repaint before entering progress', async () => {
+    const render = mount('beta-squad');
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    value.style.color = 'gray';
+    value.style.fontWeight = '400';
+    await render();
+    value.style.setProperty('color', 'white', 'important');
+    value.style.setProperty('font-weight', '600', 'important');
+    value.title = 'Latest native value';
+    const nativeStyle = value.style.cssText;
+    await render();
+    expect(value.dataset.sokkerppSkillChange).toBe('up');
+    window.history.replaceState({}, '', '/training/main-team-progress');
+    document.querySelector('a')!.setAttribute('href', '/player/7/development');
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(value.style.cssText).toBe(nativeStyle);
+    expect(value.title).toBe('Latest native value');
+});
 
 it.each(layouts.flatMap(layout => [0, 1, 2, 3, 4, 5, 6].map(day => ({ layout, day }))))(
     'shows the latest completed rise without a current-week entry: $layout day=$day', async ({ layout, day }) => {
         const today = await fetchTodayInfo();
         vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day });
         await mount(layout)();
-        expectChanges('▲', null);
+        expectChanges('up', null);
         if (layout === 'classic-profile') {
             expect(document.querySelector<HTMLElement>('#passing .skillNameNumber')!.style.color).toBe('rgb(40, 167, 69)');
             expect(document.querySelector<HTMLElement>('#defending .skillNameNumber')!.style.color).toBe('');
@@ -102,7 +269,7 @@ it.each(layouts.flatMap(layout => [0, 1, 2, 3, 4, 5, 6].map(day => ({ layout, da
 it.each(layouts)('collapses a redundant Sunday capture into the preceding observed week: %s', async layout => {
     saved.history.push(entry(1003, '2030-01-20', { defending: 7, passing: 9 }));
     await mount(layout)();
-    expectChanges('▲', null);
+    expectChanges('up', null);
 });
 
 it.each(layouts)('uses a real Thursday report from the current week instead of the previous rise: %s', async layout => {
@@ -110,7 +277,7 @@ it.each(layouts)('uses a real Thursday report from the current week instead of t
     const today = await fetchTodayInfo();
     vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 5, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) / 1000 } });
     await mount(layout)();
-    expectChanges(null, '▲');
+    expectChanges(null, 'up');
 });
 
 it.each(layouts)('shows a drop from the latest completed report: %s', async layout => {
@@ -118,7 +285,7 @@ it.each(layouts)('shows a drop from the latest completed report: %s', async layo
     const today = await fetchTodayInfo();
     vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 5, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) / 1000 } });
     await mount(layout)();
-    expectChanges('▼', null);
+    expectChanges('down', null);
     if (layout === 'classic-profile') {
         expect(document.querySelector<HTMLElement>('#passing .skillNameNumber')!.style.color).toBe('rgb(220, 53, 69)');
     }
@@ -138,7 +305,7 @@ it('updates profile colors and restores native styles through rescans and invali
     const today = await fetchTodayInfo();
     vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day: 5, date: { value: '2030-01-24', timestamp: Date.UTC(2030, 0, 24) / 1000 } });
     await render();
-    expectChanges(null, '▲');
+    expectChanges(null, 'up');
     expect(passing.style.color).toBe('blue');
     expect(passing.title).toBe('Native value');
     invalidatePlayerCache(); leavePlayerBindings();
@@ -150,7 +317,7 @@ it('keeps dated observed-week comparisons when the current-context request fails
     vi.mocked(fetchTodayInfo).mockRejectedValue(new Error('Synthetic context unavailable'));
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await mount('classic-profile')();
-    expectChanges('▲', null);
+    expectChanges('up', null);
 });
 
 
@@ -161,7 +328,7 @@ it.each(layouts.flatMap(layout => [0, 1, 2, 3, 4].map(day => ({ layout, day })))
         const currentDate = new Date(Date.UTC(2030, 0, 19 + day));
         vi.mocked(fetchTodayInfo).mockResolvedValue({ ...today, day, date: { value: currentDate.toISOString().slice(0, 10), timestamp: currentDate.getTime() / 1000 } });
         await mount(layout)();
-        expectChanges('▲', null);
+        expectChanges('up', null);
         if (layout === 'classic-profile') {
             expect(document.querySelector<HTMLElement>('#passing .skillNameNumber')!.style.color).toBe('rgb(40, 167, 69)');
         }
@@ -203,14 +370,14 @@ it.each((['classic-profile', 'classic-squad', 'beta-profile'] as const).flatMap(
         expect(value.style.color).toBe('rgb(40, 167, 69)');
         expect(value.style.fontWeight).toBe('bold');
         expect(value.title).toBe('Previous: 8');
-        expectChanges('▲', null);
+        expectChanges('up', null);
     } finally {
         pendingContext.resolve(today);
         pendingHistory.resolve(saved);
         await pendingRender;
     }
     expect(value.style.color).toBe('rgb(40, 167, 69)');
-    expectChanges('▲', null);
+    expectChanges('up', null);
     invalidatePlayerCache();
     expect(value.style.color).toBe('blue');
     expect(value.title).toBe('Native value');
@@ -272,7 +439,7 @@ it('keeps indicators through a normal storage revision while cancelling pending 
     try {
         invalidatePlayerCache({ preserveIndicators: true });
         expect(value.style.color).toBe('rgb(40, 167, 69)');
-        expectChanges('▲', null);
+        expectChanges('up', null);
         await render();
     } finally {
         pendingContext.resolve(today);
@@ -296,7 +463,7 @@ it.each(['rise', 'drop'] as const)('colors the visible beta profile level for a 
     const bars = [...document.querySelectorAll('.native-bar')].map(bar => bar.outerHTML);
     await render();
     expect(value.style.color).toBe(direction === 'rise' ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)');
-    expectChanges(direction === 'rise' ? '▲' : '▼', null);
+    expectChanges(direction === 'rise' ? 'up' : 'down', null);
     expect(document.querySelector<HTMLElement>('#passing-measurement')!.style.color).toBe('');
     expect(document.querySelector<HTMLElement>('#defending-value')!.style.color).toBe('var(--c-fg)');
     expect([...document.querySelectorAll('.native-bar')].map(bar => bar.outerHTML)).toEqual(bars);
@@ -317,14 +484,14 @@ it('highlights the current beta value node when Sokker replaces it during a pend
     await rendering;
     expect(replacement.style.color).toBe('rgb(40, 167, 69)');
     expect(original.style.color).toBe('var(--c-fg)');
-    expectChanges('▲', null);
+    expectChanges('up', null);
 });
 
 
 it.each(['classic-profile', 'beta-profile'] as const)('removes change arrows from the player profile: %s', async layout => {
     const render = mount(layout);
     const stale = document.createElement('span');
-    stale.className = 'skill-arrow'; stale.dataset.sokkerppOwned = 'change'; stale.textContent = '▲';
+    stale.className = 'skill-arrow'; stale.dataset.sokkerppOwned = 'change'; stale.textContent = String.fromCodePoint(0x25b2);
     document.querySelector('#passing')!.append(stale);
     await render();
     expect(document.querySelectorAll('.skill-arrow')).toHaveLength(0);
@@ -371,3 +538,39 @@ it.each(['classic-profile', 'beta-bars', 'beta-text'] as const)(
         expect(levelText.hasAttribute('data-sokkerpp-skill-change')).toBe(false);
     },
 );
+
+it.each(['beta-progress', 'legacy-progress'] as const)(
+    'preserves published progress with no automatic change reads or colors: %s', async layout => {
+        const render = mount(layout);
+        const native = document.querySelector('#passing')!.outerHTML;
+        vi.mocked(fetchTodayInfo).mockClear(); vi.mocked(getPlayerHistory).mockClear();
+        await render();
+        expect(fetchTodayInfo).not.toHaveBeenCalled();
+        expect(getPlayerHistory).not.toHaveBeenCalled();
+        const rendered = document.querySelector('#passing')!.cloneNode(true) as HTMLElement;
+        rendered.removeAttribute('tabindex');
+        expect(rendered.outerHTML).toBe(native);
+        expectChanges(null, null);
+    },
+);
+it.each(['/player/7', '/player/7/transfers', '/player/7/development'])(
+    'renders classic skill markup on a beta player route: %s', async path => {
+        mount('classic-profile');
+        window.history.replaceState({}, '', path);
+        await processPlayerPage(document.body);
+        expectChanges('up', null);
+    },
+);
+it('clears earlier highlights and cancels a pending squad read when progress is rendered', async () => {
+    const squad = mount('beta-squad'); await squad();
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    expect(value.dataset.sokkerppSkillChange).toBe('up');
+    const today = await fetchTodayInfo();
+    const pending = deferred<Awaited<ReturnType<typeof fetchTodayInfo>>>();
+    vi.mocked(fetchTodayInfo).mockReturnValueOnce(pending.promise);
+    const stale = squad();
+    const progress = mount('beta-progress'); await progress();
+    expect(value.hasAttribute('data-sokkerpp-skill-change')).toBe(false);
+    pending.resolve(today); await stale;
+    expectChanges(null, null);
+});

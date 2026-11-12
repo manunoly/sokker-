@@ -4,10 +4,10 @@ import { reconcileGaps } from '../core/gapDetector';
 import { syncData } from '../core/sync';
 import { fetchTodayInfo } from '../core/apiClient';
 import { ensureStorageReady, getLastSyncWeek, migrateCurrentOrigin, subscribeStorageChanges } from '../core/storageClient';
-import { cancelQueuedJuniorSync, invalidateJuniorSync } from '../core/juniorSync';
+import { cancelQueuedJuniorSync, invalidateJuniorSync, syncCurrentJuniors } from '../core/juniorSync';
 import { handleJuniorPage, leaveJuniorPage, scanJuniorPage } from './juniorPage';
 import { handleTrainingPlayerPage, leaveTrainingPlayerPage, scanTrainingPlayerPage } from './trainingPlayerPage';
-import { hideJuniorCard } from './juniorCard';
+import { hideJuniorCard, refreshJuniorCard } from './juniorCard';
 import { hideTooltip } from './tooltip';
 import { leavePlayerBindings } from './playerBindings';
 import { resolvePageContext } from './pageContext';
@@ -15,6 +15,7 @@ import type { StorageState } from '../core/storageTypes';
 import { initHistoryButtonPreferences } from '../core/historyButtonPreferences';
 
 let ready: Promise<void> | null = null;
+let readyFailed = false;
 let storageState: StorageState | null = null;
 let initialSyncStarted = false;
 
@@ -40,7 +41,7 @@ async function withReady(action: () => void | Promise<unknown>): Promise<void> {
     })();
     try {
         await ready;
-    } catch (error) { initializationError(error); throw error; }
+    } catch (error) { readyFailed = true; initializationError(error); throw error; }
     if (page !== `${location.origin}${location.pathname}`) return;
     await action();
 }
@@ -64,7 +65,10 @@ function main(): void {
             void invalidateJuniorSync().then(() => refreshObserver()).catch(report);
         }
         else if (previous.revision !== state.revision) {
-            hideTooltip(); hideJuniorCard(); invalidatePlayerCache({ preserveIndicators: true }); refreshObserver();
+            hideTooltip();
+            void refreshJuniorCard().catch(report);
+            invalidatePlayerCache({ preserveIndicators: true });
+            refreshObserver();
         }
     });
     initObserver(
@@ -98,7 +102,15 @@ function main(): void {
         // Backups and clearing go directly from popup to the shared storage service.
         let operation: (() => Promise<unknown>) | undefined;
         if (request.action === 'REPAIR_HISTORY') operation = () => reconcileGaps();
-        if (request.action === 'FORCE_SYNC') operation = () => syncData();
+        if (request.action === 'FORCE_SYNC') operation = async () => {
+            const page = `${location.origin}${location.pathname}`;
+            const result = await syncData();
+            const today = await fetchTodayInfo();
+            if (page !== `${location.origin}${location.pathname}`) throw new Error('The Sokker page changed; retry synchronization.');
+            await syncCurrentJuniors(today);
+            refreshObserver();
+            return result;
+        };
         if (request.action === 'CHECK_STATUS') operation = async () => {
             const today = await fetchTodayInfo();
             return { lastWeek: await getLastSyncWeek(today.teamId) };
@@ -107,6 +119,7 @@ function main(): void {
         if (!resolvePageContext(new URL(location.href))) {
             sendResponse({ status: 'error', message: 'Open a supported Sokker page to synchronize history.' }); return;
         }
+        if (readyFailed) { ready = null; readyFailed = false; }
         let responded = false;
         void withReady(async () => {
             const result = await operation!();

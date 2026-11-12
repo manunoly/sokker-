@@ -1,6 +1,5 @@
 import { fetchJuniorGraph, fetchJuniorRoster } from './apiClient';
 import {
-    getJuniorRecords,
     getJuniorRosterSnapshot,
     getWriteContext,
     saveJuniorGraph,
@@ -18,10 +17,15 @@ export interface JuniorSyncInput {
     ids: readonly number[];
 }
 
+interface SyncRequest extends JuniorSyncInput {
+    /** Manual synchronization refreshes the whole current roster, even after a prior attempt. */
+    currentRoster?: boolean;
+}
+
 const states = new Map<string, JuniorSyncState>();
 const listeners = new Set<(teamId: number, juniorId: number) => void>();
 const attempted = new Set<string>();
-const backfillAttempted = new Set<string>();
+const rosterChecked = new Set<string>();
 const activeWrites = new Set<Promise<unknown>>();
 const activeControllers = new Set<AbortController>();
 let routeEpoch = 0;
@@ -61,7 +65,7 @@ export function subscribeJuniorUpdates(listener: (teamId: number, juniorId: numb
 export function cancelQueuedJuniorSync(): void {
     routeEpoch += 1;
     attempted.clear();
-    backfillAttempted.clear();
+    rosterChecked.clear();
     for (const [key, state] of states) {
         if (state !== 'queued') continue;
         states.delete(key);
@@ -103,11 +107,12 @@ function trackWrite<T>(write: Promise<T>): Promise<T> {
     return write;
 }
 
-async function runSync(input: JuniorSyncInput, route: number, data: number): Promise<void> {
+async function runSync(input: SyncRequest, route: number, data: number): Promise<void> {
     if (!isCurrent(route, data)) return;
     const { teamId, week, kind } = input;
+    const manual = input.currentRoster === true;
     const ids = [...new Set(input.ids)];
-    if (ids.length === 0) return;
+    if (ids.length === 0 && !manual) return;
 
     const controller = new AbortController();
     activeControllers.add(controller);
@@ -115,21 +120,10 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
     try {
         const ctx = await getWriteContext(teamId);
         if (!isCurrent(route, data)) return;
-        const records = await getJuniorRecords(teamId, ids);
-        if (!isCurrent(route, data)) return;
-        pending = ids.filter((id) => {
-            const record = records.get(id);
-            const resolved = record?.resolvedWeek === week &&
-                (kind !== 'academy' || record.resolution === 'graph');
-            return !resolved && !attempted.has(attemptKey(teamId, week, kind, id));
-        });
-        const backfillKey = `${teamId}:${week}`;
-        const backfillIds = backfillAttempted.has(backfillKey) ? [] : ids.filter((id) => {
-            const record = records.get(id);
-            return record?.resolvedWeek === week && record.resolution === 'graph' &&
-                record.nativeTalentWeek === week && record.weeksLeft === undefined;
-        });
-        if (pending.length === 0 && backfillIds.length === 0) return;
+        // A successful capture earlier this week can predate training. Only reuse
+        // attempts from this page visit, never a persisted weekly graph marker.
+        pending = ids.filter(id => !attempted.has(attemptKey(teamId, week, kind, id)));
+        if (pending.length === 0 && !manual) return;
         for (const id of pending) {
             attempted.add(attemptKey(teamId, week, kind, id));
             setState(teamId, id, 'queued');
@@ -137,17 +131,23 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
 
         let snapshot = await getJuniorRosterSnapshot(teamId);
         if (!isCurrent(route, data)) return;
-        if (snapshot?.week !== week) snapshot = null;
-        const needsBackfill = backfillIds.length > 0 && snapshot?.weeksLeftCaptured !== true;
-        if (pending.length === 0 && !needsBackfill) return;
-        if (needsBackfill) backfillAttempted.add(backfillKey);
+        const rosterKey = `${teamId}:${week}`;
+        if (snapshot?.week !== week || !rosterChecked.has(rosterKey) || manual) snapshot = null;
 
         // A newly visible ID missing from a saved snapshot may have entered this week.
-        if (!snapshot || needsBackfill || pending.some((id) => !snapshot!.ids.includes(id))) {
+        if (!snapshot || pending.some((id) => !snapshot!.ids.includes(id))) {
             const roster = await fetchJuniorRoster(controller.signal);
             if (!isCurrent(route, data)) return;
             if (roster.some((entry) => entry.teamId !== teamId)) {
                 throw new Error('Junior roster belongs to another team');
+            }
+            if (manual) {
+                pending = roster.map(entry => entry.id);
+                for (const id of pending) {
+                    // Avoid a duplicate automatic request after the manual write.
+                    for (const source of ['academy', 'report'] as const) attempted.add(attemptKey(teamId, week, source, id));
+                    setState(teamId, id, 'queued');
+                }
             }
             snapshot = {
                 teamId,
@@ -158,7 +158,8 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
             } satisfies JuniorRosterSnapshot;
             await trackWrite(saveJuniorRosterSnapshot(ctx, snapshot, roster));
             if (!isCurrent(route, data)) return;
-            for (const id of new Set([...pending, ...(needsBackfill ? backfillIds : [])])) notify(teamId, id);
+            rosterChecked.add(rosterKey);
+            for (const id of pending) notify(teamId, id);
         }
 
         const rosterIds = new Set(snapshot.ids);
@@ -179,6 +180,7 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
 
         for (const id of graphIds) setState(teamId, id, 'queued');
         let next = 0;
+        let failed = 0;
         const worker = async (): Promise<void> => {
             while (isCurrent(route, data) && next < graphIds.length) {
                 const id = graphIds[next++];
@@ -190,24 +192,26 @@ async function runSync(input: JuniorSyncInput, route: number, data: number): Pro
                     if (!hasCurrentData(data)) return;
                     setState(teamId, id, 'idle');
                 } catch {
-                    if (hasCurrentData(data)) setState(teamId, id, 'error');
+                    if (hasCurrentData(data)) { failed += 1; setState(teamId, id, 'error'); }
                 }
             }
         };
         await Promise.all(Array.from({ length: Math.min(3, graphIds.length) }, () => worker()));
-    } catch {
+        if (manual && failed > 0) throw new Error(`Junior synchronization failed for ${failed} graph(s). Retry synchronization.`);
+    } catch (error) {
         if (!isCurrent(route, data)) return;
         for (const id of pending) {
             attempted.add(attemptKey(teamId, week, kind, id));
-            setState(teamId, id, 'error');
+            // A partial manual failure must not turn successfully saved graphs into errors.
+            if (!manual || getJuniorSyncState(teamId, id) !== 'idle') setState(teamId, id, 'error');
         }
+        if (manual) throw error;
     } finally {
         activeControllers.delete(controller);
     }
 }
 
-/** Synchronize visible juniors once per game week; later calls share the same serialized coordinator. */
-export function syncVisibleJuniors(input: JuniorSyncInput): Promise<void> {
+function enqueueSync(input: SyncRequest): Promise<void> {
     if (!Number.isSafeInteger(input.teamId) || input.teamId <= 0 ||
         !Number.isSafeInteger(input.week) || input.week <= 0 ||
         input.ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
@@ -215,7 +219,20 @@ export function syncVisibleJuniors(input: JuniorSyncInput): Promise<void> {
     }
     const route = routeEpoch;
     const data = dataEpoch;
-    const next = coordinatorTail.then(() => runSync(input, route, data));
+    const next = coordinatorTail.then(async () => {
+        await runSync(input, route, data);
+        if (input.currentRoster && !isCurrent(route, data)) throw new Error('The Sokker page or history changed; retry synchronization.');
+    });
     coordinatorTail = next.catch(() => undefined);
     return next;
+}
+
+/** Refresh visible juniors once per visit, sharing the serialized coordinator across renders. */
+export function syncVisibleJuniors(input: JuniorSyncInput): Promise<void> {
+    return enqueueSync(input);
+}
+
+/** Explicit synchronization also works on first-team pages with no visible junior rows. */
+export function syncCurrentJuniors(input: { teamId: number; week: number }): Promise<void> {
+    return enqueueSync({ ...input, kind: 'academy', ids: [], currentRoster: true });
 }

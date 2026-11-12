@@ -1,7 +1,8 @@
+import { HOVER_DELAY_MS } from './hoverIntent';
 import academy from './fixtures/betaAcademy.html?raw';
 import betaReport from './fixtures/betaTrainingReport.html?raw';
 import { resolvePageContext } from './pageContext';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchTodayInfo } from '../core/apiClient';
 import { syncVisibleJuniors, cancelQueuedJuniorSync } from '../core/juniorSync';
 import { showJuniorCard, hideJuniorCard } from './juniorCard';
@@ -42,6 +43,7 @@ function today(week: unknown = 1213, teamId: unknown = 42) {
 }
 
 beforeEach(() => {
+    vi.useFakeTimers();
     leaveJuniorPage();
     vi.clearAllMocks();
     current.mockResolvedValue(today());
@@ -71,6 +73,21 @@ describe('scanJuniorPage', () => {
 });
 
 describe('handleJuniorPage', () => {
+    it('delays juvenile hover, cancels a passing pointer and ignores recycled row IDs', async () => {
+        setPage('/en/app/training/reports/details/1213/', `<table>${reportRow('7')}</table>`);
+        await handleJuniorPage(scanJuniorPage(location.pathname, document)!);
+        const name = document.querySelector<HTMLElement>('.text.c-text-link')!;
+        name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        vi.advanceTimersByTime(HOVER_DELAY_MS - 1);
+        expect(showJuniorCard).not.toHaveBeenCalled();
+        name.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showJuniorCard).not.toHaveBeenCalled();
+        name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        name.closest<HTMLElement>('tr')!.dataset.rowId = '8';
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showJuniorCard).not.toHaveBeenCalled();
+    });
     it('shares /current on partial render, only syncs new ID signatures, and delegates replaced names', async () => {
         setPage('/en/app/training/reports/details/1213/', `<table>${reportRow('7')}</table>`);
         await handleJuniorPage(scanJuniorPage(window.location.pathname, document)!);
@@ -84,10 +101,10 @@ describe('handleJuniorPage', () => {
         expect(sync).toHaveBeenCalledTimes(1);
         const name = document.querySelector<HTMLElement>('.text.c-text-link')!;
         expect(name.tabIndex).toBe(0);
-        name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-        expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'left');
+        name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'left', { isCurrent: expect.any(Function) });
         name.focus();
-        expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'left');
+        expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'left', { isCurrent: expect.any(Function) });
         expect(current).toHaveBeenCalledTimes(1);
         expect(sync).toHaveBeenCalledTimes(1);
 
@@ -104,7 +121,7 @@ describe('handleJuniorPage', () => {
             setPage('/juniors/teamID/42', `<table>${academyRow('7')}</table>`);
             await handleJuniorPage(scanJuniorPage(window.location.pathname, document)!);
             expect(sync).not.toHaveBeenCalled();
-            document.querySelector('strong')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+            document.querySelector('strong')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); vi.advanceTimersByTime(HOVER_DELAY_MS);
             expect(showJuniorCard).not.toHaveBeenCalled();
         }
     );
@@ -113,7 +130,7 @@ describe('handleJuniorPage', () => {
         setPage('/juniors/teamID/99', `<table>${academyRow('7')}</table>`);
         await handleJuniorPage(scanJuniorPage(window.location.pathname, document)!);
         expect(sync).not.toHaveBeenCalled();
-        document.querySelector('strong')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        document.querySelector('strong')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showJuniorCard).not.toHaveBeenCalled();
     });
 
@@ -124,7 +141,7 @@ describe('handleJuniorPage', () => {
         const name = document.querySelector<HTMLElement>('strong')!;
         expect(name.tabIndex).toBe(0);
         name.focus();
-        expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'right');
+        expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'right', { isCurrent: expect.any(Function) });
         expect(sync).toHaveBeenCalledTimes(1);
     });
 
@@ -139,7 +156,7 @@ describe('handleJuniorPage', () => {
         complete(today());
         await Promise.all([pending, another]);
         expect(sync).not.toHaveBeenCalled();
-        document.querySelector('strong')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        document.querySelector('strong')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(showJuniorCard).not.toHaveBeenCalled();
         expect(cancelQueuedJuniorSync).toHaveBeenCalled();
         expect(hideJuniorCard).toHaveBeenCalled();
@@ -149,6 +166,50 @@ describe('handleJuniorPage', () => {
 
 describe('observed beta academy and report', () => {
     const context = () => resolvePageContext(new URL(window.location.pathname, 'https://sokker.org'))!;
+    it.each(['/juniors', '/juniors/'])('syncs the implicit own academy at %s and opens hover, focus and pinned cards', async path => {
+        setPage(path, academy);
+        const view = scanJuniorPage(context(), document);
+        expect(view).not.toBeNull();
+        expect([...view!.names.keys()]).toEqual([12345, 12346]);
+        await handleJuniorPage(view!);
+        expect(sync).toHaveBeenCalledWith({ teamId: 42, week: 1213, kind: 'academy', ids: [12345, 12346] });
+        const name = view!.names.get(12345)!;
+        name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showJuniorCard).toHaveBeenLastCalledWith(name, 42, 12345, 'Junior One', 'right', { isCurrent: expect.any(Function) });
+        name.focus();
+        expect(showJuniorCard).toHaveBeenCalledTimes(2);
+        const pin = name.nextElementSibling as HTMLButtonElement;
+        pin.click();
+        expect(showJuniorCard).toHaveBeenLastCalledWith(name, 42, 12345, 'Junior One', 'right', {
+            pinned: true, returnFocus: pin, isCurrent: expect.any(Function)
+        });
+        await handleJuniorPage(scanJuniorPage(context(), document)!);
+        expect(current).toHaveBeenCalledOnce();
+        expect(sync).toHaveBeenCalledOnce();
+        expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(2);
+
+        setPage('/juniors/99', academy);
+        await handleJuniorPage(scanJuniorPage(context(), document)!);
+        expect(sync).toHaveBeenCalledOnce();
+        expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
+        vi.mocked(showJuniorCard).mockClear();
+        document.querySelector('button')!.focus();
+        expect(showJuniorCard).not.toHaveBeenCalled();
+    });
+    it.each([today(0, 42), today(1213, 0), today('1213', 42), today(1213, 1.5)])(
+        'requires valid current team and week for the implicit own academy', async badToday => {
+            current.mockResolvedValue(badToday);
+            setPage('/juniors', academy);
+            const view = scanJuniorPage(context(), document);
+            expect(view).not.toBeNull();
+            await handleJuniorPage(view!);
+            expect(sync).not.toHaveBeenCalled();
+            expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(0);
+            document.querySelector('button')!.focus();
+            expect(showJuniorCard).not.toHaveBeenCalled();
+        }
+    );
     it('validates both academy identities and syncs only an own team, preserving native clicks', async () => {
         setPage('/juniors/42/', academy);
         const view = scanJuniorPage(context(), document)!;
@@ -157,11 +218,11 @@ describe('observed beta academy and report', () => {
         const native = vi.fn(); button.addEventListener('click', native);
         await handleJuniorPage(view);
         button.focus();
-        expect(showJuniorCard).toHaveBeenCalledWith(button, 42, 12345, 'Junior One', 'right');
+        expect(showJuniorCard).toHaveBeenCalledWith(button, 42, 12345, 'Junior One', 'right', { isCurrent: expect.any(Function) });
         button.click(); expect(native).toHaveBeenCalledOnce();
         expect(sync).toHaveBeenCalledWith({ teamId: 42, week: 1213, kind: 'academy', ids: [12345, 12346] });
         const requests = current.mock.calls.length;
-        button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); vi.advanceTimersByTime(HOVER_DELAY_MS);
         expect(current).toHaveBeenCalledTimes(requests);
 
         setPage('/juniors/99/', academy);
@@ -179,8 +240,8 @@ describe('observed beta academy and report', () => {
         const replacement = document.createElement('button'); replacement.textContent = 'Junior One';
         document.querySelector('button')!.replaceWith(replacement);
         await handleJuniorPage(scanJuniorPage(context(), document)!);
-        replacement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-        expect(showJuniorCard).toHaveBeenLastCalledWith(replacement, 42, 12345, 'Junior One', 'right');
+        replacement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); vi.advanceTimersByTime(HOVER_DELAY_MS);
+        expect(showJuniorCard).toHaveBeenLastCalledWith(replacement, 42, 12345, 'Junior One', 'right', { isCurrent: expect.any(Function) });
         expect(sync).toHaveBeenCalledTimes(1);
         document.querySelector('tr')!.setAttribute('data-row-id', '9007199254740992');
         expect(scanJuniorPage(context(), document)!.names.size).toBe(0);
@@ -228,12 +289,14 @@ it('keeps classic junior hover/focus when + controls are hidden and removes cont
     const name = document.querySelector<HTMLElement>('strong')!;
     const button = name.nextElementSibling as HTMLButtonElement;
     button.hidden = true;
-    name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    name.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); vi.advanceTimersByTime(HOVER_DELAY_MS);
     name.focus();
-    expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'right');
+    expect(showJuniorCard).toHaveBeenCalledWith(name, 42, 7, 'Player 7', 'right', { isCurrent: expect.any(Function) });
     name.parentElement!.innerHTML = '<strong>Replacement</strong>';
     await handleJuniorPage(scanJuniorPage(location.pathname, document)!);
     expect(button.isConnected).toBe(false);
     expect(document.querySelectorAll('[data-sokkerpp-owned="pin"]')).toHaveLength(1);
     expect(hideJuniorCard).toHaveBeenCalled();
 });
+
+afterEach(() => { leaveJuniorPage(); vi.useRealTimers(); });

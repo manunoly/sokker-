@@ -3,6 +3,7 @@ import { computeSkillProgress } from '../core/talent';
 import { PLAYER_SKILL_COLUMNS, preparePlayerTimeline, type PlayerSkill } from '../core/playerTimeline';
 import { createPlayerSkillContent, createPlayerSummaryContent } from './playerCard';
 import { getPlayerStrings } from './playerLocale';
+import { cancelHover } from './hoverIntent';
 
 interface Selection {
     playerId: number;
@@ -175,6 +176,7 @@ function setPinned(value: boolean): void {
 }
 
 async function showCard(next: Selection, pin = false): Promise<void> {
+    cancelHover();
     if (next.anchor && suppressFocusAnchor === next.anchor) return;
     const currentLoad = ++loadId;
     createCard();

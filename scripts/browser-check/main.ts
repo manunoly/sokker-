@@ -8,7 +8,8 @@ import { hideTooltip } from '../../src/content/tooltip';
 import { hideJuniorCard } from '../../src/content/juniorCard';
 import { initHistoryButtonPreferences, setHistoryButtonsVisible } from '../../src/core/historyButtonPreferences';
 import type { PlayerData, PlayerHistoryEntry, Skills } from '../../src/types';
-import type { JuniorRecord } from '../../src/core/juniorTypes';
+import type { JuniorRecord, JuniorRosterSnapshot } from '../../src/core/juniorTypes';
+import { mergeJuniorGraphRecord, mergeJuniorRosterRecord } from '../../src/core/juniorRepository';
 import squad from '../../src/content/fixtures/betaSquad.html?raw';
 import profile from '../../src/content/fixtures/betaPlayer.html?raw';
 import colors from '../../src/content/fixtures/betaPlayerColors.html?raw';
@@ -28,6 +29,8 @@ let blockedNetwork = 0;
 let blockedWrites = 0;
 const recordedDownloads: Array<{ filename: string; type: string; bytes: number; text?: string }> = [];
 const currentWeek = 1007;
+const juniorRecords = new Map<number, JuniorRecord>();
+let juniorSnapshot: JuniorRosterSnapshot | null = null;
 const baseSkills: Skills = { stamina: 8, pace: 10, technique: 9, passing: 8, keeper: 1, defending: 7, playmaking: 9, striker: 6, tacticalDiscipline: 9, form: 10, teamwork: 8, experience: 5 };
 function player(id: number): PlayerData {
     if (scenario.value.startsWith('comparison')) {
@@ -47,7 +50,7 @@ function player(id: number): PlayerData {
     return { id, name: id === 12345 ? 'Player One' : 'Player Two', history, latest: history.at(-1)! };
 }
 function junior(id: number): JuniorRecord {
-    return { teamId: 42, juniorId: id, points: Array.from({ length: 10 }, (_, index) => ({ x: index, y: 5 + Math.floor(index / 3), source: 'graph' })), nativeTalent: 3, nativeTalentWeek: currentWeek, weeksLeft: 10, graphWeek: currentWeek, resolvedWeek: currentWeek, resolution: 'graph' };
+    return juniorRecords.get(id) ?? { teamId: 42, juniorId: id, points: Array.from({ length: 10 }, (_, index) => ({ x: index, y: 5 + Math.floor(index / 3), source: 'graph' })), nativeTalent: 3, nativeTalentWeek: currentWeek, weeksLeft: 10, graphWeek: currentWeek, resolvedWeek: currentWeek, resolution: 'graph' };
 }
 function reply(message: any): unknown {
     operations.push(message.operation);
@@ -60,9 +63,23 @@ function reply(message: any): unknown {
         case 'getJuniorRecord': return junior(input.id);
         case 'getJuniorRecords': return input.ids.map((id: number) => [id, junior(id)]);
         case 'getWriteContext': return { teamId: input.teamId, epoch: 'synthetic-only' };
-        case 'getJuniorRosterSnapshot': return { teamId: 42, week: currentWeek, ids: [12345, 12346], complete: true, weeksLeftCaptured: true };
-        default: blockedWrites++; throw new Error(`Harness blocks unsupported operation: ${message.operation}`);
+        case 'getJuniorRosterSnapshot': return juniorSnapshot;
+        case 'api.juniorRoster': return [12345, 12346].map(id => ({ id, teamId: 42, talent: 3, weeksLeft: 10 }));
+        case 'api.juniorGraph':
+            if (![12345, 12346].includes(message.juniorId)) break;
+            return junior(message.juniorId).points;
+        case 'saveJuniorRosterSnapshot':
+            if (input.ctx.teamId !== 42 || input.ctx.epoch !== 'synthetic-only' || input.snapshot.week !== currentWeek ||
+                input.entries.some((entry: { id: number; teamId: number }) => entry.teamId !== 42 || ![12345, 12346].includes(entry.id))) break;
+            juniorSnapshot = input.snapshot;
+            for (const entry of input.entries) juniorRecords.set(entry.id, mergeJuniorRosterRecord(junior(entry.id), 42, entry, currentWeek));
+            return;
+        case 'saveJuniorGraph':
+            if (input.ctx.teamId !== 42 || input.ctx.epoch !== 'synthetic-only' || input.week !== currentWeek || ![12345, 12346].includes(input.id)) break;
+            juniorRecords.set(input.id, mergeJuniorGraphRecord(junior(input.id), 42, input.id, input.week, input.points));
+            return;
     }
+    blockedWrites++; throw new Error(`Harness blocks unsupported operation: ${message.operation}`);
 }
 function eventSet<T extends (...args: any[]) => void>() {
     const listeners = new Set<T>();
@@ -174,6 +191,7 @@ async function verifyProfileColors(): Promise<void> {
 
 async function verifyCurrent(): Promise<void> {
     const apiBefore = operations.filter(operation => operation.startsWith('api.')).length;
+    const writesBefore = operations.filter(operation => operation.startsWith('save')).length;
     check(['sokker.org', 'app.sokker.org', 'future.sokker.org'].every(host => resolvePageContext(new URL(`https://${host}${current.pathname}`))?.layout === 'beta'), `${scenario.value}: same route layout on root and subdomains`);
     const buttons = [...fixture.querySelectorAll<HTMLButtonElement>('[data-sokkerpp-owned="pin"]')];
     check(buttons.length > 0, `${scenario.value}: history controls are present`);
@@ -186,7 +204,8 @@ async function verifyCurrent(): Promise<void> {
         if (scenario.value === 'comparison') {
             const passing = players[0].skills.find(item => item.key === 'passing')!.anchor;
             const defending = players[0].skills.find(item => item.key === 'defending')!.anchor;
-            check(passing.querySelector('.skill-arrow')?.textContent === '▲' && !defending.querySelector('.skill-arrow'), 'comparison: last completed passing rise is shown, old defending rise is not');
+            const passingValue = passing.closest('.skill-list__item') ?? passing;
+            check((passingValue.matches('[data-sokkerpp-skill-change="up"]') || !!passingValue.querySelector('[data-sokkerpp-skill-change="up"]')) && !defending.matches('[data-sokkerpp-skill-change]') && !defending.querySelector('[data-sokkerpp-skill-change]') && !fixture.querySelector('.skill-arrow'), 'comparison: last completed passing rise is colored without arrows, old defending rise is not');
         }
         const skill = players[0].skills.find(item => item.key === 'pace')!.anchor;
         let nativeClicks = 0;
@@ -246,7 +265,8 @@ async function verifyCurrent(): Promise<void> {
     await setHistoryButtonsVisible(true);
     check(buttons.every(button => !button.hidden), `${scenario.value}: preference restores the existing controls`);
     check(operations.filter(operation => operation.startsWith('api.')).length === apiBefore, `${scenario.value}: hover, focus and pin add no API operation`);
-    check(blockedNetwork === 0 && blockedWrites === 0, `${scenario.value}: no external network or storage mutation was attempted`);
+    check(operations.filter(operation => operation.startsWith('save')).length === writesBefore, `${scenario.value}: hover, focus and pin add no synthetic history write`);
+    check(blockedNetwork === 0 && blockedWrites === 0, `${scenario.value}: no external network or unsupported storage operation was attempted`);
     status.textContent = `Checks passed for ${scenario.value}. ${operations.length} synthetic message operations; ${recordedDownloads.length} captured exports.`;
 }
 async function run(all: boolean): Promise<void> {

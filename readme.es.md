@@ -12,8 +12,8 @@ Usa TypeScript, API nativas del navegador y almacenamiento local en IndexedDB. L
 * **Inyección UI No Invasiva:** Colorea dinámicamente las celdas de la tabla de la plantilla (`/app/squad/`) en verde (subida) o rojo (bajada).
 * **Gráficos Nativos:** Tooltips flotantes con gráficas de progresión dibujadas 100% con la API nativa de `<canvas>`, sin librerías externas pesadas.
 * **Talento juvenil:** En los informes de entrenamiento y tu cantera, pasa el cursor sobre el nombre de un juvenil o enfócalo con el teclado para ver niveles observados, tendencia, talento de Sokker y una estimación independiente en semanas por nivel. [Uso y límites](documentation/JUNIOR_TALENT.es.md).
-* **Sincronización:** Consulta la semana actual de Sokker, actualiza la última semana guardada al cambiar de semana, obtiene informes recientes que falten y refresca el informe de la semana actual. Los juveniles solo se sincronizan en sus páginas admitidas y se reutilizan los datos de la semana.
-* **Progreso del primer equipo:** General Skills ++ se abre desde los nombres en la plantilla, la ficha del jugador, la configuración de entrenamiento y el detalle de informes. Muestra las semanas de entrenamiento avanzado directo y de formación sin foco directo desde la última subida observada de cada habilidad y una gráfica nativa de niveles y subidas. La tabla semanal sigue visible; [cálculo y límites](documentation/TALENT_SUMMARY.es.md).
+* **Sincronización:** Consulta la semana actual de Sokker, actualiza la última semana guardada al cambiar de semana, obtiene informes recientes que falten y refresca el informe de la semana actual. Los juveniles visibles se actualizan en cada visita a una página admitida, incluso dentro de la misma semana. La sincronización manual también actualiza la cantera propia desde las páginas admitidas del primer equipo.
+* **Progreso del primer equipo:** General Skills ++ se abre desde los nombres en la plantilla, la ficha del jugador, la configuración de entrenamiento, el detalle de informes y Main team progress. Muestra las semanas de entrenamiento avanzado directo y de formación sin foco directo desde la última subida observada de cada habilidad y una gráfica nativa de niveles y subidas. La tabla semanal sigue visible; [cálculo y límites](documentation/TALENT_SUMMARY.es.md).
 * **Gestor de Backups:** Base de datos local con importación y exportación JSON del historial del primer equipo y de los juveniles.
 
 ## 🛠️ Arquitectura y Filosofía Técnica
@@ -48,7 +48,7 @@ sokker-plus-plus/
     │   ├── talent.ts          # Contadores de entrenamiento por habilidad
     │   ├── playerTimeline.ts  # Semanas de informe y niveles observados
     │   ├── levelTrend.ts      # Regresión compartida
-    │   ├── juniorSync.ts      # Cola juvenil y sincronización semanal
+    │   ├── juniorSync.ts      # Cola juvenil por visita y sincronización manual
     │   ├── juniorRepository.ts # Juveniles en la misma IndexedDB
     │   ├── juniorTalent.ts    # Estimación de la curva juvenil
     │   └── trainingReport.ts  # Informe de entrenamiento por jugador
