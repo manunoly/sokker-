@@ -10,6 +10,8 @@ The supported beta squad and player pages use the same saved history and chart c
 
 The **Main team progress** page, at both `/training/main-team-progress` and `/{locale}/app/training/main-team-progress/`, also provides name hover/focus and `+` controls for the summary, and skill hover/focus for all eight charts. As in published 0.2.10, this page preserves native value colors: the extension clears its previous highlights and does not read current context or history for automatic change coloring. Opening a history card still reads local history. Native player development links keep working. Training setup accepts both the earlier markup and the table structure observed on October 29, 2026. Row IDs must agree with their player links; hidden or mismatched rows are ignored. These adapters were checked against the owner's locally saved pages; tracked regression fixtures use synthetic data.
 
+On entry and subsequent table updates, Main team progress also clears Sokker++ highlights and arrows left behind by earlier views or versions. Sokker's current text and background styles are preserved.
+
 The `+` controls appear beside player names in classic and beta views: they pin the summary and keep a subtle border. Skills have no `+` buttons; hovering or focusing a skill with the keyboard still opens its chart. Native Sokker actions remain available.
 
 The legacy progress table links names through `/{locale}/app/training/player-info/{id}` and also emits a double slash after the locale. Both forms identify the player without rewriting the native link. The actual legacy table structure, observed in a capture on October 29, 2026, is covered by summary, skill-chart, native-color preservation and identity regression tests.

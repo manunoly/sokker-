@@ -22,6 +22,8 @@ Each eligible page visit refreshes the roster and visible junior graphs, even wh
 
 The popup's **Sync** button refreshes first-team reports and then the current own junior roster and its graphs, including when invoked on a supported first-team page. It waits for both pipelines and reports junior failures. A retry can refresh the same week again. New API points replace saved points with the same coordinate while preserving earlier history; no levels are inferred from screenshots. A page kept open across training can be refreshed with this button or by reloading.
 
+An open junior card refreshes when new data is saved, including updates from another Sokker tab. It stays open while graphs synchronize; clearing or restoring history closes it.
+
 ## Chart and estimate
 
 Canvas draws only observed levels. Consecutive observed weeks have a solid line; gaps stay unconnected. The Y scale runs from the lowest to the highest observed level, with one level of padding when all values match. The X axis shows weeks remaining until departure when `weeksLeft` is available, ending at the last observation rather than drawing empty future weeks. Without `weeksLeft`, it shows elapsed weeks from the first observation. The fitted trend is dashed and spans only the observed interval.

@@ -1,8 +1,9 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import type { JuniorRecord } from '../core/juniorTypes';
 const mocks = vi.hoisted(() => ({
     initObserver: vi.fn(), refreshObserver: vi.fn(), processSquadTable: vi.fn(), processPlayerPage: vi.fn(), processBetaPlayers: vi.fn(), invalidatePlayerCache: vi.fn(),
     syncData: vi.fn(), reconcileGaps: vi.fn(), migrateCurrentOrigin: vi.fn(), ensureStorageReady: vi.fn(), getLastSyncWeek: vi.fn(), subscribeStorageChanges: vi.fn(),
-    fetchTodayInfo: vi.fn(), invalidateJuniorSync: vi.fn(), cancelQueuedJuniorSync: vi.fn(), syncCurrentJuniors: vi.fn(), hideJuniorCard: vi.fn(), hideTooltip: vi.fn(), leavePlayerBindings: vi.fn(),
+    fetchTodayInfo: vi.fn(), invalidateJuniorSync: vi.fn(), cancelQueuedJuniorSync: vi.fn(), syncCurrentJuniors: vi.fn(), hideJuniorCard: vi.fn(), refreshJuniorCard: vi.fn(), getJuniorRecord: vi.fn(), getJuniorSyncState: vi.fn(), subscribeJuniorUpdates: vi.fn(), hideTooltip: vi.fn(), leavePlayerBindings: vi.fn(),
     scanJuniorPage: vi.fn(), handleJuniorPage: vi.fn(), leaveJuniorPage: vi.fn(), scanTrainingPlayerPage: vi.fn(), handleTrainingPlayerPage: vi.fn(), leaveTrainingPlayerPage: vi.fn(),
     initHistoryButtonPreferences: vi.fn(),
 }));
@@ -13,9 +14,10 @@ vi.mock('../core/gapDetector', () => ({ reconcileGaps: mocks.reconcileGaps }));
 vi.mock('../core/sync', () => ({ syncData: mocks.syncData }));
 vi.mock('../core/apiClient', () => ({ fetchTodayInfo: mocks.fetchTodayInfo }));
 vi.mock('../core/storageClient', () => ({ migrateCurrentOrigin: mocks.migrateCurrentOrigin, ensureStorageReady: mocks.ensureStorageReady,
-    getLastSyncWeek: mocks.getLastSyncWeek, subscribeStorageChanges: mocks.subscribeStorageChanges }));
-vi.mock('../core/juniorSync', () => ({ invalidateJuniorSync: mocks.invalidateJuniorSync, cancelQueuedJuniorSync: mocks.cancelQueuedJuniorSync, syncCurrentJuniors: mocks.syncCurrentJuniors }));
-vi.mock('./juniorCard', () => ({ hideJuniorCard: mocks.hideJuniorCard }));
+    getLastSyncWeek: mocks.getLastSyncWeek, subscribeStorageChanges: mocks.subscribeStorageChanges, getJuniorRecord: mocks.getJuniorRecord }));
+vi.mock('../core/juniorSync', () => ({ invalidateJuniorSync: mocks.invalidateJuniorSync, cancelQueuedJuniorSync: mocks.cancelQueuedJuniorSync, syncCurrentJuniors: mocks.syncCurrentJuniors,
+    getJuniorSyncState: mocks.getJuniorSyncState, subscribeJuniorUpdates: mocks.subscribeJuniorUpdates }));
+vi.mock('./juniorCard', () => ({ hideJuniorCard: mocks.hideJuniorCard, refreshJuniorCard: mocks.refreshJuniorCard }));
 vi.mock('./tooltip', () => ({ hideTooltip: mocks.hideTooltip }));
 vi.mock('./playerBindings', () => ({ leavePlayerBindings: mocks.leavePlayerBindings }));
 vi.mock('./juniorPage', () => ({ scanJuniorPage: mocks.scanJuniorPage, handleJuniorPage: mocks.handleJuniorPage, leaveJuniorPage: mocks.leaveJuniorPage }));
@@ -32,6 +34,7 @@ beforeEach(() => {
     mocks.syncData.mockResolvedValue({ status: 'synced' });
     mocks.fetchTodayInfo.mockResolvedValue({ teamId: 9001, week: 1213 });
     mocks.syncCurrentJuniors.mockResolvedValue(undefined);
+    mocks.refreshJuniorCard.mockResolvedValue(undefined);
     mocks.reconcileGaps.mockResolvedValue({ gapsFilled: 0 });
     mocks.initHistoryButtonPreferences.mockResolvedValue(undefined);
 });
@@ -129,6 +132,56 @@ describe('shared history bootstrap', () => {
         mocks.subscribeStorageChanges.mock.calls[0][0]({ ...state, revision: 1 });
         expect(mocks.invalidateJuniorSync).not.toHaveBeenCalled(); expect(mocks.invalidatePlayerCache).toHaveBeenCalledOnce();
         expect(mocks.invalidatePlayerCache).toHaveBeenCalledWith({ preserveIndicators: true });
+    });
+    it('keeps the junior card open as saved graphs arrive and refreshes it across tabs', async () => {
+        vi.stubGlobal('location', new URL('https://app.sokker.org/juniors/9001'));
+        const juniorCard = await vi.importActual<typeof import('./juniorCard')>('./juniorCard');
+        const canvasContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+        mocks.hideJuniorCard.mockImplementation(juniorCard.hideJuniorCard);
+        mocks.refreshJuniorCard.mockImplementation(() => juniorCard.refreshJuniorCard());
+        mocks.getJuniorSyncState.mockReturnValue('loading');
+        mocks.subscribeJuniorUpdates.mockReturnValue(() => {});
+        mocks.getJuniorRecord.mockResolvedValue(null);
+        try {
+            const callbacks = await load();
+            callbacks[3]();
+            await vi.waitFor(() => expect(mocks.scanJuniorPage).toHaveBeenCalled());
+            const trigger = document.createElement('button');
+            document.body.appendChild(trigger);
+            await juniorCard.showJuniorCard(trigger, 9001, 7, 'Synthetic Junior', 'right', { pinned: true });
+            const card = document.querySelector<HTMLElement>('#sokkerpp-junior-card')!;
+            expect(card.querySelector('canvas')).toBeNull();
+
+            const saved: JuniorRecord = {
+                teamId: 9001, juniorId: 7, nativeTalent: 4, nativeTalentWeek: 1213,
+                resolvedWeek: 1213, resolution: 'graph',
+                points: [10, 11, 12, 13].map(x => ({ x, y: 3, source: 'graph' })),
+            };
+            mocks.getJuniorRecord.mockResolvedValue(saved);
+            mocks.getJuniorSyncState.mockReturnValue('idle');
+            const changed = mocks.subscribeStorageChanges.mock.calls[0][0];
+            changed({ ...state, revision: 1 });
+            expect(card.isConnected).toBe(true);
+            await vi.waitFor(() => expect(card.querySelectorAll('ol li')).toHaveLength(4));
+            expect(card.querySelector('canvas')).not.toBeNull();
+            expect(document.querySelector('#sokkerpp-junior-card')).toBe(card);
+
+            mocks.getJuniorRecord.mockResolvedValue({
+                ...saved, points: [...saved.points, { x: 14, y: 4, source: 'graph' }],
+            });
+            changed({ ...state, revision: 2 });
+            await vi.waitFor(() => expect(card.querySelectorAll('ol li')).toHaveLength(5));
+            expect(card.isConnected).toBe(true);
+
+            changed({ ...state, epoch: 'epoch-2', revision: 3 });
+            expect(card.isConnected).toBe(false);
+            expect(mocks.invalidateJuniorSync).toHaveBeenCalledOnce();
+        } finally {
+            juniorCard.hideJuniorCard();
+            mocks.hideJuniorCard.mockReset();
+            mocks.refreshJuniorCard.mockReset();
+            canvasContext.mockRestore();
+        }
     });
     it('keeps large backups and destructive data management out of content messages', async () => {
         await load();

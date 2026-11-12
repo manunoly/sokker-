@@ -7,7 +7,7 @@ import { ensureStorageReady, getLastSyncWeek, migrateCurrentOrigin, subscribeSto
 import { cancelQueuedJuniorSync, invalidateJuniorSync, syncCurrentJuniors } from '../core/juniorSync';
 import { handleJuniorPage, leaveJuniorPage, scanJuniorPage } from './juniorPage';
 import { handleTrainingPlayerPage, leaveTrainingPlayerPage, scanTrainingPlayerPage } from './trainingPlayerPage';
-import { hideJuniorCard } from './juniorCard';
+import { hideJuniorCard, refreshJuniorCard } from './juniorCard';
 import { hideTooltip } from './tooltip';
 import { leavePlayerBindings } from './playerBindings';
 import { resolvePageContext } from './pageContext';
@@ -65,7 +65,10 @@ function main(): void {
             void invalidateJuniorSync().then(() => refreshObserver()).catch(report);
         }
         else if (previous.revision !== state.revision) {
-            hideTooltip(); hideJuniorCard(); invalidatePlayerCache({ preserveIndicators: true }); refreshObserver();
+            hideTooltip();
+            void refreshJuniorCard().catch(report);
+            invalidatePlayerCache({ preserveIndicators: true });
+            refreshObserver();
         }
     });
     initObserver(

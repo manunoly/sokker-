@@ -10,14 +10,35 @@ import { bindPlayerAnchors, isPlayerAnchorActive, type PlayerAnchors } from './p
 const skills = new Set<string>(PLAYER_SKILL_COLUMNS.flat());
 let renderGeneration = 0;
 interface HighlightIdentity { playerId: number; skill: PlayerSkill }
-const highlighted = new Map<HTMLElement, HighlightIdentity & { color: string; weight: string; title: string }>();
+interface HighlightSnapshot extends HighlightIdentity {
+    color: string;
+    colorPriority: string;
+    weight: string;
+    weightPriority: string;
+    title: string | null;
+    appliedColor: string;
+    appliedTitle: string;
+}
+const changeColors = { up: 'rgb(40, 167, 69)', down: 'rgb(220, 53, 69)' };
+const highlighted = new Map<HTMLElement, HighlightSnapshot>();
+function hasAppliedStyle(value: HTMLElement, property: 'color' | 'font-weight', expected: string): boolean {
+    return value.style.getPropertyValue(property) === expected && !value.style.getPropertyPriority(property);
+}
 function restoreHighlight(value: HTMLElement): void {
     const original = highlighted.get(value);
     if (!original) return;
     value.removeAttribute('data-sokkerpp-skill-change');
-    value.style.color = original.color;
-    value.style.fontWeight = original.weight;
-    value.title = original.title;
+    // A native render may already have replaced our declarations and title.
+    if (hasAppliedStyle(value, 'color', original.appliedColor)) {
+        value.style.setProperty('color', original.color, original.colorPriority);
+    }
+    if (hasAppliedStyle(value, 'font-weight', 'bold')) {
+        value.style.setProperty('font-weight', original.weight, original.weightPriority);
+    }
+    if (value.getAttribute('title') === original.appliedTitle) {
+        if (original.title === null) value.removeAttribute('title');
+        else value.setAttribute('title', original.title);
+    }
     highlighted.delete(value);
 }
 function clearHighlights(retain?: ReadonlyMap<HTMLElement, HighlightIdentity>): void {
@@ -26,6 +47,25 @@ function clearHighlights(retain?: ReadonlyMap<HTMLElement, HighlightIdentity>): 
         if (current?.playerId === original.playerId && current.skill === original.skill) continue;
         restoreHighlight(value);
     }
+}
+
+function clearProgressHighlights(root: Document): void {
+    clearHighlights();
+    root.getElementById('sokkerpp-skill-colors')?.remove();
+    // Cloned or restored DOM can retain our styles without a snapshot in this instance.
+    root.querySelectorAll<HTMLElement>('[data-sokkerpp-skill-change]').forEach(value => {
+        const direction = value.dataset.sokkerppSkillChange;
+        value.removeAttribute('data-sokkerpp-skill-change');
+        if (direction !== 'up' && direction !== 'down') return;
+        if (hasAppliedStyle(value, 'color', changeColors[direction])) {
+            value.style.removeProperty('color');
+        }
+        if (hasAppliedStyle(value, 'font-weight', 'bold')) {
+            value.style.removeProperty('font-weight');
+        }
+        if (/^Previous: \d+(?:\.\d+)?$/.test(value.title)) value.removeAttribute('title');
+    });
+    root.querySelectorAll('.skill-arrow, [data-sokkerpp-owned="change"]').forEach(node => node.remove());
 }
 function highlightTargets(target: PlayerAnchors['skills'][number]): HTMLElement[] {
     const { anchor } = target;
@@ -38,8 +78,8 @@ function ensureHighlightStyles(): void {
     const style = document.createElement('style');
     style.id = 'sokkerpp-skill-colors';
     style.dataset.sokkerppOwned = 'skill-colors';
-    style.textContent = '[data-sokkerpp-skill-change="up"]{color:#28a745!important;font-weight:bold!important}'
-        + '[data-sokkerpp-skill-change="down"]{color:#dc3545!important;font-weight:bold!important}';
+    style.textContent = `[data-sokkerpp-skill-change="up"]{color:${changeColors.up}!important;font-weight:bold!important}`
+        + `[data-sokkerpp-skill-change="down"]{color:${changeColors.down}!important;font-weight:bold!important}`;
     document.head.append(style);
 }
 function legacyPlayerLink(link: HTMLAnchorElement): number | null {
@@ -79,23 +119,39 @@ function showChange(target: PlayerAnchors['skills'][number], playerId: number, c
     if (changed && values.length) ensureHighlightStyles();
     for (const value of values) {
         if (changed) {
-            if (!highlighted.has(value)) {
-                highlighted.set(value, { playerId, skill, color: value.style.color, weight: value.style.fontWeight, title: value.title });
+            const original = highlighted.get(value) ?? {
+                playerId, skill, color: value.style.color, colorPriority: value.style.getPropertyPriority('color'),
+                weight: value.style.fontWeight, weightPriority: value.style.getPropertyPriority('font-weight'),
+                title: value.getAttribute('title'), appliedColor: '', appliedTitle: '',
+            };
+            // Keep the latest native baseline through ordinary rescans before navigation.
+            if (!hasAppliedStyle(value, 'color', original.appliedColor)) {
+                original.color = value.style.color;
+                original.colorPriority = value.style.getPropertyPriority('color');
             }
-            value.dataset.sokkerppSkillChange = curr > prev ? 'up' : 'down';
-            value.style.color = curr > prev ? '#28a745' : '#dc3545';
-            value.style.fontWeight = 'bold';
+            if (!hasAppliedStyle(value, 'font-weight', 'bold')) {
+                original.weight = value.style.fontWeight;
+                original.weightPriority = value.style.getPropertyPriority('font-weight');
+            }
+            if (value.getAttribute('title') !== original.appliedTitle) original.title = value.getAttribute('title');
+            const direction = curr > prev ? 'up' : 'down';
+            value.dataset.sokkerppSkillChange = direction;
+            value.style.setProperty('color', changeColors[direction]);
+            value.style.setProperty('font-weight', 'bold');
             value.title = `Previous: ${prev}`;
+            original.appliedColor = value.style.color;
+            original.appliedTitle = value.title;
+            highlighted.set(value, original);
         } else restoreHighlight(value);
     }
 }
 
-async function renderPlayers(players: PlayerAnchors[], pathname: string): Promise<void> {
+async function renderPlayers(players: PlayerAnchors[], pathname: string, root: Document = document): Promise<void> {
     const generation = ++renderGeneration;
     bindPlayerAnchors(players);
-    // Published 0.2.10 keeps progress history controls without automatic coloring.
+    // Progress already has native change colors; keep only our history/chart bindings.
     if (contextFromPath(pathname)?.kind === 'training-progress') {
-        clearHighlights();
+        clearProgressHighlights(root);
         return;
     }
     // Keep valid colors while reads are pending, restoring reused or removed values immediately.
@@ -187,7 +243,7 @@ export async function processBetaPlayers(context: PageContext, root: Document = 
             delete anchor.dataset.sokkerppValue;
         }
     }
-    await renderPlayers(players, context.pathname);
+    await renderPlayers(players, context.pathname, root);
 }
 
 

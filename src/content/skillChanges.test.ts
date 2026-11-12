@@ -136,6 +136,123 @@ it.each(['beta-progress', 'legacy-progress'] as const)('opens progress history a
     expect(document.querySelectorAll('[data-sokkerpp-owned="pin"], .skill-arrow')).toHaveLength(0);
 });
 
+const progressRoutes = [
+    { pathname: '/training/main-team-progress', href: '/player/7/development' },
+    { pathname: '/en/app/training/main-team-progress/', href: '/en//app/training/player-info/7' },
+];
+
+it.each(progressRoutes)('removes cloned extension colors and arrows on $pathname', async ({ pathname, href }) => {
+    await mount('beta-squad')();
+    const original = document.querySelector<HTMLElement>('tr')!;
+    const row = original.cloneNode(true) as HTMLElement;
+    original.replaceWith(row);
+    const value = row.querySelector<HTMLElement>('#passing')!;
+    row.style.color = 'white';
+    value.style.backgroundColor = '#28a745';
+    value.style.borderRadius = '3px';
+    value.classList.add('native-rise');
+    const arrow = document.createElement('span');
+    arrow.className = 'skill-arrow';
+    value.appendChild(arrow);
+    row.querySelector('a')!.setAttribute('href', href);
+    window.history.replaceState({}, '', pathname);
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+
+    expect(document.querySelectorAll('[data-sokkerpp-skill-change], .skill-arrow')).toHaveLength(0);
+    expect(document.getElementById('sokkerpp-skill-colors')).toBeNull();
+    expect(value.style.color).toBe('');
+    expect(getComputedStyle(value).color).toBe('rgb(255, 255, 255)');
+    expect(value.style.fontWeight).toBe('');
+    expect(value.hasAttribute('title')).toBe(false);
+    expect(value.style.backgroundColor).toBe('rgb(40, 167, 69)');
+    expect(value.style.borderRadius).toBe('3px');
+    expect(value.classList.contains('native-rise')).toBe(true);
+
+    window.history.replaceState({}, '', '/squad');
+    row.querySelector('a')!.setAttribute('href', '/player/7');
+    value.style.backgroundColor = '';
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(value.dataset.sokkerppSkillChange).toBe('up');
+    expect(document.getElementById('sokkerpp-skill-colors')).not.toBeNull();
+});
+
+it.each(progressRoutes)('preserves new native styles while removing our highlights on $pathname', async ({ pathname, href }) => {
+    const render = mount('beta-squad');
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    value.style.color = 'gray';
+    value.style.fontWeight = '400';
+    value.title = 'Original native value';
+    await render();
+    value.style.color = 'white';
+    value.style.fontWeight = '600';
+    value.style.backgroundColor = 'green';
+    value.title = 'New native rise';
+    const nativeStyle = value.style.cssText;
+    document.querySelector('a')!.setAttribute('href', href);
+    window.history.replaceState({}, '', pathname);
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+
+    expect(value.style.cssText).toBe(nativeStyle);
+    expect(value.title).toBe('New native rise');
+    expect(value.dataset.sokkerppSkillChange).toBeUndefined();
+    expect(document.getElementById('sokkerpp-skill-colors')).toBeNull();
+});
+
+it('cleans inherited highlights in progress even when rows cannot be bound', async () => {
+    window.history.replaceState({}, '', '/training/main-team-progress');
+    document.body.innerHTML = '<table><tbody><tr aria-hidden="true"><td class="table__cell--passing">'
+        + '<span id="orphan" data-sokkerpp-skill-change="up" style="color: #28a745; font-weight: bold; background-color: green; border-radius: 3px;" title="Previous: 8">9</span>'
+        + '<span id="native" data-sokkerpp-skill-change="down" style="color: white; font-weight: 600;" title="Native decline">7</span>'
+        + '<span class="skill-arrow">▲</span><span data-sokkerpp-owned="change">▲</span>'
+        + '</td></tr></tbody></table>';
+    const orphan = document.querySelector<HTMLElement>('#orphan')!;
+    const native = document.querySelector<HTMLElement>('#native')!;
+    expect(orphan.style.color).toBe('rgb(40, 167, 69)');
+    expect(orphan.style.backgroundColor).toBe('green');
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(document.querySelectorAll('[data-sokkerpp-skill-change], .skill-arrow, [data-sokkerpp-owned="change"]')).toHaveLength(0);
+    expect(orphan.style.color).toBe('');
+    expect(orphan.style.fontWeight).toBe('');
+    expect(orphan.style.backgroundColor).toBe('green');
+    expect(orphan.style.borderRadius).toBe('3px');
+    expect(orphan.hasAttribute('title')).toBe(false);
+    expect(native.style.color).toBe('white');
+    expect(native.style.fontWeight).toBe('600');
+    expect(native.title).toBe('Native decline');
+});
+
+it('preserves new native important declarations even when their values match our highlight', async () => {
+    await mount('beta-squad')();
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    value.style.setProperty('color', value.style.color, 'important');
+    value.style.setProperty('font-weight', 'bold', 'important');
+    const nativeStyle = value.style.cssText;
+    window.history.replaceState({}, '', '/training/main-team-progress');
+    document.querySelector('a')!.setAttribute('href', '/player/7/development');
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(value.style.cssText).toBe(nativeStyle);
+    expect(value.dataset.sokkerppSkillChange).toBeUndefined();
+});
+
+it('restores the latest native style after a squad repaint before entering progress', async () => {
+    const render = mount('beta-squad');
+    const value = document.querySelector<HTMLElement>('#passing')!;
+    value.style.color = 'gray';
+    value.style.fontWeight = '400';
+    await render();
+    value.style.setProperty('color', 'white', 'important');
+    value.style.setProperty('font-weight', '600', 'important');
+    value.title = 'Latest native value';
+    const nativeStyle = value.style.cssText;
+    await render();
+    expect(value.dataset.sokkerppSkillChange).toBe('up');
+    window.history.replaceState({}, '', '/training/main-team-progress');
+    document.querySelector('a')!.setAttribute('href', '/player/7/development');
+    await processBetaPlayers(resolvePageContext(new URL(location.href))!);
+    expect(value.style.cssText).toBe(nativeStyle);
+    expect(value.title).toBe('Latest native value');
+});
+
 it.each(layouts.flatMap(layout => [0, 1, 2, 3, 4, 5, 6].map(day => ({ layout, day }))))(
     'shows the latest completed rise without a current-week entry: $layout day=$day', async ({ layout, day }) => {
         const today = await fetchTodayInfo();

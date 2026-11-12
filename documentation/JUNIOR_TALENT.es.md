@@ -22,6 +22,8 @@ Cada entrada en una página admitida actualiza la cantera y las gráficas de los
 
 El botón **Sincronizar** del popup actualiza primero los informes del primer equipo y después la cantera propia actual y sus gráficas, también desde una página admitida del primer equipo. Espera a ambos procesos e informa de los errores juveniles. Un reintento puede actualizar otra vez la misma semana. Los puntos nuevos de la API sustituyen los guardados con la misma coordenada y conservan el historial anterior; no se deducen niveles de capturas de pantalla. Si la página permanece abierta durante el entrenamiento, este botón o una recarga permiten actualizarla.
 
+La tarjeta abierta se actualiza al guardarse nuevos datos, también desde otra pestaña de Sokker. Permanece abierta mientras se sincronizan las gráficas; borrar o restaurar el historial sí la cierra.
+
 ## Gráfica y estimación
 
 Canvas dibuja únicamente los niveles observados. Las semanas consecutivas se unen con línea continua; los huecos no se conectan. El eje Y va del menor al mayor nivel observado, con un nivel de margen si todos coinciden. El eje X muestra las semanas restantes hasta salir de la cantera si se conoce `weeksLeft`, y termina en la última observación sin reservar semanas futuras vacías. Sin ese dato, muestra las semanas transcurridas desde la primera observación. La tendencia discontinua solo abarca el periodo observado.
